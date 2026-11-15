@@ -30,8 +30,9 @@ private code base; this repository is public.
   not know is refused whole.
 - With a provider set on the machine, the model path is local: a turn is read
   whole before anything is released; a request or a response that cannot be
-  read as the server reads it, a provider-run tool, a secret in the model's
-  answer, or Nia out of reach refuse it. Prompts, tool results and model text
+  read as the server reads it, a secret in the model's answer, or Nia out of
+  reach refuse it. A provider-run tool is decided before the request leaves
+  and removed from it unless Nia allows it. Prompts, tool results and model text
   are never sent to Nia or logged; the provider key is in the state file
   only, never shown, never accepted on the command line, never sent anywhere
   but to the provider.

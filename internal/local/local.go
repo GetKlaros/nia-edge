@@ -26,7 +26,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -48,6 +48,8 @@ type Verdict struct {
 type Authority interface {
 	// Ingested records that the session holds a result of this tool.
 	Ingested(ctx context.Context, session, tool string) error
+	// Hosted says which provider-run tools the role allows in the session.
+	Hosted(ctx context.Context, session string, tools []string) (allowed []string, err error)
 	// Decide answers for one proposed call.
 	Decide(ctx context.Context, session, tool, arguments string) (Verdict, error)
 }
@@ -135,11 +137,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		refuse(w, format, http.StatusBadRequest, "invalid_request", "The request is not a JSON object this machine can read")
 		return
 	}
-	if hosted := hostedTools(format, body); hosted != "" {
-		// The provider would run it before any decision.
-		refuse(w, format, http.StatusBadRequest, "hosted_tool", "This machine does not send requests with provider-run tools ("+hosted+")")
-		return
-	}
 	input, err := turn.ReadInput(format, body)
 	if err != nil {
 		h.log("request refused", "reason", err.Error())
@@ -154,8 +151,30 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	// A secret in what is new in this turn does not leave the machine.
+	// Tools the provider would run during the call are decided now: one the
+	// role does not allow in this session is removed from the request.
 	rewritten := false
+	hosted, err := turn.HostedTools(format, body)
+	if err != nil {
+		h.log("request refused", "reason", err.Error())
+		refuse(w, format, http.StatusUnprocessableEntity, "unreadable_request", "Nia could not read the tools of this request the way it must")
+		return
+	}
+	if len(hosted) > 0 {
+		allowed, err := h.Nia.Hosted(r.Context(), session, hosted)
+		if err != nil {
+			h.log("no decision", "tools", strings.Join(hosted, ","), "error", err.Error())
+			refuse(w, format, http.StatusServiceUnavailable, "nia_unavailable", "Nia could not be reached, so nothing was sent to the model")
+			return
+		}
+		gate, err := turn.GateHosted(format, body, func(name string) bool { return slices.Contains(hosted, name) && slices.Contains(allowed, name) })
+		if err != nil {
+			refuse(w, format, http.StatusUnprocessableEntity, "unreadable_request", "Nia could not read the tools of this request the way it must")
+			return
+		}
+		rewritten = len(gate.Removed) > 0
+	}
+	// A secret in what is new in this turn does not leave the machine.
 	for i := range input.Segments {
 		segment := &input.Segments[i]
 		if redacted := inspect.RedactSecrets(segment.Text); redacted != segment.Text {
@@ -324,48 +343,6 @@ func NewProviderClient(timeout time.Duration) *http.Client {
 	}
 }
 
-var (
-	openAIClientTypes   = map[string]bool{"function": true, "custom": true, "local_shell": true, "shell": true, "apply_patch": true, "computer_use_preview": true, "computer_use": true}
-	anthropicClientType = regexp.MustCompile(`^(custom|computer_[0-9]+|bash_[0-9]+|text_editor_[0-9]+|memory_[0-9]+)$`)
-)
-
-// hostedTools names a tool of the request that the provider would run
-// itself, during the model call, or "" when there is none. Nia decides those
-// on the request; this path does not send them at all.
-func hostedTools(format turn.Format, body *canon.Value) string {
-	if format == turn.ChatCompletions && body.Get("web_search_options").Present() {
-		return "web_search_options"
-	}
-	if format == turn.AnthropicMessages && body.Get("mcp_servers").Present() {
-		return "mcp_servers"
-	}
-	tools := body.Get("tools")
-	if !tools.Present() {
-		return ""
-	}
-	if tools.Kind() != canon.Array {
-		return "tools"
-	}
-	for _, tool := range tools.Items() {
-		kind, wellFormed, isText := tool.Get("type").Text()
-		switch {
-		case tool.Kind() != canon.Object, isText && !wellFormed:
-			return "a tool this machine cannot read"
-		case format == turn.AnthropicMessages:
-			// Without a type it is a tool of the client.
-			if tool.Get("type").Present() && (!isText || !anthropicClientType.MatchString(kind)) {
-				return kind
-			}
-		case !isText || !openAIClientTypes[kind]:
-			if !isText {
-				return "a tool without a type"
-			}
-			return kind
-		}
-	}
-	return ""
-}
-
 // syntheticText is a complete model response that says one thing, in the
 // shape the agent expects, streamed or not.
 func syntheticText(format turn.Format, stream bool, model, text string) ([]byte, string) {
@@ -510,6 +487,20 @@ func (n *Remote) Ingested(ctx context.Context, session, tool string) error {
 		return errors.New("Nia's answer records nothing")
 	}
 	return nil
+}
+
+// Hosted asks Nia which provider-run tools the role allows in the session.
+func (n *Remote) Hosted(ctx context.Context, session string, tools []string) ([]string, error) {
+	var answer struct {
+		Allowed *[]string `json:"allowed"`
+	}
+	if err := n.post(ctx, "/v1/tools/hosted", session, map[string]any{"tools": tools}, 15*time.Second, &answer); err != nil {
+		return nil, err
+	}
+	if answer.Allowed == nil {
+		return nil, errors.New("Nia's answer holds no decision")
+	}
+	return *answer.Allowed, nil
 }
 
 // Decide asks Nia about one proposed call. Only the answer "allow" allows it.

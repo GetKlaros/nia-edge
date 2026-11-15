@@ -1,0 +1,347 @@
+{
+ "version": 1,
+ "description": "gateHostedTools(format, JSON.parse(body), name => allowed.includes(name)): the provider-run tools of a request, decided before it is sent, and the request once those that are not allowed are removed.",
+ "cases": [
+  {
+   "name": "chat: web search options, allowed",
+   "format": "chat-completions",
+   "body": "{\"model\":\"m\",\"web_search_options\":{\"search_context_size\":\"low\"},\"messages\":[]}",
+   "allowed": [
+    "hosted:web_search"
+   ],
+   "kept": [
+    "hosted:web_search"
+   ],
+   "removed": [],
+   "result": "{\"model\":\"m\",\"web_search_options\":{\"search_context_size\":\"low\"},\"messages\":[]}"
+  },
+  {
+   "name": "chat: web search options, not allowed",
+   "format": "chat-completions",
+   "body": "{\"model\":\"m\",\"web_search_options\":{},\"messages\":[],\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"a\"}}]}",
+   "allowed": [],
+   "kept": [],
+   "removed": [
+    "hosted:web_search"
+   ],
+   "result": "{\"model\":\"m\",\"messages\":[],\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"a\"}}]}"
+  },
+  {
+   "name": "chat: web search options that are null",
+   "format": "chat-completions",
+   "body": "{\"web_search_options\":null,\"messages\":[]}",
+   "allowed": [],
+   "kept": [],
+   "removed": [
+    "hosted:web_search"
+   ],
+   "result": "{\"messages\":[]}"
+  },
+  {
+   "name": "chat: tools are the client's",
+   "format": "chat-completions",
+   "body": "{\"messages\":[],\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"a\"}},{\"type\":\"web_search\"},\"x\"],\"tool_choice\":{\"type\":\"web_search\"}}",
+   "allowed": [],
+   "kept": [],
+   "removed": [],
+   "result": "{\"messages\":[],\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"a\"}},{\"type\":\"web_search\"},\"x\"],\"tool_choice\":{\"type\":\"web_search\"}}"
+  },
+  {
+   "name": "chat: nothing to decide",
+   "format": "chat-completions",
+   "body": "{\"messages\":[]}",
+   "allowed": [
+    "hosted:web_search"
+   ],
+   "kept": [],
+   "removed": [],
+   "result": "{\"messages\":[]}"
+  },
+  {
+   "name": "responses: client tools stay, hosted ones are decided",
+   "format": "responses",
+   "body": "{\"input\":\"x\",\"tools\":[{\"type\":\"function\",\"name\":\"a\"},{\"type\":\"web_search_preview\"},{\"type\":\"custom\",\"name\":\"b\"},{\"type\":\"code_interpreter\",\"container\":{\"type\":\"auto\"}},{\"type\":\"local_shell\"},{\"type\":\"file_search\",\"vector_store_ids\":[\"v\"]},{\"type\":\"shell\"},{\"type\":\"apply_patch\"},{\"type\":\"computer_use_preview\"},{\"type\":\"computer_use\"},{\"type\":\"image_generation\"}]}",
+   "allowed": [
+    "hosted:code_interpreter"
+   ],
+   "kept": [
+    "hosted:code_interpreter"
+   ],
+   "removed": [
+    "hosted:web_search_preview",
+    "hosted:file_search",
+    "hosted:image_generation"
+   ],
+   "result": "{\"input\":\"x\",\"tools\":[{\"type\":\"function\",\"name\":\"a\"},{\"type\":\"custom\",\"name\":\"b\"},{\"type\":\"code_interpreter\",\"container\":{\"type\":\"auto\"}},{\"type\":\"local_shell\"},{\"type\":\"shell\"},{\"type\":\"apply_patch\"},{\"type\":\"computer_use_preview\"},{\"type\":\"computer_use\"}]}"
+  },
+  {
+   "name": "responses: all allowed",
+   "format": "responses",
+   "body": "{\"input\":\"x\",\"tools\":[{\"type\":\"web_search_preview\"},{\"type\":\"code_interpreter\"}]}",
+   "allowed": [
+    "hosted:web_search_preview",
+    "hosted:code_interpreter"
+   ],
+   "kept": [
+    "hosted:web_search_preview",
+    "hosted:code_interpreter"
+   ],
+   "removed": [],
+   "result": "{\"input\":\"x\",\"tools\":[{\"type\":\"web_search_preview\"},{\"type\":\"code_interpreter\"}]}"
+  },
+  {
+   "name": "responses: remote MCP servers by label",
+   "format": "responses",
+   "body": "{\"input\":\"x\",\"tools\":[{\"type\":\"mcp\",\"server_label\":\"crm\",\"server_url\":\"https://crm.test\"},{\"type\":\"mcp\",\"server_label\":\"mail\"},{\"type\":\"mcp\"},{\"type\":\"mcp\",\"server_label\":5},{\"type\":\"mcp\",\"server_label\":null},{\"type\":\"mcp\",\"server_label\":[\"a\",1]},{\"type\":\"mcp\",\"server_label\":{\"a\":1}}]}",
+   "allowed": [
+    "hosted:mcp:crm",
+    "hosted:mcp:5",
+    "hosted:mcp:unnamed"
+   ],
+   "kept": [
+    "hosted:mcp:crm",
+    "hosted:mcp:unnamed",
+    "hosted:mcp:5",
+    "hosted:mcp:unnamed"
+   ],
+   "removed": [
+    "hosted:mcp:mail",
+    "hosted:mcp:a,1",
+    "hosted:mcp:[object Object]"
+   ],
+   "result": "{\"input\":\"x\",\"tools\":[{\"type\":\"mcp\",\"server_label\":\"crm\",\"server_url\":\"https://crm.test\"},{\"type\":\"mcp\"},{\"type\":\"mcp\",\"server_label\":5},{\"type\":\"mcp\",\"server_label\":null}]}"
+  },
+  {
+   "name": "responses: a forced choice of a removed tool goes back to auto",
+   "format": "responses",
+   "body": "{\"input\":\"x\",\"tool_choice\":{\"type\":\"web_search_preview\"},\"tools\":[{\"type\":\"web_search_preview\"},{\"type\":\"function\",\"name\":\"a\"}]}",
+   "allowed": [],
+   "kept": [],
+   "removed": [
+    "hosted:web_search_preview"
+   ],
+   "result": "{\"input\":\"x\",\"tool_choice\":\"auto\",\"tools\":[{\"type\":\"function\",\"name\":\"a\"}]}"
+  },
+  {
+   "name": "responses: a forced choice of a kept tool stays",
+   "format": "responses",
+   "body": "{\"input\":\"x\",\"tool_choice\":{\"type\":\"function\",\"name\":\"a\"},\"tools\":[{\"type\":\"web_search_preview\"},{\"type\":\"function\",\"name\":\"a\"}]}",
+   "allowed": [],
+   "kept": [],
+   "removed": [
+    "hosted:web_search_preview"
+   ],
+   "result": "{\"input\":\"x\",\"tool_choice\":{\"type\":\"function\",\"name\":\"a\"},\"tools\":[{\"type\":\"function\",\"name\":\"a\"}]}"
+  },
+  {
+   "name": "responses: a forced choice by the name of a removed tool",
+   "format": "responses",
+   "body": "{\"input\":\"x\",\"tools\":[{\"type\":\"mcp\",\"name\":\"named\",\"server_label\":\"crm\"},{\"type\":\"function\",\"name\":\"a\"}],\"tool_choice\":{\"type\":\"mcp\",\"name\":\"named\"}}",
+   "allowed": [],
+   "kept": [],
+   "removed": [
+    "hosted:mcp:crm"
+   ],
+   "result": "{\"input\":\"x\",\"tools\":[{\"type\":\"function\",\"name\":\"a\"}],\"tool_choice\":\"auto\"}"
+  },
+  {
+   "name": "responses: a choice that is text is left alone",
+   "format": "responses",
+   "body": "{\"input\":\"x\",\"tool_choice\":\"required\",\"tools\":[{\"type\":\"web_search_preview\"},{\"type\":\"function\",\"name\":\"a\"}]}",
+   "allowed": [],
+   "kept": [],
+   "removed": [
+    "hosted:web_search_preview"
+   ],
+   "result": "{\"input\":\"x\",\"tool_choice\":\"required\",\"tools\":[{\"type\":\"function\",\"name\":\"a\"}]}"
+  },
+  {
+   "name": "responses: nothing left removes tools and the choice",
+   "format": "responses",
+   "body": "{\"input\":\"x\",\"tools\":[{\"type\":\"web_search_preview\"}],\"tool_choice\":\"required\",\"model\":\"m\"}",
+   "allowed": [],
+   "kept": [],
+   "removed": [
+    "hosted:web_search_preview"
+   ],
+   "result": "{\"input\":\"x\",\"model\":\"m\"}"
+  },
+  {
+   "name": "responses: an empty list of tools is removed",
+   "format": "responses",
+   "body": "{\"input\":\"x\",\"tools\":[],\"tool_choice\":\"auto\"}",
+   "allowed": [],
+   "kept": [],
+   "removed": [],
+   "result": "{\"input\":\"x\"}"
+  },
+  {
+   "name": "responses: entries that are not tools",
+   "format": "responses",
+   "body": "{\"input\":\"x\",\"tools\":[\"x\",null,5,[],{},{\"type\":5},{\"type\":\"\"},{\"name\":\"no type\"},{\"type\":\"web_search\"}]}",
+   "allowed": [],
+   "kept": [],
+   "removed": [
+    "hosted:web_search"
+   ],
+   "result": "{\"input\":\"x\",\"tools\":[\"x\",null,5,[],{},{\"type\":5},{\"type\":\"\"},{\"name\":\"no type\"}]}"
+  },
+  {
+   "name": "responses: tools that are not a list",
+   "format": "responses",
+   "body": "{\"input\":\"x\",\"tools\":{\"type\":\"web_search\"},\"tool_choice\":{\"type\":\"web_search\"}}",
+   "allowed": [],
+   "kept": [],
+   "removed": [],
+   "result": "{\"input\":\"x\",\"tools\":{\"type\":\"web_search\"},\"tool_choice\":{\"type\":\"web_search\"}}"
+  },
+  {
+   "name": "responses: the same tool twice",
+   "format": "responses",
+   "body": "{\"input\":\"x\",\"tools\":[{\"type\":\"web_search\"},{\"type\":\"web_search\"},{\"type\":\"function\",\"name\":\"a\"}]}",
+   "allowed": [
+    "hosted:web_search"
+   ],
+   "kept": [
+    "hosted:web_search",
+    "hosted:web_search"
+   ],
+   "removed": [],
+   "result": "{\"input\":\"x\",\"tools\":[{\"type\":\"web_search\"},{\"type\":\"web_search\"},{\"type\":\"function\",\"name\":\"a\"}]}"
+  },
+  {
+   "name": "responses: a repeated key",
+   "format": "responses",
+   "body": "{\"input\":\"x\",\"tools\":[{\"type\":\"function\",\"name\":\"a\"}],\"tools\":[{\"type\":\"function\",\"type\":\"web_search\"}],\"tool_choice\":\"auto\"}",
+   "allowed": [],
+   "kept": [],
+   "removed": [
+    "hosted:web_search"
+   ],
+   "result": "{\"input\":\"x\"}"
+  },
+  {
+   "name": "anthropic: client tools stay, server tools are decided",
+   "format": "anthropic-messages",
+   "body": "{\"messages\":[],\"tools\":[{\"name\":\"a\",\"input_schema\":{}},{\"type\":\"custom\",\"name\":\"b\"},{\"type\":\"bash_20250124\",\"name\":\"bash\"},{\"type\":\"text_editor_20250728\",\"name\":\"e\"},{\"type\":\"computer_20250124\",\"name\":\"c\"},{\"type\":\"memory_20250818\",\"name\":\"memory\"},{\"type\":\"web_search_20250305\",\"name\":\"web_search\"},{\"type\":\"web_fetch_20250910\",\"name\":\"web_fetch\"},{\"type\":\"code_execution_20250825\",\"name\":\"code_execution\"},{\"type\":\"bash_x\",\"name\":\"not a client type\"},{\"type\":\"web_search_20250305\"},{\"type\":\"x\",\"name\":5},{\"type\":\"y\",\"name\":null}]}",
+   "allowed": [
+    "hosted:web_fetch",
+    "hosted:5"
+   ],
+   "kept": [
+    "hosted:web_fetch",
+    "hosted:5"
+   ],
+   "removed": [
+    "hosted:web_search",
+    "hosted:code_execution",
+    "hosted:not a client type",
+    "hosted:web_search_20250305",
+    "hosted:y"
+   ],
+   "result": "{\"messages\":[],\"tools\":[{\"name\":\"a\",\"input_schema\":{}},{\"type\":\"custom\",\"name\":\"b\"},{\"type\":\"bash_20250124\",\"name\":\"bash\"},{\"type\":\"text_editor_20250728\",\"name\":\"e\"},{\"type\":\"computer_20250124\",\"name\":\"c\"},{\"type\":\"memory_20250818\",\"name\":\"memory\"},{\"type\":\"web_fetch_20250910\",\"name\":\"web_fetch\"},{\"type\":\"x\",\"name\":5}]}"
+  },
+  {
+   "name": "anthropic: a forced choice of a removed tool goes back to auto",
+   "format": "anthropic-messages",
+   "body": "{\"messages\":[],\"tool_choice\":{\"type\":\"tool\",\"name\":\"web_search\"},\"tools\":[{\"type\":\"web_search_20250305\",\"name\":\"web_search\"},{\"name\":\"a\"}]}",
+   "allowed": [],
+   "kept": [],
+   "removed": [
+    "hosted:web_search"
+   ],
+   "result": "{\"messages\":[],\"tool_choice\":{\"type\":\"auto\"},\"tools\":[{\"name\":\"a\"}]}"
+  },
+  {
+   "name": "anthropic: a forced choice of a client tool stays",
+   "format": "anthropic-messages",
+   "body": "{\"messages\":[],\"tool_choice\":{\"type\":\"tool\",\"name\":\"a\"},\"tools\":[{\"type\":\"web_search_20250305\",\"name\":\"web_search\"},{\"name\":\"a\"}]}",
+   "allowed": [],
+   "kept": [],
+   "removed": [
+    "hosted:web_search"
+   ],
+   "result": "{\"messages\":[],\"tool_choice\":{\"type\":\"tool\",\"name\":\"a\"},\"tools\":[{\"name\":\"a\"}]}"
+  },
+  {
+   "name": "anthropic: MCP servers and their toolsets",
+   "format": "anthropic-messages",
+   "body": "{\"messages\":[],\"mcp_servers\":[{\"type\":\"url\",\"name\":\"crm\",\"url\":\"https://crm.test\"},{\"type\":\"url\",\"name\":\"mail\",\"url\":\"https://mail.test\"},{\"url\":\"https://unnamed.test\"},\"x\",{\"name\":5}],\"tools\":[{\"type\":\"mcp_toolset\",\"mcp_server_name\":\"crm\"},{\"type\":\"mcp_toolset\",\"mcp_server_name\":\"mail\"},{\"type\":\"mcp_toolset\"},{\"type\":\"mcp_toolset\",\"mcp_server_name\":\"unnamed\"},{\"type\":\"mcp_toolset\",\"mcp_server_name\":null},{\"name\":\"a\"}]}",
+   "allowed": [
+    "hosted:mcp:mail"
+   ],
+   "kept": [
+    "hosted:mcp:mail"
+   ],
+   "removed": [
+    "hosted:mcp:crm",
+    "hosted:mcp:unnamed",
+    "hosted:mcp:unnamed",
+    "hosted:mcp:unnamed"
+   ],
+   "result": "{\"messages\":[],\"mcp_servers\":[{\"type\":\"url\",\"name\":\"mail\",\"url\":\"https://mail.test\"}],\"tools\":[{\"type\":\"mcp_toolset\",\"mcp_server_name\":\"mail\"},{\"type\":\"mcp_toolset\"},{\"type\":\"mcp_toolset\",\"mcp_server_name\":null},{\"name\":\"a\"}]}"
+  },
+  {
+   "name": "anthropic: every MCP server removed",
+   "format": "anthropic-messages",
+   "body": "{\"messages\":[],\"mcp_servers\":[{\"name\":\"crm\"}],\"tools\":[{\"type\":\"mcp_toolset\",\"mcp_server_name\":\"crm\"}],\"tool_choice\":{\"type\":\"auto\"}}",
+   "allowed": [],
+   "kept": [],
+   "removed": [
+    "hosted:mcp:crm"
+   ],
+   "result": "{\"messages\":[]}"
+  },
+  {
+   "name": "anthropic: MCP servers allowed",
+   "format": "anthropic-messages",
+   "body": "{\"messages\":[],\"mcp_servers\":[{\"name\":\"crm\"}],\"tools\":[{\"type\":\"mcp_toolset\",\"mcp_server_name\":\"crm\"}]}",
+   "allowed": [
+    "hosted:mcp:crm"
+   ],
+   "kept": [
+    "hosted:mcp:crm"
+   ],
+   "removed": [],
+   "result": "{\"messages\":[],\"mcp_servers\":[{\"name\":\"crm\"}],\"tools\":[{\"type\":\"mcp_toolset\",\"mcp_server_name\":\"crm\"}]}"
+  },
+  {
+   "name": "anthropic: MCP servers that are not a list",
+   "format": "anthropic-messages",
+   "body": "{\"messages\":[],\"mcp_servers\":{\"name\":\"crm\"}}",
+   "allowed": [],
+   "kept": [],
+   "removed": [],
+   "result": "{\"messages\":[],\"mcp_servers\":{\"name\":\"crm\"}}"
+  },
+  {
+   "name": "anthropic: an empty list of MCP servers",
+   "format": "anthropic-messages",
+   "body": "{\"messages\":[],\"mcp_servers\":[],\"tools\":[{\"name\":\"a\"}]}",
+   "allowed": [],
+   "kept": [],
+   "removed": [],
+   "result": "{\"messages\":[],\"tools\":[{\"name\":\"a\"}]}"
+  },
+  {
+   "name": "anthropic: nothing to decide",
+   "format": "anthropic-messages",
+   "body": "{\"messages\":[],\"tools\":[{\"name\":\"a\"}],\"tool_choice\":{\"type\":\"any\"}}",
+   "allowed": [],
+   "kept": [],
+   "removed": [],
+   "result": "{\"messages\":[],\"tools\":[{\"name\":\"a\"}],\"tool_choice\":{\"type\":\"any\"}}"
+  },
+  {
+   "name": "anthropic: keys in JavaScript order after the change",
+   "format": "anthropic-messages",
+   "body": "{\"z\":1,\"tools\":[{\"type\":\"web_search_20250305\",\"name\":\"web_search\"},{\"name\":\"a\"}],\"2\":\"two\",\"tool_choice\":{\"name\":\"web_search\",\"type\":\"tool\"},\"1\":\"one\",\"messages\":[]}",
+   "allowed": [],
+   "kept": [],
+   "removed": [
+    "hosted:web_search"
+   ],
+   "result": "{\"1\":\"one\",\"2\":\"two\",\"z\":1,\"tools\":[{\"name\":\"a\"}],\"tool_choice\":{\"type\":\"auto\"},\"messages\":[]}"
+  }
+ ]
+}
