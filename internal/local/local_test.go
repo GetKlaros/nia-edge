@@ -18,11 +18,13 @@ import (
 
 // fakeNia records what it is told and answers from a table.
 type fakeNia struct {
-	mu       sync.Mutex
-	ingested []string
-	asked    []string
-	verdicts map[string]Verdict
-	down     bool
+	mu            sync.Mutex
+	ingested      []string
+	asked         []string
+	verdicts      map[string]Verdict
+	hostedAsked   []string
+	hostedAllowed []string
+	down          bool
 }
 
 func (n *fakeNia) Ingested(_ context.Context, session, tool string) error {
@@ -33,6 +35,16 @@ func (n *fakeNia) Ingested(_ context.Context, session, tool string) error {
 	}
 	n.ingested = append(n.ingested, session+" "+tool)
 	return nil
+}
+
+func (n *fakeNia) Hosted(_ context.Context, session string, tools []string) ([]string, error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.down {
+		return nil, errors.New("down")
+	}
+	n.hostedAsked = append(n.hostedAsked, strings.Join(tools, ","))
+	return n.hostedAllowed, nil
 }
 
 func (n *fakeNia) Decide(_ context.Context, session, tool, arguments string) (Verdict, error) {
@@ -229,18 +241,14 @@ func TestWhatIsRefusedBeforeOrAfterTheProvider(t *testing.T) {
 		"a request that is not an object":       {"/v1/chat/completions", `[]`, "", "", 200, 400, 0, "invalid_request", false},
 		"a request that is not UTF-8":           {"/v1/chat/completions", "{\"a\":\"\xff\"}", "", "", 200, 400, 0, "invalid_request", false},
 		"a prompt with a lone surrogate":        {"/v1/chat/completions", `{"messages":[{"role":"user","content":"\ud800"}]}`, "", "", 200, 422, 0, "unreadable_request", false},
-		"a provider-run tool (Responses)":       {"/v1/responses", `{"input":"x","tools":[{"type":"web_search_preview"}]}`, "", "", 200, 400, 0, "hosted_tool", false},
-		"a provider-run tool (Anthropic)":       {"/v1/messages", `{"messages":[],"tools":[{"type":"web_search_20250305","name":"web_search"}]}`, "", "", 200, 400, 0, "hosted_tool", false},
-		"provider-run MCP servers":              {"/v1/messages", `{"messages":[],"mcp_servers":[{"url":"https://x"}]}`, "", "", 200, 400, 0, "hosted_tool", false},
-		"web search options":                    {"/v1/chat/completions", `{"messages":[],"web_search_options":{}}`, "", "", 200, 400, 0, "hosted_tool", false},
-		"a tool without a type (Chat)":          {"/v1/chat/completions", `{"messages":[],"tools":[{"function":{"name":"a"}}]}`, "", "", 200, 400, 0, "hosted_tool", false},
-		"tools that are not a list":             {"/v1/chat/completions", `{"messages":[],"tools":{"type":"function"}}`, "", "", 200, 400, 0, "hosted_tool", false},
 		"a truncated stream":                    {"/v1/chat/completions", ok, "data: {\"choices\":[{\"delta\":{\"content\":\"cut\"}}]}\n\n", "text/event-stream", 200, 502, 1, "upstream_invalid", false},
 		"a response that is not JSON":           {"/v1/chat/completions", ok, "<html>", "application/json", 200, 502, 1, "upstream_invalid", false},
 		"a response that is not UTF-8":          {"/v1/chat/completions", ok, "{\"a\":\"\xff\"}", "application/json", 200, 502, 1, "upstream_invalid", false},
 		"a response with a secret":              {"/v1/chat/completions", ok, `{"choices":[{"message":{"content":"the key is AKIAIOSFODNN7EXAMPLE"}}]}`, "application/json", 200, 502, 1, "output_blocked", false},
 		"a secret in the arguments of a call":   {"/v1/chat/completions", ok, `{"choices":[{"message":{"tool_calls":[{"function":{"name":"terminal","arguments":"{\"c\":\"curl -H 'x: sk-abcdefghij0123456789ab'\"}"}}]}}]}`, "application/json", 200, 502, 1, "output_blocked", false},
 		"Nia unreachable for a decision":        {"/v1/chat/completions", ok, chatCall, "application/json", 200, 503, 1, "nia_unavailable", true},
+		"a provider-run tool, Nia unreachable":  {"/v1/responses", `{"input":"x","tools":[{"type":"web_search_preview"}]}`, "", "", 200, 503, 0, "nia_unavailable", true},
+		"a tool type with a lone surrogate":     {"/v1/responses", `{"input":"x","tools":[{"type":"web\ud800"}]}`, "", "", 200, 422, 0, "unreadable_request", false},
 		"Nia unreachable to record the taint":   {"/v1/chat/completions", `{"messages":[{"role":"tool","content":"x"}]}`, "", "", 200, 503, 0, "nia_unavailable", true},
 		"an error of the provider is passed on": {"/v1/chat/completions", ok, `{"error":{"message":"rate limited"}}`, "application/json", 429, 429, 1, "", false},
 	} {
@@ -254,6 +262,37 @@ func TestWhatIsRefusedBeforeOrAfterTheProvider(t *testing.T) {
 		if strings.Contains(got.Body.String(), "provider-secret") || strings.Contains(got.Body.String(), "AKIAIOSFODNN7EXAMPLE") {
 			t.Errorf("%s: a secret is in the answer: %s", name, got.Body.String())
 		}
+	}
+}
+
+func TestProviderRunToolsAreDecidedBeforeTheRequestLeaves(t *testing.T) {
+	h, p, nia := setup(t)
+	p.answer = `{"output":[]}`
+	nia.hostedAllowed = []string{"hosted:code_interpreter", "hosted:not_asked"}
+	body := `{"model":"m","input":"x","tool_choice":{"type":"web_search_preview"},"tools":[{"type":"web_search_preview"},{"type":"function","name":"a"},{"type":"code_interpreter"},{"type":"mcp","server_label":"crm"}]}`
+	if got := post(h, "/v1/responses", body); got.Code != 200 {
+		t.Fatalf("%d %s", got.Code, got.Body.String())
+	}
+	if len(nia.hostedAsked) != 1 || nia.hostedAsked[0] != "hosted:web_search_preview,hosted:code_interpreter,hosted:mcp:crm" {
+		t.Errorf("Nia was asked %v", nia.hostedAsked)
+	}
+	want := `{"model":"m","input":"x","tool_choice":"auto","tools":[{"type":"function","name":"a"},{"type":"code_interpreter"}]}`
+	if p.lastBody != want {
+		t.Errorf("sent on:\n got %s\nwant %s", p.lastBody, want)
+	}
+
+	// All allowed: the request goes as the agent wrote it, byte for byte.
+	nia.hostedAllowed = []string{"hosted:web_search"}
+	untouched := `{ "model":"m", "messages":[], "web_search_options":{} }`
+	p.answer = `{"choices":[{"message":{"content":"ok"}}]}`
+	if got := post(h, "/v1/chat/completions", untouched); got.Code != 200 || p.lastBody != untouched {
+		t.Errorf("%d, sent on %s", got.Code, p.lastBody)
+	}
+	// None declared: Nia is not asked.
+	asked := len(nia.hostedAsked)
+	post(h, "/v1/chat/completions", `{"messages":[],"tools":[{"type":"function","function":{"name":"a"}}]}`)
+	if len(nia.hostedAsked) != asked {
+		t.Error("Nia was asked about a request with no provider-run tool")
 	}
 }
 
@@ -298,6 +337,10 @@ func TestRemoteSpeaksTheDecisionAPI(t *testing.T) {
 		raw, _ := io.ReadAll(r.Body)
 		seen = append(seen, r.URL.Path+" "+r.Header.Get("Authorization")+" "+r.Header.Get("X-Nia-Session-Id")+" "+r.Header.Get("X-Nia-Run-Id")+" "+string(raw))
 		switch {
+		case r.URL.Path == "/v1/tools/hosted" && strings.Contains(string(raw), "silent"):
+			_, _ = io.WriteString(w, `{"removed":[]}`)
+		case r.URL.Path == "/v1/tools/hosted":
+			_, _ = io.WriteString(w, `{"allowed":["hosted:a"],"removed":["hosted:b"],"tainted_by":[]}`)
 		case r.URL.Path == "/v1/tools/result":
 			_, _ = io.WriteString(w, `{"action":"allow","output":"","findings":[],"tainted_by":["read_file"]}`)
 		case strings.Contains(string(raw), `"terminal"`):
@@ -327,6 +370,13 @@ func TestRemoteSpeaksTheDecisionAPI(t *testing.T) {
 		if v, err := remote.Decide(ctx, "c-1", tool, `{}`); err == nil || v.Allowed {
 			t.Errorf("%s: %+v %v", tool, v, err)
 		}
+	}
+	if allowed, err := remote.Hosted(ctx, "c-1", []string{"hosted:a", "hosted:b"}); err != nil || len(allowed) != 1 || allowed[0] != "hosted:a" {
+		t.Errorf("hosted: %v %v", allowed, err)
+	}
+	// An answer that does not say what is allowed allows nothing.
+	if allowed, err := remote.Hosted(ctx, "c-1", []string{"hosted:silent"}); err == nil {
+		t.Errorf("an answer without a decision: %v", allowed)
 	}
 	if seen[0] != `/v1/tools/result Bearer nia_machine c-1 run-1 {"output":"","tool":"read_file"}` || seen[1] != `/v1/tools/decide Bearer nia_machine c-1 run-1 {"arguments":"{\"path\":\"a\"}","tool":"read_file"}` {
 		t.Errorf("sent: %q", seen[:2])

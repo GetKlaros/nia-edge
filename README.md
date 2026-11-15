@@ -146,7 +146,8 @@ does not change: it still talks to `http://127.0.0.1:8787/v1`, and the key it
 sends is ignored.
 
 What then goes to Nia, for each turn: the names of the tools whose results the
-conversation holds (that is what taints a session), and each call the model
+conversation holds (that is what taints a session), the names of the
+provider-run tools the request declares, and each call the model
 proposes, with its arguments, to be decided. What does not: the prompts, the
 tool results and the model's text. Nia still decides, holds approvals and
 keeps the log.
@@ -159,8 +160,10 @@ Every turn is read whole before anything is released:
   it, is not released;
 - one call Nia does not allow replaces the whole turn by what Nia says, in the
   agent's own API, streamed or not;
-- a request that declares a provider-run tool (web search, code interpreter,
-  remote MCP) is refused: the provider would run it before any decision;
+- a tool the provider would run itself during the call (web search, code
+  interpreter, remote MCP) is decided before the request leaves: Nia says
+  which the role allows in this session, and the others are removed from the
+  request, so they never run;
 - Nia out of reach refuses the turn.
 
 Limits of this mode today: no detection of personal data or prompt attacks

@@ -10,6 +10,7 @@ They are what the server answers for a fixed set of inputs. Do not edit them.
 | `signatures.json` | Ed25519 signatures of the server over a policy payload, good and bad, from a test seed that signs nothing real | `internal/policy` |
 | `decisions.json` | Role decisions (`allow`, `require_approval`, `deny`) over several roles, in clean, tainted and exposed sessions | `internal/engine` |
 | `secrets.json` | The secrets found in a text, their spans, and the text with each replaced. The values are made up | `internal/inspect` |
+| `hosted.json` | The provider-run tools of a request, and the request once those that are not allowed are removed | `internal/turn` |
 | `inputs.json` | What is read from a request: what is new in it (user prompts, tool outputs), and the tools whose results it carries | `internal/turn` |
 | `outputs.json` | What is read from a model response, in the three APIs, as one document or as a stream: its text and tool calls, or why it is refused | `internal/turn` |
 | `dispatch.json` | The inner calls of a dispatcher tool | `internal/engine` |

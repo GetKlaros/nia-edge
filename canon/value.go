@@ -311,3 +311,45 @@ func (v *Value) SetText(text string) {
 		v.n.text = utf16.Encode([]rune(text))
 	}
 }
+
+// Delete removes a key of an object, as JavaScript's delete does. It does
+// nothing when the value is not an object or has no such key.
+func (v *Value) Delete(key string) {
+	if v == nil || v.n.kind != kindObject {
+		return
+	}
+	units := utf16.Encode([]rune(key))
+	v.n.members = slices.DeleteFunc(v.n.members, func(m member) bool { return slices.Equal(m.key, units) })
+}
+
+// Set gives a key of an object a value. An existing key keeps its place, a
+// new one comes last, as in JavaScript. It does nothing when the value is
+// not an object.
+func (v *Value) Set(key string, value *Value) {
+	if v == nil || v.n.kind != kindObject || value == nil {
+		return
+	}
+	units := utf16.Encode([]rune(key))
+	for i := range v.n.members {
+		if slices.Equal(v.n.members[i].key, units) {
+			v.n.members[i].value = value.n
+			return
+		}
+	}
+	v.n.members = append(v.n.members, member{key: units, value: value.n})
+}
+
+// Keep replaces the items of an array by those for which keep is true, in
+// order. It does nothing when the value is not an array.
+func (v *Value) Keep(keep func(item *Value) bool) {
+	if v == nil || v.n.kind != kindArray {
+		return
+	}
+	kept := v.n.items[:0:0]
+	for _, item := range v.n.items {
+		if keep(&Value{n: item}) {
+			kept = append(kept, item)
+		}
+	}
+	v.n.items = kept
+}
