@@ -21,6 +21,10 @@ private code base; this repository is public.
   byte. The files are never edited by hand.
 - Arguments that are not valid UTF-8, or that cannot be canonicalised where a
   canonical form is needed, are refused, never guessed.
+- A policy is the server's only when its Ed25519 signature matches the key
+  pinned at enrollment, it names this machine and it has not expired. That is
+  checked on what comes from the server and again on what is read from disk.
+  A key the server changed is never adopted without a new enrollment.
 - What the machine reports about itself decides nothing.
 - The egress proxy refuses an internal IP literal before any decision,
   resolves a name only after the connection is allowed, once, and connects to

@@ -22,7 +22,8 @@ nia-edge relays today; Nia decides every call.
 | Linux installer: systemd service, firewall rule, proof of isolation | done |
 | macOS installer | not yet |
 | Local MCP servers | not yet |
-| Decisions made on the machine, from a signed policy | not yet |
+| Signed policy: fetched, verified against the key learned at enrollment, kept, reported | done |
+| Decisions made on the machine, from that policy | not yet |
 
 The egress proxy governs the connections that go through it. It closes the
 agent's network only when the agent has no other route out. On Linux the
@@ -120,8 +121,27 @@ network is denied.
 | `-force` (enroll) | Enroll again and replace the key this machine has. |
 | `-edge` / `NIA_EDGE` (doctor, health) | The relay, as the agent reaches it; default `http://127.0.0.1:8787`. |
 
-`GET /edge/health` answers `{"edge":"ok","nia":"ready","machine":"active"}`:
-whether Nia is reachable, and what the last heartbeat learned.
+`GET /edge/health` answers `{"edge":"ok","nia":"ready","machine":"active","policy":"…"}`:
+whether Nia is reachable, what the last heartbeat learned, and the signed
+policy in force.
+
+### Signed policy
+
+When the server signs policies, the machine learns the server's public key
+(Ed25519) once, at enrollment, and keeps it in the state file. It then fetches
+its policy, verifies it and keeps it in `policy.json` next to the state file.
+A policy is refused when its signature does not match the pinned key, when it
+names another machine, when it has expired or claims to live longer than eight
+days, or when it is dated more than five minutes ahead of this machine's
+clock. The file on disk is verified again at every start: editing it leaves
+the machine with no policy.
+
+The policy is renewed at half its life or as soon as the server names another
+one. A server that starts signing with another key is not followed: enroll
+the machine again (`nia-edge enroll -force`) if the change is yours.
+
+Today the policy is verified and reported, not yet used: Nia decides every
+call.
 
 Run nia-edge under its own user, one the agent is not: the key in the state
 file is protected by file permissions.
@@ -166,6 +186,7 @@ nia-edge calls three kinds of routes on the server:
 | --- | --- | --- |
 | `POST /edge/v1/enroll` | enrollment token | Get this machine's key, once |
 | `POST /edge/v1/heartbeat` | machine key | Report, and learn the policy version to apply |
+| `GET /edge/v1/policy` | machine key | This machine's policy, signed |
 | `/v1/*`, `/mcp/*` | machine key | The agent's calls |
 
 ## Development

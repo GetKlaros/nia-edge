@@ -37,6 +37,8 @@ type Options struct {
 	Transport http.RoundTripper
 	// Status reports what the last heartbeat learned, for the health route.
 	Status func() string
+	// Policy reports the signed policy in force, for the health route.
+	Policy func() string
 	Logger *slog.Logger
 }
 
@@ -128,6 +130,9 @@ func New(options Options) http.Handler {
 			body := map[string]string{"edge": "ok", "nia": nia}
 			if options.Status != nil {
 				body["machine"] = options.Status()
+			}
+			if options.Policy != nil {
+				body["policy"] = options.Policy()
 			}
 			writeJSON(w, status, body)
 			return

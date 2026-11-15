@@ -14,6 +14,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/GetKlaros/nia-edge/internal/policy"
 )
 
 // State is the content of the state file.
@@ -27,6 +29,9 @@ type State struct {
 	Upstream     string    `json:"upstream"`
 	KeyExpiresAt time.Time `json:"key_expires_at"`
 	EnrolledAt   time.Time `json:"enrolled_at"`
+	// PolicyKey is the key that signs this machine's policy, as the server
+	// gave it at enrollment. Nil when the server signs nothing.
+	PolicyKey *policy.Key `json:"policy_key,omitempty"`
 }
 
 // ErrNotEnrolled reports that there is no state file yet.
