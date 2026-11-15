@@ -1,0 +1,1280 @@
+{
+ "version": 1,
+ "description": "readSseOutput(format, body) for a stream, readJsonOutput(format, JSON.parse(body)) otherwise: the text and the tool calls of a model response, or why it is refused.",
+ "cases": [
+  {
+   "name": "chat: text only",
+   "format": "chat-completions",
+   "stream": false,
+   "body": "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"hello\"}}]}",
+   "output": {
+    "text": "hello",
+    "toolCalls": []
+   },
+   "error": null
+  },
+  {
+   "name": "chat: one call",
+   "format": "chat-completions",
+   "stream": false,
+   "body": "{\"choices\":[{\"message\":{\"content\":null,\"tool_calls\":[{\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"terminal\",\"arguments\":\"{\\\"command\\\":\\\"ls\\\"}\"}}]}}]}",
+   "output": {
+    "text": "{\"command\":\"ls\"}",
+    "toolCalls": [
+     {
+      "id": "call_1",
+      "name": "terminal",
+      "arguments": "{\"command\":\"ls\"}"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "chat: two calls, reasoning, parts",
+   "format": "chat-completions",
+   "stream": false,
+   "body": "{\"choices\":[{\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"a\"},{\"type\":\"refusal\",\"refusal\":\"no\"},{\"thinking\":\"hm\"},\"x\",5],\"reasoning_content\":\"because\",\"tool_calls\":[{\"id\":\"a\",\"function\":{\"name\":\"read_file\",\"arguments\":\"{}\"}},{\"id\":7,\"function\":{\"name\":\"write_file\",\"arguments\":{\"path\":\"a\",\"2\":1,\"1\":2}}}]}}]}",
+   "output": {
+    "text": "a\nno\nhm\nbecause\n{}\n{\"1\":2,\"2\":1,\"path\":\"a\"}",
+    "toolCalls": [
+     {
+      "id": "a",
+      "name": "read_file",
+      "arguments": "{}"
+     },
+     {
+      "id": null,
+      "name": "write_file",
+      "arguments": "{\"1\":2,\"2\":1,\"path\":\"a\"}"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "chat: arguments that are not text",
+   "format": "chat-completions",
+   "stream": false,
+   "body": "{\"choices\":[{\"message\":{\"tool_calls\":[{\"function\":{\"name\":\"a\",\"arguments\":null}},{\"function\":{\"name\":\"b\"}},{\"function\":{\"name\":\"c\",\"arguments\":[1,2]}},{\"function\":{\"name\":\"d\",\"arguments\":0}},{\"function\":{\"name\":\"e\",\"arguments\":false}},{\"function\":{\"name\":\"f\",\"arguments\":\"\"}},{\"function\":{\"name\":\"g\",\"arguments\":1.50}}]}}]}",
+   "output": {
+    "text": "\n\n[1,2]\n0\nfalse\n\n1.5",
+    "toolCalls": [
+     {
+      "id": null,
+      "name": "a",
+      "arguments": ""
+     },
+     {
+      "id": null,
+      "name": "b",
+      "arguments": ""
+     },
+     {
+      "id": null,
+      "name": "c",
+      "arguments": "[1,2]"
+     },
+     {
+      "id": null,
+      "name": "d",
+      "arguments": "0"
+     },
+     {
+      "id": null,
+      "name": "e",
+      "arguments": "false"
+     },
+     {
+      "id": null,
+      "name": "f",
+      "arguments": ""
+     },
+     {
+      "id": null,
+      "name": "g",
+      "arguments": "1.5"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "chat: names that are not names",
+   "format": "chat-completions",
+   "stream": false,
+   "body": "{\"choices\":[{\"message\":{\"tool_calls\":[{\"function\":{\"name\":\"\",\"arguments\":\"{}\"}},{\"function\":{\"name\":5}},{\"function\":{}},{\"function\":\"x\"},{},\"x\",null,{\"function\":{\"name\":null}}]}}]}",
+   "output": {
+    "text": "{}\n\n\n\n\n",
+    "toolCalls": [
+     {
+      "id": null,
+      "name": "unknown",
+      "arguments": "{}"
+     },
+     {
+      "id": null,
+      "name": "unknown",
+      "arguments": ""
+     },
+     {
+      "id": null,
+      "name": "unknown",
+      "arguments": ""
+     },
+     {
+      "id": null,
+      "name": "unknown",
+      "arguments": ""
+     },
+     {
+      "id": null,
+      "name": "unknown",
+      "arguments": ""
+     },
+     {
+      "id": null,
+      "name": "unknown",
+      "arguments": ""
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "chat: a name of 300 characters",
+   "format": "chat-completions",
+   "stream": false,
+   "body": "{\"choices\":[{\"message\":{\"tool_calls\":[{\"function\":{\"name\":\"nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\",\"arguments\":\"{}\"}}]}}]}",
+   "output": {
+    "text": "{}",
+    "toolCalls": [
+     {
+      "id": null,
+      "name": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+      "arguments": "{}"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "chat: a name cut inside its text outside the BMP",
+   "format": "chat-completions",
+   "stream": false,
+   "body": "{\"choices\":[{\"message\":{\"tool_calls\":[{\"function\":{\"name\":\"nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn😀😀\",\"arguments\":\"{}\"}}]}}]}",
+   "output": {
+    "text": "{}",
+    "toolCalls": [
+     {
+      "id": null,
+      "name": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn😀",
+      "arguments": "{}"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "chat: a name cut in the middle of a pair",
+   "format": "chat-completions",
+   "stream": false,
+   "body": "{\"choices\":[{\"message\":{\"tool_calls\":[{\"function\":{\"name\":\"nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn😀\",\"arguments\":\"{}\"}}]}}]}",
+   "output": {
+    "text": "{}",
+    "toolCalls": [
+     {
+      "id": null,
+      "name": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\ud83d",
+      "arguments": "{}"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "chat: the legacy function_call",
+   "format": "chat-completions",
+   "stream": false,
+   "body": "{\"choices\":[{\"message\":{\"content\":\"x\",\"function_call\":{\"name\":\"terminal\",\"arguments\":\"{\\\"a\\\":1}\"}}}]}",
+   "output": {
+    "text": "x\n{\"a\":1}",
+    "toolCalls": [
+     {
+      "id": null,
+      "name": "terminal",
+      "arguments": "{\"a\":1}"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "chat: several choices",
+   "format": "chat-completions",
+   "stream": false,
+   "body": "{\"choices\":[{\"message\":{\"content\":\"one\",\"tool_calls\":[{\"id\":\"1\",\"function\":{\"name\":\"a\",\"arguments\":\"1\"}}]}},{\"message\":{\"content\":\"two\",\"tool_calls\":[{\"id\":\"2\",\"function\":{\"name\":\"b\",\"arguments\":\"2\"}}],\"function_call\":{\"name\":\"c\",\"arguments\":\"3\"}}},null,{\"message\":\"x\"},{}]}",
+   "output": {
+    "text": "one\ntwo\n1\n2\n3",
+    "toolCalls": [
+     {
+      "id": "1",
+      "name": "a",
+      "arguments": "1"
+     },
+     {
+      "id": "2",
+      "name": "b",
+      "arguments": "2"
+     },
+     {
+      "id": null,
+      "name": "c",
+      "arguments": "3"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "chat: nothing to read",
+   "format": "chat-completions",
+   "stream": false,
+   "body": "{}",
+   "output": {
+    "text": "",
+    "toolCalls": []
+   },
+   "error": null
+  },
+  {
+   "name": "chat: choices that are not a list",
+   "format": "chat-completions",
+   "stream": false,
+   "body": "{\"choices\":{\"message\":{\"content\":\"hidden\"}}}",
+   "output": {
+    "text": "",
+    "toolCalls": []
+   },
+   "error": null
+  },
+  {
+   "name": "chat: not an object",
+   "format": "chat-completions",
+   "stream": false,
+   "body": "[]",
+   "output": null,
+   "error": "response is not a JSON object"
+  },
+  {
+   "name": "chat: a string",
+   "format": "chat-completions",
+   "stream": false,
+   "body": "\"text\"",
+   "output": null,
+   "error": "response is not a JSON object"
+  },
+  {
+   "name": "chat: null",
+   "format": "chat-completions",
+   "stream": false,
+   "body": "null",
+   "output": null,
+   "error": "response is not a JSON object"
+  },
+  {
+   "name": "chat: not JSON",
+   "format": "chat-completions",
+   "stream": false,
+   "body": "{\"choices\":",
+   "output": null,
+   "error": "unparseable response"
+  },
+  {
+   "name": "chat: empty",
+   "format": "chat-completions",
+   "stream": false,
+   "body": "",
+   "output": null,
+   "error": "unparseable response"
+  },
+  {
+   "name": "chat: text after the document",
+   "format": "chat-completions",
+   "stream": false,
+   "body": "{} {}",
+   "output": null,
+   "error": "unparseable response"
+  },
+  {
+   "name": "chat: a repeated key",
+   "format": "chat-completions",
+   "stream": false,
+   "body": "{\"choices\":[{\"message\":{\"tool_calls\":[{\"function\":{\"name\":\"safe\",\"arguments\":\"{}\",\"name\":\"terminal\"}}]}}],\"choices\":[{\"message\":{\"content\":\"last wins\",\"tool_calls\":[{\"function\":{\"name\":\"x\",\"name\":\"rm\",\"arguments\":\"1\",\"arguments\":\"2\"}}]}}]}",
+   "output": {
+    "text": "last wins\n2",
+    "toolCalls": [
+     {
+      "id": null,
+      "name": "rm",
+      "arguments": "2"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "chat: a surrogate pair written as escapes",
+   "format": "chat-completions",
+   "stream": false,
+   "body": "{\"choices\":[{\"message\":{\"content\":\"\\ud83d\\ude00\",\"tool_calls\":[{\"id\":\"\\u00e9\",\"function\":{\"name\":\"outil_\\u00e9\",\"arguments\":\"{\\\"k\\\":\\\"\\ud83d\\ude00\\\"}\"}}]}}]}",
+   "output": {
+    "text": "😀\n{\"k\":\"😀\"}",
+    "toolCalls": [
+     {
+      "id": "é",
+      "name": "outil_é",
+      "arguments": "{\"k\":\"😀\"}"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "chat stream: text",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "data: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"hel\"}}]}\n\ndata: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"lo\"}}]}\n\ndata: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n",
+   "output": {
+    "text": "hello",
+    "toolCalls": []
+   },
+   "error": null
+  },
+  {
+   "name": "chat stream: a call in pieces",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "data: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"function\":{\"name\":\"term\",\"arguments\":\"\"}}]}}]}\n\ndata: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"name\":\"inal\",\"arguments\":\"{\\\"comm\"}}]}}]}\n\ndata: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"and\\\":\\\"ls\\\"}\"}}]}}]}\n\ndata: [DONE]\n\n",
+   "output": {
+    "text": "{\"command\":\"ls\"}",
+    "toolCalls": [
+     {
+      "id": "call_1",
+      "name": "terminal",
+      "arguments": "{\"command\":\"ls\"}"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "chat stream: two calls interleaved, and reasoning",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "data: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"reasoning_content\":\"think \"}}]}\n\ndata: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":1,\"id\":\"b\",\"function\":{\"name\":\"write_file\",\"arguments\":\"{\\\"p\\\":\"}},{\"index\":0,\"id\":\"a\",\"function\":{\"name\":\"read_file\",\"arguments\":\"{}\"}}]}}]}\n\ndata: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":1,\"function\":{\"arguments\":\"1}\"}}],\"content\":\"done\"}}]}\n\ndata: [DONE]\n\n",
+   "output": {
+    "text": "think done{\"p\":1}{}",
+    "toolCalls": [
+     {
+      "id": "b",
+      "name": "write_file",
+      "arguments": "{\"p\":1}"
+     },
+     {
+      "id": "a",
+      "name": "read_file",
+      "arguments": "{}"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "chat stream: calls without an index, an id that changes",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "data: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"id\":\"first\",\"function\":{\"name\":\"a\",\"arguments\":\"1\"}}]}}]}\n\ndata: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"id\":\"second\",\"function\":{\"arguments\":\"2\"}},{\"index\":null,\"function\":{\"arguments\":\"3\"}}]}}]}\n\ndata: [DONE]\n\n",
+   "output": {
+    "text": "123",
+    "toolCalls": [
+     {
+      "id": "second",
+      "name": "a",
+      "arguments": "123"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "chat stream: indices that are not small integers",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "data: {\"choices\":[{\"index\":1,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"name\":\"c1\",\"arguments\":\"x\"}}]}},{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":1.5,\"function\":{\"name\":\"half\",\"arguments\":\"y\"}},{\"index\":0,\"function\":{\"name\":\"zero\",\"arguments\":\"z\"}},{\"index\":1e+21,\"function\":{\"name\":\"big\",\"arguments\":\"w\"}}]}},{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"name\":\"+more\",\"arguments\":\"!\"}}]}}]}\n\ndata: [DONE]\n\n",
+   "output": {
+    "text": "xyz!w",
+    "toolCalls": [
+     {
+      "id": null,
+      "name": "c1",
+      "arguments": "x"
+     },
+     {
+      "id": null,
+      "name": "half",
+      "arguments": "y"
+     },
+     {
+      "id": null,
+      "name": "zero+more",
+      "arguments": "z!"
+     },
+     {
+      "id": null,
+      "name": "big",
+      "arguments": "w"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "chat stream: the legacy function_call",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "data: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"function_call\":{\"name\":\"term\",\"arguments\":\"{\"}}}]}\n\ndata: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"function_call\":{\"name\":\"inal\",\"arguments\":\"}\"}}}]}\n\ndata: [DONE]\n\n",
+   "output": {
+    "text": "{}",
+    "toolCalls": [
+     {
+      "id": null,
+      "name": "terminal",
+      "arguments": "{}"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "chat stream: a call with no name",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "data: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"{}\"}}]}}]}\n\ndata: [DONE]\n\n",
+   "output": {
+    "text": "{}",
+    "toolCalls": [
+     {
+      "id": null,
+      "name": "unknown",
+      "arguments": "{}"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "chat stream: pieces that are not objects",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "data: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[\"x\",null,5,{\"function\":\"f\"},{\"index\":2,\"function\":{\"name\":5,\"arguments\":6},\"id\":7}]}}]}\n\ndata: {\"choices\":[\"x\",null,{\"delta\":\"y\"},{\"delta\":{\"content\":5,\"tool_calls\":\"z\"}}]}\n\ndata: {\"choices\":\"x\"}\n\ndata: {}\n\ndata: [DONE]\n\n",
+   "output": {
+    "text": "",
+    "toolCalls": [
+     {
+      "id": null,
+      "name": "unknown",
+      "arguments": ""
+     },
+     {
+      "id": null,
+      "name": "unknown",
+      "arguments": ""
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "chat stream: no [DONE]",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "data: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"cut\"}}]}\n\n",
+   "output": null,
+   "error": "stream missing [DONE]"
+  },
+  {
+   "name": "chat stream: [DONE] is not the last event",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "data: [DONE]\n\ndata: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"after\"}}]}\n\n",
+   "output": null,
+   "error": "stream missing [DONE]"
+  },
+  {
+   "name": "chat stream: [DONE] twice",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "data: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"a\"}}]}\n\ndata: [DONE]\n\ndata: [DONE]\n\n",
+   "output": null,
+   "error": "invalid JSON in SSE event"
+  },
+  {
+   "name": "chat stream: an error event",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "data: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"a\"}}]}\n\ndata: {\"error\":{\"message\":\"overloaded\"}}\n\ndata: [DONE]\n\n",
+   "output": null,
+   "error": "stream reported an error"
+  },
+  {
+   "name": "chat stream: an error that is not an object",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "data: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"a\"}}]}\n\ndata: {\"error\":\"overloaded\"}\n\ndata: [DONE]\n\n",
+   "output": {
+    "text": "a",
+    "toolCalls": []
+   },
+   "error": null
+  },
+  {
+   "name": "chat stream: an event that is not JSON",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "data: {\"choices\":\n\ndata: [DONE]\n\n",
+   "output": null,
+   "error": "invalid JSON in SSE event"
+  },
+  {
+   "name": "chat stream: an event that is not an object",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "data: [1]\n\ndata: [DONE]\n\n",
+   "output": null,
+   "error": "SSE event is not a JSON object"
+  },
+  {
+   "name": "chat stream: only [DONE]",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "data: [DONE]\n\n",
+   "output": {
+    "text": "",
+    "toolCalls": []
+   },
+   "error": null
+  },
+  {
+   "name": "chat stream: empty",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "",
+   "output": null,
+   "error": "stream missing [DONE]"
+  },
+  {
+   "name": "chat stream: only white space",
+   "format": "chat-completions",
+   "stream": true,
+   "body": " \n\n\t\n\n \n\n﻿",
+   "output": null,
+   "error": "stream missing [DONE]"
+  },
+  {
+   "name": "chat stream: CRLF, comments, ids, retries, no space after the colon",
+   "format": "chat-completions",
+   "stream": true,
+   "body": ": ping\r\nid: 1\r\nretry: 5\r\ndata:{\"choices\":[{\"delta\":{\"content\":\"a\"}}]}\r\n\r\n:\r\n\r\nevent: x\rdata:  {\"choices\":[{\"delta\":{\"content\":\"b\"}}]}\r\rdata: [DONE]\r\n\r\n",
+   "output": {
+    "text": "ab",
+    "toolCalls": []
+   },
+   "error": null
+  },
+  {
+   "name": "chat stream: data on several lines",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "data: {\"choices\":[{\"delta\":\ndata: {\"content\":\"joined\"}}]}\n\ndata: [DONE]\n\n",
+   "output": {
+    "text": "joined",
+    "toolCalls": []
+   },
+   "error": null
+  },
+  {
+   "name": "chat stream: a field with no colon",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "data\n\ndata: [DONE]\n\n",
+   "output": null,
+   "error": "invalid JSON in SSE event"
+  },
+  {
+   "name": "chat stream: an unknown field",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "data: {}\nmeta: 1\n\ndata: [DONE]\n\n",
+   "output": null,
+   "error": "unsupported SSE field meta"
+  },
+  {
+   "name": "chat stream: an unknown field with no colon",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "garbage\n\ndata: [DONE]\n\n",
+   "output": null,
+   "error": "unsupported SSE field garbage"
+  },
+  {
+   "name": "chat stream: no blank line at the end",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "data: {\"choices\":[{\"delta\":{\"content\":\"a\"}}]}\n\ndata: [DONE]",
+   "output": {
+    "text": "a",
+    "toolCalls": []
+   },
+   "error": null
+  },
+  {
+   "name": "chat stream: three line ends between events",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "data: {\"choices\":[{\"delta\":{\"content\":\"a\"}}]}\n\n\ndata: [DONE]\n\n\n\n",
+   "output": {
+    "text": "a",
+    "toolCalls": []
+   },
+   "error": null
+  },
+  {
+   "name": "chat stream: [DONE] with a space after it",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "data: {}\n\ndata: [DONE] \n\n",
+   "output": null,
+   "error": "stream missing [DONE]"
+  },
+  {
+   "name": "chat stream: two spaces before [DONE]",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "data: {}\n\ndata:  [DONE]\n\n",
+   "output": null,
+   "error": "stream missing [DONE]"
+  },
+  {
+   "name": "chat stream: an event name only",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "event: ping\n\ndata: [DONE]\n\n",
+   "output": {
+    "text": "",
+    "toolCalls": []
+   },
+   "error": null
+  },
+  {
+   "name": "chat stream: a block the trim empties but that holds a field",
+   "format": "chat-completions",
+   "stream": true,
+   "body": "data: {}\n\n \n\ndata: [DONE]\n\n",
+   "output": {
+    "text": "",
+    "toolCalls": []
+   },
+   "error": null
+  },
+  {
+   "name": "anthropic: text and a call",
+   "format": "anthropic-messages",
+   "stream": false,
+   "body": "{\"content\":[{\"type\":\"text\",\"text\":\"I will look\"},{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"terminal\",\"input\":{\"command\":\"ls\",\"b\":1,\"10\":2,\"2\":3}}]}",
+   "output": {
+    "text": "I will look\n{\"2\":3,\"10\":2,\"command\":\"ls\",\"b\":1}",
+    "toolCalls": [
+     {
+      "id": "toolu_1",
+      "name": "terminal",
+      "arguments": "{\"2\":3,\"10\":2,\"command\":\"ls\",\"b\":1}"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "anthropic: thinking, server tools, MCP tools",
+   "format": "anthropic-messages",
+   "stream": false,
+   "body": "{\"content\":[{\"type\":\"thinking\",\"thinking\":\"hm\"},{\"type\":\"server_tool_use\",\"id\":\"s1\",\"name\":\"web_search\",\"input\":{\"query\":\"x\"}},{\"type\":\"mcp_tool_use\",\"id\":\"m1\",\"name\":\"send\",\"server_name\":\"mail\",\"input\":{}},{\"type\":\"mcp_tool_use\",\"name\":\"x\",\"input\":null},{\"type\":\"server_tool_use\",\"input\":\"text\"},{\"type\":\"web_search_tool_result\",\"content\":[{\"text\":\"not read\"}],\"text\":\"read\"}]}",
+   "output": {
+    "text": "hm\nread\n{\"query\":\"x\"}\n{}\n\ntext",
+    "toolCalls": [
+     {
+      "id": "s1",
+      "name": "hosted:web_search",
+      "arguments": "{\"query\":\"x\"}"
+     },
+     {
+      "id": "m1",
+      "name": "hosted:mcp:mail",
+      "arguments": "{}"
+     },
+     {
+      "id": null,
+      "name": "hosted:mcp:unnamed",
+      "arguments": ""
+     },
+     {
+      "id": null,
+      "name": "hosted:unknown",
+      "arguments": "text"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "anthropic: hosted names that are not text",
+   "format": "anthropic-messages",
+   "stream": false,
+   "body": "{\"content\":[{\"type\":\"server_tool_use\",\"name\":5},{\"type\":\"server_tool_use\",\"name\":null},{\"type\":\"server_tool_use\",\"name\":{\"a\":1}},{\"type\":\"server_tool_use\",\"name\":[1,[2,null],\"x\",{}]},{\"type\":\"server_tool_use\",\"name\":true},{\"type\":\"server_tool_use\",\"name\":-0},{\"type\":\"server_tool_use\",\"name\":1e21},{\"type\":\"server_tool_use\",\"name\":\"\"},{\"type\":\"mcp_tool_use\",\"server_name\":false},{\"type\":\"mcp_tool_use\",\"server_name\":[]},{\"type\":\"mcp_tool_use\",\"server_name\":0.1}]}",
+   "output": {
+    "text": "\n\n\n\n\n\n\n\n\n\n",
+    "toolCalls": [
+     {
+      "id": null,
+      "name": "hosted:5",
+      "arguments": ""
+     },
+     {
+      "id": null,
+      "name": "hosted:unknown",
+      "arguments": ""
+     },
+     {
+      "id": null,
+      "name": "hosted:[object Object]",
+      "arguments": ""
+     },
+     {
+      "id": null,
+      "name": "hosted:1,2,,x,[object Object]",
+      "arguments": ""
+     },
+     {
+      "id": null,
+      "name": "hosted:true",
+      "arguments": ""
+     },
+     {
+      "id": null,
+      "name": "hosted:0",
+      "arguments": ""
+     },
+     {
+      "id": null,
+      "name": "hosted:1e+21",
+      "arguments": ""
+     },
+     {
+      "id": null,
+      "name": "hosted:",
+      "arguments": ""
+     },
+     {
+      "id": null,
+      "name": "hosted:mcp:false",
+      "arguments": ""
+     },
+     {
+      "id": null,
+      "name": "hosted:mcp:",
+      "arguments": ""
+     },
+     {
+      "id": null,
+      "name": "hosted:mcp:0.1",
+      "arguments": ""
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "anthropic: names and blocks that are not what they should be",
+   "format": "anthropic-messages",
+   "stream": false,
+   "body": "{\"content\":[{\"type\":\"tool_use\",\"name\":\"\",\"input\":{}},{\"type\":\"tool_use\",\"id\":5,\"name\":7},{\"type\":\"tool_use\"},\"x\",null,[],{\"type\":5,\"text\":\"t\"},{\"text\":\"no type\",\"refusal\":\"r\",\"thinking\":\"th\"}]}",
+   "output": {
+    "text": "t\nno type\nr\nth\n{}\n\n",
+    "toolCalls": [
+     {
+      "id": null,
+      "name": "unknown",
+      "arguments": "{}"
+     },
+     {
+      "id": null,
+      "name": "unknown",
+      "arguments": ""
+     },
+     {
+      "id": null,
+      "name": "unknown",
+      "arguments": ""
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "anthropic: content that is not a list",
+   "format": "anthropic-messages",
+   "stream": false,
+   "body": "{\"content\":\"hello\"}",
+   "output": {
+    "text": "",
+    "toolCalls": []
+   },
+   "error": null
+  },
+  {
+   "name": "anthropic: not an object",
+   "format": "anthropic-messages",
+   "stream": false,
+   "body": "5",
+   "output": null,
+   "error": "response is not a JSON object"
+  },
+  {
+   "name": "anthropic stream: text and a call",
+   "format": "anthropic-messages",
+   "stream": true,
+   "body": "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{}}\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Look\"}}\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"terminal\",\"input\":{}}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"command\\\":\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"\\\"ls\\\"}\"}}\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"tool_use\"}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+   "output": {
+    "text": "Look{\"command\":\"ls\"}",
+    "toolCalls": [
+     {
+      "id": "toolu_1",
+      "name": "terminal",
+      "arguments": "{\"command\":\"ls\"}"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "anthropic stream: an input given at the start, thinking, hosted tools",
+   "format": "anthropic-messages",
+   "stream": true,
+   "body": "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"thinking\",\"thinking\":\"a\"}}\n\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"b\"}}\n\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"tool_use\",\"id\":\"t\",\"name\":\"write_file\",\"input\":{\"1\":2,\"path\":\"a\"}}}\n\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"+more\"}}\n\ndata: {\"type\":\"content_block_start\",\"index\":2,\"content_block\":{\"type\":\"server_tool_use\",\"id\":\"s\",\"name\":\"web_fetch\",\"input\":[]}}\n\ndata: {\"type\":\"content_block_start\",\"index\":3,\"content_block\":{\"type\":\"mcp_tool_use\",\"name\":\"x\",\"server_name\":\"crm\"}}\n\ndata: {\"type\":\"message_stop\"}\n\n",
+   "output": {
+    "text": "ab{\"1\":2,\"path\":\"a\"}+more",
+    "toolCalls": [
+     {
+      "id": "t",
+      "name": "write_file",
+      "arguments": "{\"1\":2,\"path\":\"a\"}+more"
+     },
+     {
+      "id": "s",
+      "name": "hosted:web_fetch",
+      "arguments": ""
+     },
+     {
+      "id": null,
+      "name": "hosted:mcp:crm",
+      "arguments": ""
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "anthropic stream: indices at the edges",
+   "format": "anthropic-messages",
+   "stream": true,
+   "body": "data: {\"type\":\"content_block_start\",\"content_block\":{\"type\":\"tool_use\",\"name\":\"none\"}}\n\ndata: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"A\"}}\n\ndata: {\"type\":\"content_block_start\",\"index\":null,\"content_block\":{\"type\":\"tool_use\",\"name\":\"null\"}}\n\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"B\"}}\n\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"C\"}}\n\ndata: {\"type\":\"content_block_start\",\"index\":2.5,\"content_block\":{\"type\":\"tool_use\",\"name\":\"half\"}}\n\ndata: {\"type\":\"content_block_delta\",\"index\":2.5,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"D\"}}\n\ndata: {\"type\":\"content_block_delta\",\"index\":9,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"lost\"}}\n\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"tool_use\",\"name\":\"again\",\"id\":\"second\"}}\n\ndata: {\"type\":\"message_stop\"}\n\n",
+   "output": {
+    "text": "AD",
+    "toolCalls": [
+     {
+      "id": null,
+      "name": "none",
+      "arguments": "A"
+     },
+     {
+      "id": "second",
+      "name": "again",
+      "arguments": ""
+     },
+     {
+      "id": null,
+      "name": "half",
+      "arguments": "D"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "anthropic stream: deltas that are not what they should be",
+   "format": "anthropic-messages",
+   "stream": true,
+   "body": "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"tool_use\",\"name\":\"a\"}}\n\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":5}}\n\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"text\":\"as text\"}}\n\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":\"x\"}\n\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":\"x\"}\n\ndata: {\"type\":\"content_block_start\",\"index\":1}\n\ndata: {\"type\":5}\n\ndata: {}\n\ndata: {\"type\":\"message_stop\"}\n\n",
+   "output": {
+    "text": "as text",
+    "toolCalls": [
+     {
+      "id": null,
+      "name": "a",
+      "arguments": ""
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "anthropic stream: no message_stop",
+   "format": "anthropic-messages",
+   "stream": true,
+   "body": "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"cut\"}}\n\n",
+   "output": null,
+   "error": "stream missing message_stop"
+  },
+  {
+   "name": "anthropic stream: message_stop is not last",
+   "format": "anthropic-messages",
+   "stream": true,
+   "body": "data: {\"type\":\"message_stop\"}\n\ndata: {\"type\":\"ping\"}\n\n",
+   "output": null,
+   "error": "stream missing message_stop"
+  },
+  {
+   "name": "anthropic stream: an error",
+   "format": "anthropic-messages",
+   "stream": true,
+   "body": "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"a\"}}\n\ndata: {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\"}}\n\ndata: {\"type\":\"message_stop\"}\n\n",
+   "output": null,
+   "error": "stream reported an error"
+  },
+  {
+   "name": "anthropic stream: an event that is not JSON",
+   "format": "anthropic-messages",
+   "stream": true,
+   "body": "data: nope\n\ndata: {\"type\":\"message_stop\"}\n\n",
+   "output": null,
+   "error": "invalid JSON in SSE event"
+  },
+  {
+   "name": "anthropic stream: empty",
+   "format": "anthropic-messages",
+   "stream": true,
+   "body": "",
+   "output": null,
+   "error": "stream missing message_stop"
+  },
+  {
+   "name": "responses: a message and a function call",
+   "format": "responses",
+   "stream": false,
+   "body": "{\"output\":[{\"type\":\"reasoning\",\"summary\":[{\"type\":\"summary_text\",\"text\":\"plan\"}]},{\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"text\":\"ok\"},{\"type\":\"refusal\",\"refusal\":\"no\"}]},{\"type\":\"function_call\",\"id\":\"fc_1\",\"call_id\":\"call_1\",\"name\":\"terminal\",\"arguments\":\"{\\\"command\\\":\\\"ls\\\"}\"}]}",
+   "output": {
+    "text": "plan\nok\nno\n{\"command\":\"ls\"}",
+    "toolCalls": [
+     {
+      "id": "call_1",
+      "name": "terminal",
+      "arguments": "{\"command\":\"ls\"}",
+      "kind": "function_call"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "responses: every kind of call",
+   "format": "responses",
+   "stream": false,
+   "body": "{\"output\":[{\"type\":\"custom_tool_call\",\"id\":\"ct\",\"name\":\"patch\",\"input\":\"*** Begin\"},{\"type\":\"local_shell_call\",\"id\":\"ls\",\"call_id\":\"c2\",\"action\":{\"type\":\"exec\",\"command\":[\"ls\",\"-la\"],\"1\":0}},{\"type\":\"computer_call\",\"call_id\":\"c3\",\"action\":{\"type\":\"click\",\"x\":1,\"y\":2}},{\"type\":\"web_search_call\",\"id\":\"ws\",\"action\":{\"query\":\"x\"}},{\"type\":\"mcp_call\",\"id\":\"m\",\"server_label\":\"crm\",\"name\":\"send\",\"arguments\":\"{}\"},{\"type\":\"mcp_call\",\"name\":\"x\"},{\"type\":\"mcp_call\",\"server_label\":5},{\"type\":\"mcp_call\",\"server_label\":null},{\"type\":\"code_interpreter_call\",\"id\":\"ci\"},{\"type\":\"file_search_call\",\"queries\":[\"a\"]},{\"type\":\"shell_call\",\"action\":{\"commands\":[\"ls\"]}},{\"type\":\"apply_patch_call\",\"operation\":{\"type\":\"create_file\"}},{\"type\":\"_call\"},{\"type\":\"function_call\"},{\"type\":\"function_call\",\"name\":\"\",\"arguments\":null,\"action\":null,\"input\":{\"a\":1}},{\"type\":\"function_call\",\"name\":5,\"id\":5,\"call_id\":6},{\"type\":\"function_call_output\",\"output\":\"not a call\"},{\"type\":\"image_generation_call\",\"result\":\"x\"}]}",
+   "output": {
+    "text": "*** Begin\n{\"1\":0,\"type\":\"exec\",\"command\":[\"ls\",\"-la\"]}\n{\"type\":\"click\",\"x\":1,\"y\":2}\n{\"query\":\"x\"}\n{}\n\n\n\n\n\n{\"commands\":[\"ls\"]}\n\n\n\n{\"a\":1}\n\n",
+    "toolCalls": [
+     {
+      "id": "ct",
+      "name": "patch",
+      "arguments": "*** Begin",
+      "kind": "custom_tool_call"
+     },
+     {
+      "id": "c2",
+      "name": "local_shell",
+      "arguments": "{\"1\":0,\"type\":\"exec\",\"command\":[\"ls\",\"-la\"]}",
+      "kind": "local_shell_call"
+     },
+     {
+      "id": "c3",
+      "name": "computer",
+      "arguments": "{\"type\":\"click\",\"x\":1,\"y\":2}",
+      "kind": "computer_call"
+     },
+     {
+      "id": "ws",
+      "name": "hosted:web_search",
+      "arguments": "{\"query\":\"x\"}",
+      "kind": "web_search_call"
+     },
+     {
+      "id": "m",
+      "name": "hosted:mcp:crm",
+      "arguments": "{}",
+      "kind": "mcp_call"
+     },
+     {
+      "id": null,
+      "name": "hosted:mcp:unnamed",
+      "arguments": "",
+      "kind": "mcp_call"
+     },
+     {
+      "id": null,
+      "name": "hosted:mcp:5",
+      "arguments": "",
+      "kind": "mcp_call"
+     },
+     {
+      "id": null,
+      "name": "hosted:mcp:unnamed",
+      "arguments": "",
+      "kind": "mcp_call"
+     },
+     {
+      "id": "ci",
+      "name": "hosted:code_interpreter",
+      "arguments": "",
+      "kind": "code_interpreter_call"
+     },
+     {
+      "id": null,
+      "name": "hosted:file_search",
+      "arguments": "",
+      "kind": "file_search_call"
+     },
+     {
+      "id": null,
+      "name": "shell",
+      "arguments": "{\"commands\":[\"ls\"]}",
+      "kind": "shell_call"
+     },
+     {
+      "id": null,
+      "name": "apply_patch",
+      "arguments": "",
+      "kind": "apply_patch_call"
+     },
+     {
+      "id": null,
+      "name": "hosted:",
+      "arguments": "",
+      "kind": "_call"
+     },
+     {
+      "id": null,
+      "name": "function",
+      "arguments": "",
+      "kind": "function_call"
+     },
+     {
+      "id": null,
+      "name": "unknown",
+      "arguments": "{\"a\":1}",
+      "kind": "function_call"
+     },
+     {
+      "id": null,
+      "name": "unknown",
+      "arguments": "",
+      "kind": "function_call"
+     },
+     {
+      "id": null,
+      "name": "hosted:image_generation",
+      "arguments": "",
+      "kind": "image_generation_call"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "responses: arguments before action before input",
+   "format": "responses",
+   "stream": false,
+   "body": "{\"output\":[{\"type\":\"function_call\",\"name\":\"a\",\"input\":\"input\",\"action\":\"action\"},{\"type\":\"function_call\",\"name\":\"b\",\"arguments\":null,\"input\":\"input\",\"action\":null},{\"type\":\"function_call\",\"name\":\"c\",\"arguments\":\"\",\"input\":\"input\",\"action\":\"action\"},{\"type\":\"function_call\",\"name\":\"d\",\"arguments\":false,\"action\":\"action\"},{\"type\":\"function_call\",\"name\":\"e\",\"id\":\"id\",\"call_id\":null}]}",
+   "output": {
+    "text": "action\ninput\n\nfalse\n",
+    "toolCalls": [
+     {
+      "id": null,
+      "name": "a",
+      "arguments": "action",
+      "kind": "function_call"
+     },
+     {
+      "id": null,
+      "name": "b",
+      "arguments": "input",
+      "kind": "function_call"
+     },
+     {
+      "id": null,
+      "name": "c",
+      "arguments": "",
+      "kind": "function_call"
+     },
+     {
+      "id": null,
+      "name": "d",
+      "arguments": "false",
+      "kind": "function_call"
+     },
+     {
+      "id": "id",
+      "name": "e",
+      "arguments": "",
+      "kind": "function_call"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "responses: items that are not items",
+   "format": "responses",
+   "stream": false,
+   "body": "{\"output\":[\"x\",null,{\"type\":5},{\"name\":\"no type\"},{\"type\":\"message\",\"content\":\"plain\"},{\"type\":\"message\"},{\"type\":\"reasoning\",\"summary\":\"s\"}]}",
+   "output": {
+    "text": "plain\ns",
+    "toolCalls": []
+   },
+   "error": null
+  },
+  {
+   "name": "responses: output that is not a list",
+   "format": "responses",
+   "stream": false,
+   "body": "{\"output\":{\"type\":\"function_call\",\"name\":\"hidden\"}}",
+   "output": {
+    "text": "",
+    "toolCalls": []
+   },
+   "error": null
+  },
+  {
+   "name": "responses: no output",
+   "format": "responses",
+   "stream": false,
+   "body": "{\"status\":\"completed\"}",
+   "output": {
+    "text": "",
+    "toolCalls": []
+   },
+   "error": null
+  },
+  {
+   "name": "responses: not an object",
+   "format": "responses",
+   "stream": false,
+   "body": "true",
+   "output": null,
+   "error": "response is not a JSON object"
+  },
+  {
+   "name": "responses stream: completed",
+   "format": "responses",
+   "stream": true,
+   "body": "event: response.created\ndata: {\"type\":\"response.created\",\"response\":{}}\n\nevent: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"not read\"}\n\nevent: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"output\":[{\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"text\":\"final\"}]},{\"type\":\"function_call\",\"call_id\":\"c\",\"name\":\"terminal\",\"arguments\":\"{}\"}]}}\n\n",
+   "output": {
+    "text": "final\n{}",
+    "toolCalls": [
+     {
+      "id": "c",
+      "name": "terminal",
+      "arguments": "{}",
+      "kind": "function_call"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "responses stream: the first completed event counts",
+   "format": "responses",
+   "stream": true,
+   "body": "data: {\"type\":\"response.completed\",\"response\":{\"output\":[{\"type\":\"function_call\",\"name\":\"first\",\"arguments\":\"1\"}]}}\n\ndata: {\"type\":\"response.completed\",\"response\":{\"output\":[{\"type\":\"function_call\",\"name\":\"second\",\"arguments\":\"2\"}]}}\n\n",
+   "output": {
+    "text": "1",
+    "toolCalls": [
+     {
+      "id": null,
+      "name": "first",
+      "arguments": "1",
+      "kind": "function_call"
+     }
+    ]
+   },
+   "error": null
+  },
+  {
+   "name": "responses stream: never completed",
+   "format": "responses",
+   "stream": true,
+   "body": "data: {\"type\":\"response.created\"}\n\ndata: {\"type\":\"response.failed\",\"response\":{}}\n\n",
+   "output": null,
+   "error": "stream missing response.completed"
+  },
+  {
+   "name": "responses stream: completed with no response",
+   "format": "responses",
+   "stream": true,
+   "body": "data: {\"type\":\"response.completed\"}\n\n",
+   "output": null,
+   "error": "stream missing response.completed"
+  },
+  {
+   "name": "responses stream: completed with a response that is not an object",
+   "format": "responses",
+   "stream": true,
+   "body": "data: {\"type\":\"response.completed\",\"response\":[]}\n\n",
+   "output": null,
+   "error": "stream missing response.completed"
+  },
+  {
+   "name": "responses stream: an event after it that is not JSON",
+   "format": "responses",
+   "stream": true,
+   "body": "data: {\"type\":\"response.completed\",\"response\":{\"output\":[]}}\n\ndata: nope\n\n",
+   "output": null,
+   "error": "invalid JSON in SSE event"
+  },
+  {
+   "name": "responses stream: with [DONE]",
+   "format": "responses",
+   "stream": true,
+   "body": "data: {\"type\":\"response.completed\",\"response\":{\"output\":[]}}\n\ndata: [DONE]\n\n",
+   "output": null,
+   "error": "invalid JSON in SSE event"
+  },
+  {
+   "name": "responses stream: empty",
+   "format": "responses",
+   "stream": true,
+   "body": "",
+   "output": null,
+   "error": "stream missing response.completed"
+  }
+ ]
+}

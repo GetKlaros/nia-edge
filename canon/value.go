@@ -280,3 +280,26 @@ func appendJS(out []byte, n *node) []byte {
 	}
 	return appendNode(out, n)
 }
+
+// Units returns the UTF-16 code units of a string value, which is how
+// JavaScript counts and cuts text. ok is false for anything but a string.
+func (v *Value) Units() (units []uint16, ok bool) {
+	if v == nil || v.n.kind != kindString {
+		return nil, false
+	}
+	return v.n.text, true
+}
+
+// WellFormed decodes UTF-16 code units. ok is false when they hold a
+// surrogate without its pair, which no Go string can hold.
+func WellFormed(units []uint16) (text string, ok bool) {
+	for i := 0; i < len(units); i++ {
+		switch {
+		case units[i] >= 0xd800 && units[i] <= 0xdbff && i+1 < len(units) && units[i+1] >= 0xdc00 && units[i+1] <= 0xdfff:
+			i++
+		case units[i] >= 0xd800 && units[i] <= 0xdfff:
+			return "", false
+		}
+	}
+	return string(utf16.Decode(units)), true
+}
