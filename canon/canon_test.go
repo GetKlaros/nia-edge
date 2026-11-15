@@ -15,6 +15,7 @@ type canonicalCase struct {
 	Arguments     string  `json:"arguments"`
 	Canonical     *string `json:"canonical"`
 	DuplicateKeys bool    `json:"duplicate_keys"`
+	Stringified   *string `json:"stringified"`
 	Hash          string  `json:"hash"`
 }
 
@@ -73,6 +74,24 @@ func TestConformance(t *testing.T) {
 			}
 			if hash != c.Hash {
 				t.Errorf("ArgumentsHash(%q, %q)\n got  %s\n want %s", c.Tool, c.Arguments, hash, c.Hash)
+			}
+			written, ok, err := Stringify(c.Arguments)
+			if err != nil {
+				t.Fatalf("Stringify(%q): %v", c.Arguments, err)
+			}
+			switch {
+			case c.Stringified == nil && ok:
+				t.Errorf("Stringify(%q) = %q, JavaScript does not read it", c.Arguments, written)
+			case c.Stringified != nil && !ok:
+				t.Errorf("Stringify(%q) is not read here, JavaScript writes %q", c.Arguments, *c.Stringified)
+			case c.Stringified != nil && written != *c.Stringified:
+				t.Errorf("Stringify(%q)\n got  %q\n want %q", c.Arguments, written, *c.Stringified)
+			}
+			if value, err := Parse(c.Arguments); err == nil {
+				again, ok := value.Canonical()
+				if (c.Canonical == nil) == ok || (ok && again != *c.Canonical) {
+					t.Errorf("Parse(%q).Canonical() = %q, %v", c.Arguments, again, ok)
+				}
 			}
 			repeated, err := HasDuplicateKeys(c.Arguments)
 			if err != nil {
@@ -193,4 +212,46 @@ func FuzzCanonical(f *testing.F) {
 			t.Fatalf("HasDuplicateKeys(%q): %v", text, err)
 		}
 	})
+}
+
+func TestValue(t *testing.T) {
+	value, err := Parse(`{"s":"a😀","lone":"x\ud800","n":1.5,"t":true,"z":null,"list":[1,"b"],"o":{"k":"v"},"s":"last"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text, well, ok := value.Get("s").Text(); !ok || !well || text != "last" {
+		t.Errorf("a repeated key keeps its last value: %q", text)
+	}
+	if text, well, ok := value.Get("lone").Text(); !ok || well || text != "x�" {
+		t.Errorf("a lone surrogate: %q, well-formed %v", text, well)
+	}
+	if _, _, ok := value.Get("n").Text(); ok {
+		t.Error("a number read as text")
+	}
+	if number, ok := value.Get("n").Float(); !ok || number != 1.5 {
+		t.Error("number")
+	}
+	if truth, ok := value.Get("t").Truth(); !ok || !truth {
+		t.Error("boolean")
+	}
+	if value.Get("z").Kind() != Null || !value.Get("z").Present() || value.Get("missing").Present() || value.Get("missing").Kind() != Null {
+		t.Error("null is present, a missing key is not")
+	}
+	if items := value.Get("list").Items(); len(items) != 2 || items[1].Kind() != String || value.Get("list").Len() != 2 {
+		t.Error("array")
+	}
+	if value.Get("o").Get("k").JSON() != `"v"` || value.Get("list").Get("0") != nil || value.Get("missing").Get("x").JSON() != "null" {
+		t.Error("object")
+	}
+	if value.Kind() != Object || value.Len() != 7 {
+		t.Errorf("%d keys", value.Len())
+	}
+	for text, want := range map[string]error{"": ErrNotJSON, "{": ErrNotJSON, "\xff": ErrInvalidUTF8, strings.Repeat("[", ParseDepth+1) + strings.Repeat("]", ParseDepth+1): ErrTooDeep} {
+		if _, err := Parse(text); err != want {
+			t.Errorf("Parse(%.10q): %v, want %v", text, err, want)
+		}
+	}
+	if _, err := Parse(strings.Repeat("[", ParseDepth) + strings.Repeat("]", ParseDepth)); err != nil {
+		t.Errorf("a document at the limit: %v", err)
+	}
 }
