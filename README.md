@@ -32,7 +32,8 @@ rule by user, or a container whose only network is nia-edge).
 ## Get the binary
 
 Releases are on the [releases page](https://github.com/GetKlaros/nia-edge/releases):
-one static binary per system, the Linux installer, and `SHA256SUMS`.
+one static binary per system, the Linux installer with its firewall script
+(keep the two in one directory), and `SHA256SUMS`.
 
 ```bash
 sha256sum -c --ignore-missing SHA256SUMS      # before running anything
