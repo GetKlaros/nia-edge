@@ -5,7 +5,7 @@ They are what the server answers for a fixed set of inputs. Do not edit them.
 
 | File | Content | Replayed by |
 | --- | --- | --- |
-| `canonical.json` | The hash a call's arguments are bound to: canonical JSON, repeated keys, and the hash itself | `canon` |
+| `canonical.json` | The hash a call's arguments are bound to: canonical JSON, repeated keys, and the hash itself; and the text as `JSON.stringify` writes it back, keys in JavaScript's order | `canon` |
 | `addresses.json` | Which addresses the egress proxy refuses as internal, and which hosts a list exempts | `internal/egress` |
 | `signatures.json` | Ed25519 signatures of the server over a policy payload, good and bad, from a test seed that signs nothing real | `internal/policy` |
 | `decisions.json` | Role decisions (`allow`, `require_approval`, `deny`) over several roles, in clean, tainted and exposed sessions | `internal/engine` |

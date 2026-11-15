@@ -118,6 +118,15 @@ func ArgumentsHash(tool, text string) (string, error) {
 type parser struct {
 	data string
 	pos  int
+	// deepest is how deep arrays and objects may nest; 0 means MaxDepth.
+	deepest int
+}
+
+func (p *parser) limit() int {
+	if p.deepest > 0 {
+		return p.deepest
+	}
+	return MaxDepth
 }
 
 func (p *parser) document() (*node, error) {
@@ -151,12 +160,12 @@ func (p *parser) value(depth int) (*node, error) {
 	}
 	switch c := p.data[p.pos]; {
 	case c == '{':
-		if depth >= MaxDepth {
+		if depth >= p.limit() {
 			return nil, errTooDeep
 		}
 		return p.object(depth + 1)
 	case c == '[':
-		if depth >= MaxDepth {
+		if depth >= p.limit() {
 			return nil, errTooDeep
 		}
 		return p.array(depth + 1)
