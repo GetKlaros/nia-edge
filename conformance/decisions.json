@@ -161,6 +161,137 @@
    ]
   },
   {
+   "name": "edges",
+   "mode": "enforce",
+   "rule_of_two": "require_approval",
+   "destructive": "require_approval",
+   "tools": [
+    {
+     "name": "a.b",
+     "when_untrusted": "allow",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    },
+    {
+     "name": "x+y?(z)[1]{2}|^$",
+     "when_untrusted": "allow",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    },
+    {
+     "name": "*_tail",
+     "when_untrusted": "require_approval",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    },
+    {
+     "name": "mid*dle*end",
+     "when_untrusted": "allow",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    },
+    {
+     "name": "line\nbreak*",
+     "when_untrusted": "allow",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    },
+    {
+     "name": "shell",
+     "when_untrusted": "deny",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": [
+      {
+       "applies": "always",
+       "decision": "deny",
+       "match": {
+        "input.command": "curl|wget",
+        "input.cwd": "^/tmp(/|$)"
+       }
+      },
+      {
+       "applies": "untrusted",
+       "decision": "require_approval",
+       "match": {
+        "input.command": "^[a-z]+( [\\w./=-]+)*$"
+       },
+       "shell_safe": {
+        "path": "input.command"
+       }
+      },
+      {
+       "applies": "untrusted",
+       "decision": "allow",
+       "match": {
+        "input.command": "^echo .{0,20}$"
+       }
+      }
+     ]
+    },
+    {
+     "name": "http",
+     "when_untrusted": "deny",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": [
+      {
+       "applies": "always",
+       "decision": "deny",
+       "match": {
+        "method": "^(?!GET$)"
+       }
+      },
+      {
+       "applies": "untrusted",
+       "decision": "allow",
+       "hosts": {
+        "path": "url",
+        "allow": [
+         "Example.COM",
+         "*.docs.example.org",
+         "192.0.2.7",
+         "xn--bcher-kva.example"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "open",
+     "when_untrusted": "deny",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": [
+      {
+       "applies": "untrusted",
+       "decision": "allow",
+       "hosts": {
+        "path": "target",
+        "allow": [
+         "Kelvin.example",
+         "plain.example"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
    "name": "observed",
    "mode": "observe",
    "rule_of_two": "require_approval",
@@ -1380,6 +1511,578 @@
     "decision": "deny",
     "reason": "argument_rule",
     "rule": "terminal#0"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls C:\\\\dir\"}",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls C:\\\\dir\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls C:\\\\dir\"}, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls C:\\\\dir\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls C:\\\\dir\"}, tainted",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls C:\\\\dir\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls C:\\\\dir\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls C:\\\\dir\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls a&b\"}",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls a&b\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls a&b\"}, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls a&b\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls a&b\"}, tainted",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls a&b\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls a&b\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls a&b\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls `id`\"}",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls `id`\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls `id`\"}, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls `id`\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls `id`\"}, tainted",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls `id`\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls `id`\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls `id`\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls $HOME\"}",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls $HOME\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls $HOME\"}, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls $HOME\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls $HOME\"}, tainted",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls $HOME\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls $HOME\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls $HOME\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls >f\"}",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls >f\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls >f\"}, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls >f\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls >f\"}, tainted",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls >f\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls >f\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls >f\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls <f\"}",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls <f\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls <f\"}, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls <f\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls <f\"}, tainted",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls <f\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls <f\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls <f\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls a|b\"}",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls a|b\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls a|b\"}, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls a|b\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls a|b\"}, tainted",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls a|b\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls a|b\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls a|b\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls \\n id\"}",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls \\n id\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls \\n id\"}, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls \\n id\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls \\n id\"}, tainted",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls \\n id\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls \\n id\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls \\n id\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls \\r id\"}",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls \\r id\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls \\r id\"}, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls \\r id\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls \\r id\"}, tainted",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls \\r id\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls \\r id\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls \\r id\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls \\u2028 id\"}",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls \\u2028 id\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls \\u2028 id\"}, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls \\u2028 id\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls \\u2028 id\"}, tainted",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls \\u2028 id\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "terminal#1"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls \\u2028 id\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls \\u2028 id\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "terminal#1"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls a/b-c_d.e=f\"}",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls a/b-c_d.e=f\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls a/b-c_d.e=f\"}, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls a/b-c_d.e=f\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls a/b-c_d.e=f\"}, tainted",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls a/b-c_d.e=f\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "terminal#1"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls a/b-c_d.e=f\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls a/b-c_d.e=f\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "terminal#1"
    }
   },
   {
@@ -3044,6 +3747,5830 @@
     "decision": "deny",
     "reason": "tool_not_in_role",
     "rule": null
+   }
+  },
+  {
+   "name": "edges: a.b {}",
+   "role": "edges",
+   "tool": "a.b",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "a.b"
+   }
+  },
+  {
+   "name": "edges: a.b {}, exposed",
+   "role": "edges",
+   "tool": "a.b",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "a.b"
+   }
+  },
+  {
+   "name": "edges: a.b {}, tainted",
+   "role": "edges",
+   "tool": "a.b",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "a.b"
+   }
+  },
+  {
+   "name": "edges: a.b {}, tainted, exposed",
+   "role": "edges",
+   "tool": "a.b",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "a.b"
+   }
+  },
+  {
+   "name": "edges: axb {}",
+   "role": "edges",
+   "tool": "axb",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: axb {}, exposed",
+   "role": "edges",
+   "tool": "axb",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: axb {}, tainted",
+   "role": "edges",
+   "tool": "axb",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: axb {}, tainted, exposed",
+   "role": "edges",
+   "tool": "axb",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: x+y?(z)[1]{2}|^$ {}",
+   "role": "edges",
+   "tool": "x+y?(z)[1]{2}|^$",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "x+y?(z)[1]{2}|^$"
+   }
+  },
+  {
+   "name": "edges: x+y?(z)[1]{2}|^$ {}, exposed",
+   "role": "edges",
+   "tool": "x+y?(z)[1]{2}|^$",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "x+y?(z)[1]{2}|^$"
+   }
+  },
+  {
+   "name": "edges: x+y?(z)[1]{2}|^$ {}, tainted",
+   "role": "edges",
+   "tool": "x+y?(z)[1]{2}|^$",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "x+y?(z)[1]{2}|^$"
+   }
+  },
+  {
+   "name": "edges: x+y?(z)[1]{2}|^$ {}, tainted, exposed",
+   "role": "edges",
+   "tool": "x+y?(z)[1]{2}|^$",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "x+y?(z)[1]{2}|^$"
+   }
+  },
+  {
+   "name": "edges: xxy {}",
+   "role": "edges",
+   "tool": "xxy",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: xxy {}, exposed",
+   "role": "edges",
+   "tool": "xxy",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: xxy {}, tainted",
+   "role": "edges",
+   "tool": "xxy",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: xxy {}, tainted, exposed",
+   "role": "edges",
+   "tool": "xxy",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges:  {}",
+   "role": "edges",
+   "tool": "",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges:  {}, exposed",
+   "role": "edges",
+   "tool": "",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges:  {}, tainted",
+   "role": "edges",
+   "tool": "",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges:  {}, tainted, exposed",
+   "role": "edges",
+   "tool": "",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: _tail {}",
+   "role": "edges",
+   "tool": "_tail",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "*_tail"
+   }
+  },
+  {
+   "name": "edges: _tail {}, exposed",
+   "role": "edges",
+   "tool": "_tail",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "*_tail"
+   }
+  },
+  {
+   "name": "edges: _tail {}, tainted",
+   "role": "edges",
+   "tool": "_tail",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "*_tail"
+   }
+  },
+  {
+   "name": "edges: _tail {}, tainted, exposed",
+   "role": "edges",
+   "tool": "_tail",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "*_tail"
+   }
+  },
+  {
+   "name": "edges: long_tail {}",
+   "role": "edges",
+   "tool": "long_tail",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "*_tail"
+   }
+  },
+  {
+   "name": "edges: long_tail {}, exposed",
+   "role": "edges",
+   "tool": "long_tail",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "*_tail"
+   }
+  },
+  {
+   "name": "edges: long_tail {}, tainted",
+   "role": "edges",
+   "tool": "long_tail",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "*_tail"
+   }
+  },
+  {
+   "name": "edges: long_tail {}, tainted, exposed",
+   "role": "edges",
+   "tool": "long_tail",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "*_tail"
+   }
+  },
+  {
+   "name": "edges: long_tail_ {}",
+   "role": "edges",
+   "tool": "long_tail_",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: long_tail_ {}, exposed",
+   "role": "edges",
+   "tool": "long_tail_",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: long_tail_ {}, tainted",
+   "role": "edges",
+   "tool": "long_tail_",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: long_tail_ {}, tainted, exposed",
+   "role": "edges",
+   "tool": "long_tail_",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: long\n_tail {}",
+   "role": "edges",
+   "tool": "long\n_tail",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: long\n_tail {}, exposed",
+   "role": "edges",
+   "tool": "long\n_tail",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: long\n_tail {}, tainted",
+   "role": "edges",
+   "tool": "long\n_tail",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: long\n_tail {}, tainted, exposed",
+   "role": "edges",
+   "tool": "long\n_tail",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: long\r_tail {}",
+   "role": "edges",
+   "tool": "long\r_tail",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: long\r_tail {}, exposed",
+   "role": "edges",
+   "tool": "long\r_tail",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: long\r_tail {}, tainted",
+   "role": "edges",
+   "tool": "long\r_tail",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: long\r_tail {}, tainted, exposed",
+   "role": "edges",
+   "tool": "long\r_tail",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: long _tail {}",
+   "role": "edges",
+   "tool": "long _tail",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: long _tail {}, exposed",
+   "role": "edges",
+   "tool": "long _tail",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: long _tail {}, tainted",
+   "role": "edges",
+   "tool": "long _tail",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: long _tail {}, tainted, exposed",
+   "role": "edges",
+   "tool": "long _tail",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: long _tail {}",
+   "role": "edges",
+   "tool": "long _tail",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: long _tail {}, exposed",
+   "role": "edges",
+   "tool": "long _tail",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: long _tail {}, tainted",
+   "role": "edges",
+   "tool": "long _tail",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: long _tail {}, tainted, exposed",
+   "role": "edges",
+   "tool": "long _tail",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: long\u000b\f_tail {}",
+   "role": "edges",
+   "tool": "long\u000b\f_tail",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "*_tail"
+   }
+  },
+  {
+   "name": "edges: long\u000b\f_tail {}, exposed",
+   "role": "edges",
+   "tool": "long\u000b\f_tail",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "*_tail"
+   }
+  },
+  {
+   "name": "edges: long\u000b\f_tail {}, tainted",
+   "role": "edges",
+   "tool": "long\u000b\f_tail",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "*_tail"
+   }
+  },
+  {
+   "name": "edges: long\u000b\f_tail {}, tainted, exposed",
+   "role": "edges",
+   "tool": "long\u000b\f_tail",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "*_tail"
+   }
+  },
+  {
+   "name": "edges: 😀_tail {}",
+   "role": "edges",
+   "tool": "😀_tail",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "*_tail"
+   }
+  },
+  {
+   "name": "edges: 😀_tail {}, exposed",
+   "role": "edges",
+   "tool": "😀_tail",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "*_tail"
+   }
+  },
+  {
+   "name": "edges: 😀_tail {}, tainted",
+   "role": "edges",
+   "tool": "😀_tail",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "*_tail"
+   }
+  },
+  {
+   "name": "edges: 😀_tail {}, tainted, exposed",
+   "role": "edges",
+   "tool": "😀_tail",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "*_tail"
+   }
+  },
+  {
+   "name": "edges: middleend {}",
+   "role": "edges",
+   "tool": "middleend",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mid*dle*end"
+   }
+  },
+  {
+   "name": "edges: middleend {}, exposed",
+   "role": "edges",
+   "tool": "middleend",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mid*dle*end"
+   }
+  },
+  {
+   "name": "edges: middleend {}, tainted",
+   "role": "edges",
+   "tool": "middleend",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mid*dle*end"
+   }
+  },
+  {
+   "name": "edges: middleend {}, tainted, exposed",
+   "role": "edges",
+   "tool": "middleend",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mid*dle*end"
+   }
+  },
+  {
+   "name": "edges: middledleend {}",
+   "role": "edges",
+   "tool": "middledleend",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mid*dle*end"
+   }
+  },
+  {
+   "name": "edges: middledleend {}, exposed",
+   "role": "edges",
+   "tool": "middledleend",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mid*dle*end"
+   }
+  },
+  {
+   "name": "edges: middledleend {}, tainted",
+   "role": "edges",
+   "tool": "middledleend",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mid*dle*end"
+   }
+  },
+  {
+   "name": "edges: middledleend {}, tainted, exposed",
+   "role": "edges",
+   "tool": "middledleend",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mid*dle*end"
+   }
+  },
+  {
+   "name": "edges: mid-dle-end {}",
+   "role": "edges",
+   "tool": "mid-dle-end",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mid*dle*end"
+   }
+  },
+  {
+   "name": "edges: mid-dle-end {}, exposed",
+   "role": "edges",
+   "tool": "mid-dle-end",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mid*dle*end"
+   }
+  },
+  {
+   "name": "edges: mid-dle-end {}, tainted",
+   "role": "edges",
+   "tool": "mid-dle-end",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mid*dle*end"
+   }
+  },
+  {
+   "name": "edges: mid-dle-end {}, tainted, exposed",
+   "role": "edges",
+   "tool": "mid-dle-end",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mid*dle*end"
+   }
+  },
+  {
+   "name": "edges: mid-dle-en {}",
+   "role": "edges",
+   "tool": "mid-dle-en",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: mid-dle-en {}, exposed",
+   "role": "edges",
+   "tool": "mid-dle-en",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: mid-dle-en {}, tainted",
+   "role": "edges",
+   "tool": "mid-dle-en",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: mid-dle-en {}, tainted, exposed",
+   "role": "edges",
+   "tool": "mid-dle-en",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: midleend {}",
+   "role": "edges",
+   "tool": "midleend",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: midleend {}, exposed",
+   "role": "edges",
+   "tool": "midleend",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: midleend {}, tainted",
+   "role": "edges",
+   "tool": "midleend",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: midleend {}, tainted, exposed",
+   "role": "edges",
+   "tool": "midleend",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: mid dle\nend {}",
+   "role": "edges",
+   "tool": "mid dle\nend",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: mid dle\nend {}, exposed",
+   "role": "edges",
+   "tool": "mid dle\nend",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: mid dle\nend {}, tainted",
+   "role": "edges",
+   "tool": "mid dle\nend",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: mid dle\nend {}, tainted, exposed",
+   "role": "edges",
+   "tool": "mid dle\nend",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: line\nbreak {}",
+   "role": "edges",
+   "tool": "line\nbreak",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "line\nbreak*"
+   }
+  },
+  {
+   "name": "edges: line\nbreak {}, exposed",
+   "role": "edges",
+   "tool": "line\nbreak",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "line\nbreak*"
+   }
+  },
+  {
+   "name": "edges: line\nbreak {}, tainted",
+   "role": "edges",
+   "tool": "line\nbreak",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "line\nbreak*"
+   }
+  },
+  {
+   "name": "edges: line\nbreak {}, tainted, exposed",
+   "role": "edges",
+   "tool": "line\nbreak",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "line\nbreak*"
+   }
+  },
+  {
+   "name": "edges: line\nbreaks {}",
+   "role": "edges",
+   "tool": "line\nbreaks",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "line\nbreak*"
+   }
+  },
+  {
+   "name": "edges: line\nbreaks {}, exposed",
+   "role": "edges",
+   "tool": "line\nbreaks",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "line\nbreak*"
+   }
+  },
+  {
+   "name": "edges: line\nbreaks {}, tainted",
+   "role": "edges",
+   "tool": "line\nbreaks",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "line\nbreak*"
+   }
+  },
+  {
+   "name": "edges: line\nbreaks {}, tainted, exposed",
+   "role": "edges",
+   "tool": "line\nbreaks",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "line\nbreak*"
+   }
+  },
+  {
+   "name": "edges: line\nbreak\n {}",
+   "role": "edges",
+   "tool": "line\nbreak\n",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: line\nbreak\n {}, exposed",
+   "role": "edges",
+   "tool": "line\nbreak\n",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: line\nbreak\n {}, tainted",
+   "role": "edges",
+   "tool": "line\nbreak\n",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: line\nbreak\n {}, tainted, exposed",
+   "role": "edges",
+   "tool": "line\nbreak\n",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: linebreak {}",
+   "role": "edges",
+   "tool": "linebreak",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: linebreak {}, exposed",
+   "role": "edges",
+   "tool": "linebreak",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: linebreak {}, tainted",
+   "role": "edges",
+   "tool": "linebreak",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: linebreak {}, tainted, exposed",
+   "role": "edges",
+   "tool": "linebreak",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"ls -la ./src\",\"cwd\":\"/home\"}}",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"ls -la ./src\",\"cwd\":\"/home\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"ls -la ./src\",\"cwd\":\"/home\"}}, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"ls -la ./src\",\"cwd\":\"/home\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"ls -la ./src\",\"cwd\":\"/home\"}}, tainted",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"ls -la ./src\",\"cwd\":\"/home\"}}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "argument_rule",
+    "rule": "shell#1"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"ls -la ./src\",\"cwd\":\"/home\"}}, tainted, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"ls -la ./src\",\"cwd\":\"/home\"}}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "argument_rule",
+    "rule": "shell#1"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"ls | wc\"}}",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"ls | wc\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"ls | wc\"}}, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"ls | wc\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"ls | wc\"}}, tainted",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"ls | wc\"}}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"ls | wc\"}}, tainted, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"ls | wc\"}}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"curl x\",\"cwd\":\"/tmp\"}}",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"curl x\",\"cwd\":\"/tmp\"}}",
+   "decision": {
+    "decision": "deny",
+    "reason": "argument_rule",
+    "rule": "shell#0"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"curl x\",\"cwd\":\"/tmp\"}}, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"curl x\",\"cwd\":\"/tmp\"}}",
+   "decision": {
+    "decision": "deny",
+    "reason": "argument_rule",
+    "rule": "shell#0"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"curl x\",\"cwd\":\"/tmp\"}}, tainted",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"curl x\",\"cwd\":\"/tmp\"}}",
+   "decision": {
+    "decision": "deny",
+    "reason": "argument_rule",
+    "rule": "shell#0"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"curl x\",\"cwd\":\"/tmp\"}}, tainted, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"curl x\",\"cwd\":\"/tmp\"}}",
+   "decision": {
+    "decision": "deny",
+    "reason": "argument_rule",
+    "rule": "shell#0"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"curl x\",\"cwd\":\"/tmpx\"}}",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"curl x\",\"cwd\":\"/tmpx\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"curl x\",\"cwd\":\"/tmpx\"}}, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"curl x\",\"cwd\":\"/tmpx\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"curl x\",\"cwd\":\"/tmpx\"}}, tainted",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"curl x\",\"cwd\":\"/tmpx\"}}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "argument_rule",
+    "rule": "shell#1"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"curl x\",\"cwd\":\"/tmpx\"}}, tainted, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"curl x\",\"cwd\":\"/tmpx\"}}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "argument_rule",
+    "rule": "shell#1"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"curl x\"}}",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"curl x\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"curl x\"}}, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"curl x\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"curl x\"}}, tainted",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"curl x\"}}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "argument_rule",
+    "rule": "shell#1"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"curl x\"}}, tainted, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"curl x\"}}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "argument_rule",
+    "rule": "shell#1"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo héllo wörld\"}}",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"echo héllo wörld\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo héllo wörld\"}}, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"echo héllo wörld\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo héllo wörld\"}}, tainted",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"echo héllo wörld\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "shell#2"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo héllo wörld\"}}, tainted, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"echo héllo wörld\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "shell#2"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo line\\nbreak\"}}",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"echo line\\nbreak\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo line\\nbreak\"}}, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"echo line\\nbreak\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo line\\nbreak\"}}, tainted",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"echo line\\nbreak\"}}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo line\\nbreak\"}}, tainted, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"echo line\\nbreak\"}}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo \\u2028\"}}",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"echo \\u2028\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo \\u2028\"}}, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"echo \\u2028\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo \\u2028\"}}, tainted",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"echo \\u2028\"}}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo \\u2028\"}}, tainted, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"echo \\u2028\"}}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo \\ud83d\\ude00\"}}",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"echo \\ud83d\\ude00\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo \\ud83d\\ude00\"}}, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"echo \\ud83d\\ude00\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo \\ud83d\\ude00\"}}, tainted",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"echo \\ud83d\\ude00\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "shell#2"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo \\ud83d\\ude00\"}}, tainted, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"echo \\ud83d\\ude00\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "shell#2"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo 😀\"}}",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"echo 😀\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo 😀\"}}, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"echo 😀\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo 😀\"}}, tainted",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"echo 😀\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "shell#2"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo 😀\"}}, tainted, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"echo 😀\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "shell#2"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo \\ud800\"}}",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"echo \\ud800\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo \\ud800\"}}, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"echo \\ud800\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo \\ud800\"}}, tainted",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"echo \\ud800\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "shell#2"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo \\ud800\"}}, tainted, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"echo \\ud800\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "shell#2"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo �\"}}",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"echo �\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo �\"}}, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"echo �\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo �\"}}, tainted",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"echo �\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "shell#2"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo �\"}}, tainted, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"echo �\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "shell#2"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo 123456789012345678901\"}}",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"echo 123456789012345678901\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo 123456789012345678901\"}}, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"echo 123456789012345678901\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo 123456789012345678901\"}}, tainted",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"echo 123456789012345678901\"}}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "argument_rule",
+    "rule": "shell#1"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo 123456789012345678901\"}}, tainted, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"echo 123456789012345678901\"}}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "argument_rule",
+    "rule": "shell#1"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":[]}}",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":[]}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":[]}}, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":[]}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":[]}}, tainted",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":[]}}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":[]}}, tainted, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":[]}}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":[\"echo\",\"a\",\"b\"]}}",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":[\"echo\",\"a\",\"b\"]}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":[\"echo\",\"a\",\"b\"]}}, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":[\"echo\",\"a\",\"b\"]}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":[\"echo\",\"a\",\"b\"]}}, tainted",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":[\"echo\",\"a\",\"b\"]}}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "argument_rule",
+    "rule": "shell#1"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":[\"echo\",\"a\",\"b\"]}}, tainted, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":[\"echo\",\"a\",\"b\"]}}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "argument_rule",
+    "rule": "shell#1"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":[\"echo\",1]}}",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":[\"echo\",1]}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":[\"echo\",1]}}, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":[\"echo\",1]}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":[\"echo\",1]}}, tainted",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":[\"echo\",1]}}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":[\"echo\",1]}}, tainted, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":[\"echo\",1]}}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":[\"echo\"]}",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"input\":[\"echo\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":[\"echo\"]}, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"input\":[\"echo\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":[\"echo\"]}, tainted",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"input\":[\"echo\"]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":[\"echo\"]}, tainted, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"input\":[\"echo\"]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":null}",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"input\":null}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":null}, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"input\":null}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":null}, tainted",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"input\":null}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":null}, tainted, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"input\":null}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input.command\":\"echo a\"}",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"input.command\":\"echo a\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input.command\":\"echo a\"}, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"input.command\":\"echo a\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input.command\":\"echo a\"}, tainted",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"input.command\":\"echo a\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input.command\":\"echo a\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"input.command\":\"echo a\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo a\"},\"__proto__\":{\"x\":1}}",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"echo a\"},\"__proto__\":{\"x\":1}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo a\"},\"__proto__\":{\"x\":1}}, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"echo a\"},\"__proto__\":{\"x\":1}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo a\"},\"__proto__\":{\"x\":1}}, tainted",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"echo a\"},\"__proto__\":{\"x\":1}}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "argument_rule",
+    "rule": "shell#1"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo a\"},\"__proto__\":{\"x\":1}}, tainted, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"echo a\"},\"__proto__\":{\"x\":1}}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "argument_rule",
+    "rule": "shell#1"
+   }
+  },
+  {
+   "name": "edges: shell {\"constructor\":{\"command\":\"echo a\"}}",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"constructor\":{\"command\":\"echo a\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"constructor\":{\"command\":\"echo a\"}}, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"constructor\":{\"command\":\"echo a\"}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"constructor\":{\"command\":\"echo a\"}}, tainted",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"constructor\":{\"command\":\"echo a\"}}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"constructor\":{\"command\":\"echo a\"}}, tainted, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"constructor\":{\"command\":\"echo a\"}}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell  {\"input\" : {\"command\" : \"echo a\"} } ",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": " {\"input\" : {\"command\" : \"echo a\"} } ",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell  {\"input\" : {\"command\" : \"echo a\"} } , exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": " {\"input\" : {\"command\" : \"echo a\"} } ",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell  {\"input\" : {\"command\" : \"echo a\"} } , tainted",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": " {\"input\" : {\"command\" : \"echo a\"} } ",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "argument_rule",
+    "rule": "shell#1"
+   }
+  },
+  {
+   "name": "edges: shell  {\"input\" : {\"command\" : \"echo a\"} } , tainted, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": " {\"input\" : {\"command\" : \"echo a\"} } ",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "argument_rule",
+    "rule": "shell#1"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo a\"}} x",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"echo a\"}} x",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo a\"}} x, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"echo a\"}} x",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo a\"}} x, tainted",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"echo a\"}} x",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo a\"}} x, tainted, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"echo a\"}} x",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo a\",}}",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"echo a\",}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo a\",}}, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"echo a\",}}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo a\",}}, tainted",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"input\":{\"command\":\"echo a\",}}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell {\"input\":{\"command\":\"echo a\",}}, tainted, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"input\":{\"command\":\"echo a\",}}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[… (1200 characters)",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[… (1200 characters), exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[… (1200 characters), tainted",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: shell [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[… (1200 characters), tainted, exposed",
+   "role": "edges",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "edges: http {\"method\":\"GET\",\"url\":\"https://example.com/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"method\":\"GET\",\"url\":\"https://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"method\":\"GET\",\"url\":\"https://example.com/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"method\":\"GET\",\"url\":\"https://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"method\":\"GET\",\"url\":\"https://example.com/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"method\":\"GET\",\"url\":\"https://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"method\":\"GET\",\"url\":\"https://example.com/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"method\":\"GET\",\"url\":\"https://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"method\":\"POST\",\"url\":\"https://example.com/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"method\":\"POST\",\"url\":\"https://example.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "argument_rule",
+    "rule": "http#0"
+   }
+  },
+  {
+   "name": "edges: http {\"method\":\"POST\",\"url\":\"https://example.com/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"method\":\"POST\",\"url\":\"https://example.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "argument_rule",
+    "rule": "http#0"
+   }
+  },
+  {
+   "name": "edges: http {\"method\":\"POST\",\"url\":\"https://example.com/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"method\":\"POST\",\"url\":\"https://example.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "argument_rule",
+    "rule": "http#0"
+   }
+  },
+  {
+   "name": "edges: http {\"method\":\"POST\",\"url\":\"https://example.com/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"method\":\"POST\",\"url\":\"https://example.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "argument_rule",
+    "rule": "http#0"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"HTTPS://EXAMPLE.COM/x\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"HTTPS://EXAMPLE.COM/x\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"HTTPS://EXAMPLE.COM/x\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"HTTPS://EXAMPLE.COM/x\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"HTTPS://EXAMPLE.COM/x\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"HTTPS://EXAMPLE.COM/x\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"HTTPS://EXAMPLE.COM/x\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"HTTPS://EXAMPLE.COM/x\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"hTtP://a.docs.example.org:80\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"hTtP://a.docs.example.org:80\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"hTtP://a.docs.example.org:80\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"hTtP://a.docs.example.org:80\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"hTtP://a.docs.example.org:80\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"hTtP://a.docs.example.org:80\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"hTtP://a.docs.example.org:80\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"hTtP://a.docs.example.org:80\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"http://docs.example.org\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"http://docs.example.org\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"http://docs.example.org\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"http://docs.example.org\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"http://docs.example.org\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"http://docs.example.org\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"http://docs.example.org\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"http://docs.example.org\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"http://a.b.docs.example.org/?q=1#f\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"http://a.b.docs.example.org/?q=1#f\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"http://a.b.docs.example.org/?q=1#f\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"http://a.b.docs.example.org/?q=1#f\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"http://a.b.docs.example.org/?q=1#f\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"http://a.b.docs.example.org/?q=1#f\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"http://a.b.docs.example.org/?q=1#f\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"http://a.b.docs.example.org/?q=1#f\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com:65535/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com:65535/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com:65535/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com:65535/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com:65535/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com:65535/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com:65535/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com:65535/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com:65536/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com:65536/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com:65536/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com:65536/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com:65536/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com:65536/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com:65536/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com:65536/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com:00080/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com:00080/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com:00080/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com:00080/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com:00080/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com:00080/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com:00080/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com:00080/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com:/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com:/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com:/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com:/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com:/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com:/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com:/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com:/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com:123456/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com:123456/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com:123456/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com:123456/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com:123456/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com:123456/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com:123456/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com:123456/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.7/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://192.0.2.7/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.7/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://192.0.2.7/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.7/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://192.0.2.7/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.7/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://192.0.2.7/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.519/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://192.0.519/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.519/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://192.0.519/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.519/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://192.0.519/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.519/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://192.0.519/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://0xc0.0.2.7/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://0xc0.0.2.7/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://0xc0.0.2.7/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://0xc0.0.2.7/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://0xc0.0.2.7/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://0xc0.0.2.7/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://0xc0.0.2.7/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://0xc0.0.2.7/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://0300.0.02.07/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://0300.0.02.07/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://0300.0.02.07/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://0300.0.02.07/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://0300.0.02.07/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://0300.0.02.07/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://0300.0.02.07/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://0300.0.02.07/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://3221225991/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://3221225991/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://3221225991/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://3221225991/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://3221225991/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://3221225991/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://3221225991/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://3221225991/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.7.5/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://192.0.2.7.5/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.7.5/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://192.0.2.7.5/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.7.5/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://192.0.2.7.5/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.7.5/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://192.0.2.7.5/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.256/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://192.0.2.256/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.256/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://192.0.2.256/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.256/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://192.0.2.256/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.256/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://192.0.2.256/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.0x/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.0x/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.0x/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.0x/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.0x/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.0x/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.0x/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.0x/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com.123/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com.123/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com.123/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com.123/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com.123/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com.123/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com.123/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com.123/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://1.2.3.4.example.com/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://1.2.3.4.example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://1.2.3.4.example.com/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://1.2.3.4.example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://1.2.3.4.example.com/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://1.2.3.4.example.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://1.2.3.4.example.com/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://1.2.3.4.example.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://xn--bcher-kva.example/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://xn--bcher-kva.example/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://xn--bcher-kva.example/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://xn--bcher-kva.example/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://xn--bcher-kva.example/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://xn--bcher-kva.example/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://xn--bcher-kva.example/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://xn--bcher-kva.example/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://XN--bcher-kva.example/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://XN--bcher-kva.example/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://XN--bcher-kva.example/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://XN--bcher-kva.example/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://XN--bcher-kva.example/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://XN--bcher-kva.example/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://XN--bcher-kva.example/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://XN--bcher-kva.example/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://xn--.example.com/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://xn--.example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://xn--.example.com/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://xn--.example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://xn--.example.com/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://xn--.example.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://xn--.example.com/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://xn--.example.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://a..docs.example.org/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://a..docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://a..docs.example.org/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://a..docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://a..docs.example.org/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://a..docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://a..docs.example.org/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://a..docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://-a.docs.example.org/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://-a.docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://-a.docs.example.org/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://-a.docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://-a.docs.example.org/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://-a.docs.example.org/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://-a.docs.example.org/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://-a.docs.example.org/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://a-.docs.example.org/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://a-.docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://a-.docs.example.org/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://a-.docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://a-.docs.example.org/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://a-.docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://a-.docs.example.org/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://a-.docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://ab--c.docs.example.org/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://ab--c.docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://ab--c.docs.example.org/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://ab--c.docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://ab--c.docs.example.org/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://ab--c.docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://ab--c.docs.example.org/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://ab--c.docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com./\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com./\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com./\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com./\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com./\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com./\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com./\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com./\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://0xc0000207/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://0xc0000207/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://0xc0000207/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://0xc0000207/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://0xc0000207/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://0xc0000207/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://0xc0000207/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://0xc0000207/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://0XC0.0x0.0x2.0x7/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://0XC0.0x0.0x2.0x7/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://0XC0.0x0.0x2.0x7/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://0XC0.0x0.0x2.0x7/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://0XC0.0x0.0x2.0x7/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://0XC0.0x0.0x2.0x7/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://0XC0.0x0.0x2.0x7/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://0XC0.0x0.0x2.0x7/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.07/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://192.0.2.07/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.07/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://192.0.2.07/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.07/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://192.0.2.07/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.07/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://192.0.2.07/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.08/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://192.0.2.08/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.08/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://192.0.2.08/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.08/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://192.0.2.08/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.08/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://192.0.2.08/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.0x207/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://192.0.0x207/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.0x207/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://192.0.0x207/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.0x207/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://192.0.0x207/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.0x207/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://192.0.0x207/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.7.0x/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://192.0.2.7.0x/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.7.0x/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://192.0.2.7.0x/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.7.0x/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://192.0.2.7.0x/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.7.0x/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://192.0.2.7.0x/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://0x.0x.0x.0x/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://0x.0x.0x.0x/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://0x.0x.0x.0x/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://0x.0x.0x.0x/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://0x.0x.0x.0x/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://0x.0x.0x.0x/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://0x.0x.0x.0x/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://0x.0x.0x.0x/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://4294967296/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://4294967296/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://4294967296/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://4294967296/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://4294967296/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://4294967296/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://4294967296/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://4294967296/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://99999999999999999999999999/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://99999999999999999999999999/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://99999999999999999999999999/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://99999999999999999999999999/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://99999999999999999999999999/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://99999999999999999999999999/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://99999999999999999999999999/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://99999999999999999999999999/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.7:443/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://192.0.2.7:443/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.7:443/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://192.0.2.7:443/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.7:443/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://192.0.2.7:443/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.0.2.7:443/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://192.0.2.7:443/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.00000000000000000000.2.7/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://192.00000000000000000000.2.7/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.00000000000000000000.2.7/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://192.00000000000000000000.2.7/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.00000000000000000000.2.7/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://192.00000000000000000000.2.7/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://192.00000000000000000000.2.7/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://192.00000000000000000000.2.7/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://a.1x/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://a.1x/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://a.1x/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://a.1x/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://a.1x/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://a.1x/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://a.1x/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://a.1x/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://1.docs.example.org/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://1.docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://1.docs.example.org/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://1.docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://1.docs.example.org/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://1.docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://1.docs.example.org/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://1.docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.docs.example.org/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.docs.example.org/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.docs.example.org/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.docs.example.org/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.… (315 characters)",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.… (315 characters), exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.… (315 characters), tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.… (315 characters), tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/a b\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com/a b\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/a b\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com/a b\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/a b\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com/a b\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/a b\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com/a b\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"see https://example.com/a, then (https://a.docs.example.org/b)\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"see https://example.com/a, then (https://a.docs.example.org/b)\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"see https://example.com/a, then (https://a.docs.example.org/b)\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"see https://example.com/a, then (https://a.docs.example.org/b)\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"see https://example.com/a, then (https://a.docs.example.org/b)\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"see https://example.com/a, then (https://a.docs.example.org/b)\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"see https://example.com/a, then (https://a.docs.example.org/b)\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"see https://example.com/a, then (https://a.docs.example.org/b)\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/?next=https://example.com/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com/?next=https://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/?next=https://example.com/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com/?next=https://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/?next=https://example.com/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com/?next=https://example.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/?next=https://example.com/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com/?next=https://example.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/ xhttps://example.com/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com/ xhttps://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/ xhttps://example.com/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com/ xhttps://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/ xhttps://example.com/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com/ xhttps://example.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/ xhttps://example.com/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com/ xhttps://example.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/ _https://example.com/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com/ _https://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/ _https://example.com/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com/ _https://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/ _https://example.com/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com/ _https://example.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/ _https://example.com/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com/ _https://example.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/\\u00a0https://example.com/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com/\\u00a0https://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/\\u00a0https://example.com/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com/\\u00a0https://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/\\u00a0https://example.com/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com/\\u00a0https://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/\\u00a0https://example.com/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com/\\u00a0https://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/\\u2028https://example.com/\\ufeffhttps://example.com/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com/\\u2028https://example.com/\\ufeffhttps://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/\\u2028https://example.com/\\ufeffhttps://example.com/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com/\\u2028https://example.com/\\ufeffhttps://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/\\u2028https://example.com/\\ufeffhttps://example.com/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com/\\u2028https://example.com/\\ufeffhttps://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/\\u2028https://example.com/\\ufeffhttps://example.com/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com/\\u2028https://example.com/\\ufeffhttps://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/\\u0085https://example.com/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com/\\u0085https://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/\\u0085https://example.com/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com/\\u0085https://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/\\u0085https://example.com/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com/\\u0085https://example.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/\\u0085https://example.com/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com/\\u0085https://example.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"😀https://example.com/😀\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"😀https://example.com/😀\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"😀https://example.com/😀\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"😀https://example.com/😀\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"😀https://example.com/😀\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"😀https://example.com/😀\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"😀https://example.com/😀\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"😀https://example.com/😀\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/\\ud800\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com/\\ud800\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/\\ud800\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com/\\ud800\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/\\ud800\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com/\\ud800\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://example.com/\\ud800\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com/\\ud800\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"<https://example.com/>\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"<https://example.com/>\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"<https://example.com/>\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"<https://example.com/>\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"<https://example.com/>\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"<https://example.com/>\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"<https://example.com/>\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"<https://example.com/>\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"'https://example.com/' ://\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"'https://example.com/' ://\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"'https://example.com/' ://\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"'https://example.com/' ://\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"'https://example.com/' ://\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"'https://example.com/' ://\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"'https://example.com/' ://\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"'https://example.com/' ://\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https:///example.com/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https:///example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https:///example.com/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https:///example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https:///example.com/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https:///example.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https:///example.com/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https:///example.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"https://\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":[\"https://example.com/a\",\"https://example.com/b\"]}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":[\"https://example.com/a\",\"https://example.com/b\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":[\"https://example.com/a\",\"https://example.com/b\"]}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":[\"https://example.com/a\",\"https://example.com/b\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":[\"https://example.com/a\",\"https://example.com/b\"]}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":[\"https://example.com/a\",\"https://example.com/b\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":[\"https://example.com/a\",\"https://example.com/b\"]}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":[\"https://example.com/a\",\"https://example.com/b\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "http#1"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"httpss://example.com/\"}",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"httpss://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"httpss://example.com/\"}, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"httpss://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"httpss://example.com/\"}, tainted",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"httpss://example.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: http {\"url\":\"httpss://example.com/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "http",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"httpss://example.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "http"
+   }
+  },
+  {
+   "name": "edges: open {\"target\":\"https://kelvin.example/\"}",
+   "role": "edges",
+   "tool": "open",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"target\":\"https://kelvin.example/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "open"
+   }
+  },
+  {
+   "name": "edges: open {\"target\":\"https://kelvin.example/\"}, exposed",
+   "role": "edges",
+   "tool": "open",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"target\":\"https://kelvin.example/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "open"
+   }
+  },
+  {
+   "name": "edges: open {\"target\":\"https://kelvin.example/\"}, tainted",
+   "role": "edges",
+   "tool": "open",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"target\":\"https://kelvin.example/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "open#0"
+   }
+  },
+  {
+   "name": "edges: open {\"target\":\"https://kelvin.example/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "open",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"target\":\"https://kelvin.example/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "open#0"
+   }
+  },
+  {
+   "name": "edges: open {\"target\":\"https://plain.example/\"}",
+   "role": "edges",
+   "tool": "open",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"target\":\"https://plain.example/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "open"
+   }
+  },
+  {
+   "name": "edges: open {\"target\":\"https://plain.example/\"}, exposed",
+   "role": "edges",
+   "tool": "open",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"target\":\"https://plain.example/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "open"
+   }
+  },
+  {
+   "name": "edges: open {\"target\":\"https://plain.example/\"}, tainted",
+   "role": "edges",
+   "tool": "open",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"target\":\"https://plain.example/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "open#0"
+   }
+  },
+  {
+   "name": "edges: open {\"target\":\"https://plain.example/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "open",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"target\":\"https://plain.example/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "open#0"
+   }
+  },
+  {
+   "name": "edges: open {\"target\":\"https://evil.example/\"}",
+   "role": "edges",
+   "tool": "open",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"target\":\"https://evil.example/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "open"
+   }
+  },
+  {
+   "name": "edges: open {\"target\":\"https://evil.example/\"}, exposed",
+   "role": "edges",
+   "tool": "open",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"target\":\"https://evil.example/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "open"
+   }
+  },
+  {
+   "name": "edges: open {\"target\":\"https://evil.example/\"}, tainted",
+   "role": "edges",
+   "tool": "open",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"target\":\"https://evil.example/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "open"
+   }
+  },
+  {
+   "name": "edges: open {\"target\":\"https://evil.example/\"}, tainted, exposed",
+   "role": "edges",
+   "tool": "open",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"target\":\"https://evil.example/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "open"
    }
   },
   {

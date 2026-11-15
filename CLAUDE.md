@@ -25,6 +25,9 @@ private code base; this repository is public.
   pinned at enrollment, it names this machine and it has not expired. That is
   checked on what comes from the server and again on what is read from disk.
   A key the server changed is never adopted without a new enrollment.
+- The decision engine answers as the server or not at all: what it cannot be
+  sure of is `ErrUndecidable`, never a guess, and a role with a field it does
+  not know is refused whole.
 - What the machine reports about itself decides nothing.
 - The egress proxy refuses an internal IP literal before any decision,
   resolves a name only after the connection is allowed, once, and connects to
@@ -37,7 +40,8 @@ private code base; this repository is public.
   the agent's user still has a way out. Isolation is Nia's verdict, never the
   machine's own.
 - This repository is public: no secret, no customer name, no internal host
-  name, and nothing of the server's engine.
+  name, and none of the server's source code. What the client must compute
+  as the server does is written here from the conformance cases.
 
 ## Stack
 

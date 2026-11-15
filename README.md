@@ -23,6 +23,7 @@ nia-edge relays today; Nia decides every call.
 | macOS installer | not yet |
 | Local MCP servers | not yet |
 | Signed policy: fetched, verified against the key learned at enrollment, kept, reported | done |
+| Decision engine: roles, argument rules, dispatchers, answering as the server on its cases | done, not used yet |
 | Decisions made on the machine, from that policy | not yet |
 
 The egress proxy governs the connections that go through it. It closes the
@@ -142,6 +143,28 @@ the machine again (`nia-edge enroll -force`) if the change is yours.
 
 Today the policy is verified and reported, not yet used: Nia decides every
 call.
+
+### Decision engine
+
+`internal/engine` decides a call from a role as the server does: tool rules
+and globs, argument rules (`match`, `hosts`, `shell_safe`), the role-wide
+rules, observed roles, dispatchers. It replays the server's answers
+(`conformance/decisions.json`, `dispatch.json`, `regex.json`).
+
+The server is written in JavaScript and a role's `match` patterns are
+JavaScript regular expressions. Where this engine cannot be sure to answer as
+the server would, it does not answer, and the call is left to the server:
+
+- a pattern outside the syntax both languages read alike (look-around,
+  back-references, named groups, `\p`, legacy escapes);
+- a pattern that can match any character (`.`, a negated class, `\S`, `\W`,
+  `\D`, `\B`) on text outside the Basic Multilingual Plane, which JavaScript
+  reads as two units;
+- a URL with a punycode label (`xn--`), or an allowed host outside ASCII;
+- arguments nested deeper than 9000 levels;
+- a role with a field or a value this version does not know: refused whole.
+
+Nothing uses the engine yet.
 
 Run nia-edge under its own user, one the agent is not: the key in the state
 file is protected by file permissions.
