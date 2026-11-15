@@ -17,6 +17,15 @@ const (
 type Segment struct {
 	Source string `json:"source"`
 	Text   string `json:"text"`
+	// at is the string of the request body this text was read from.
+	at *canon.Value
+}
+
+// Replace rewrites this segment in the request body it was read from, which
+// is then sent on with the new text.
+func (s *Segment) Replace(text string) {
+	s.Text = text
+	s.at.SetText(text)
 }
 
 // Input is what a request holds, as far as deciding goes.
@@ -83,11 +92,11 @@ func (in *inputReader) nameOf(id *canon.Value, fallback string) string {
 
 // texts is the text of a content: a string, or the text of each part of a
 // list. Text that is only white space is not text.
-func (in *inputReader) texts(content *canon.Value) []string {
-	var found []string
+func (in *inputReader) texts(content *canon.Value) []Segment {
+	var found []Segment
 	keep := func(v *canon.Value) {
 		if text, ok := in.str(v); ok && !jsTrimmedEmpty(text) {
-			found = append(found, text)
+			found = append(found, Segment{Text: text, at: v})
 		}
 	}
 	if content.Kind() == canon.String {
@@ -103,14 +112,19 @@ func (in *inputReader) texts(content *canon.Value) []string {
 }
 
 func (in *inputReader) push(source string, content *canon.Value) {
-	for _, text := range in.texts(content) {
-		in.out.Segments = append(in.out.Segments, Segment{Source: source, Text: text})
+	for _, segment := range in.texts(content) {
+		segment.Source = source
+		in.out.Segments = append(in.out.Segments, segment)
 	}
 }
 
 func (in *inputReader) firstUser(content *canon.Value) {
 	if in.out.FirstUserText == nil {
-		text := strings.Join(in.texts(content), "\n")
+		var texts []string
+		for _, segment := range in.texts(content) {
+			texts = append(texts, segment.Text)
+		}
+		text := strings.Join(texts, "\n")
 		in.out.FirstUserText = &text
 	}
 }
@@ -212,7 +226,7 @@ func (in *inputReader) anthropic(body *canon.Value) {
 						in.push(ToolOutput, block.Get("content"))
 					}
 				} else if text, ok := in.str(block.Get("text")); ok && fresh && !jsTrimmedEmpty(text) {
-					in.out.Segments = append(in.out.Segments, Segment{Source: UserPrompt, Text: text})
+					in.out.Segments = append(in.out.Segments, Segment{Source: UserPrompt, Text: text, at: block.Get("text")})
 				}
 			}
 		}

@@ -26,6 +26,7 @@ nia-edge relays today; Nia decides every call.
 | Decision engine: roles, argument rules, dispatchers, answering as the server on its cases | done, not used yet |
 | Reading a request and a model's response (Chat Completions, Responses, Anthropic Messages; documents and streams) as the server does | done, not used yet |
 | Secret detection and redaction (keys, tokens, labelled credentials) as the server does | done, not used yet |
+| Model calls sent from the machine to the provider; Nia decides the tool calls and sees no prompt | done |
 | Decisions made on the machine, from that policy | not yet |
 
 The egress proxy governs the connections that go through it. It closes the
@@ -127,6 +128,46 @@ network is denied.
 `GET /edge/health` answers `{"edge":"ok","nia":"ready","machine":"active","policy":"…"}`:
 whether Nia is reachable, what the last heartbeat learned, and the signed
 policy in force.
+
+### Calling the model provider from the machine
+
+By default the agent's model calls are relayed to Nia, which calls the
+provider. With a provider set on the machine, nia-edge calls it itself:
+
+```bash
+# The key comes from NIA_PROVIDER_KEY, -key-file or standard input, never from the command line.
+sudo -u nia-edge nia-edge provider -url https://api.example.com/v1 < provider.key
+sudo systemctl restart nia-edge
+nia-edge provider            # shows it;  nia-edge provider -remove  goes back to the relay
+```
+
+`-format anthropic` sends the key as `x-api-key`. The agent's configuration
+does not change: it still talks to `http://127.0.0.1:8787/v1`, and the key it
+sends is ignored.
+
+What then goes to Nia, for each turn: the names of the tools whose results the
+conversation holds (that is what taints a session), and each call the model
+proposes, with its arguments, to be decided. What does not: the prompts, the
+tool results and the model's text. Nia still decides, holds approvals and
+keeps the log.
+
+Every turn is read whole before anything is released:
+
+- a secret in what is new in the request is replaced before it leaves the
+  machine; a model response that holds one is not released;
+- a response the provider did not finish, or that cannot be read as Nia reads
+  it, is not released;
+- one call Nia does not allow replaces the whole turn by what Nia says, in the
+  agent's own API, streamed or not;
+- a request that declares a provider-run tool (web search, code interpreter,
+  remote MCP) is refused: the provider would run it before any decision;
+- Nia out of reach refuses the turn.
+
+Limits of this mode today: no detection of personal data or prompt attacks
+(Nia's detectors do not see the text), the inspection settings of the policy
+are not read (secrets are always replaced on the way in and block on the way
+out), and when one call of a turn is refused, an approval another call of
+the same turn used is spent.
 
 ### Signed policy
 

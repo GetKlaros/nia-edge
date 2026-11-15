@@ -23,6 +23,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -36,6 +37,7 @@ import (
 
 	"github.com/GetKlaros/nia-edge/internal/doctor"
 	"github.com/GetKlaros/nia-edge/internal/egress"
+	"github.com/GetKlaros/nia-edge/internal/local"
 	"github.com/GetKlaros/nia-edge/internal/niaclient"
 	"github.com/GetKlaros/nia-edge/internal/policy"
 	"github.com/GetKlaros/nia-edge/internal/relay"
@@ -55,7 +57,7 @@ func main() {
 
 func run(ctx context.Context, args []string, getenv func(string) string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: nia-edge enroll|run|doctor|health|version")
+		fmt.Fprintln(stderr, "usage: nia-edge enroll|provider|run|doctor|health|version")
 		return 2
 	}
 	var err error
@@ -64,6 +66,8 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdin i
 		err = enroll(ctx, args[1:], getenv, stdin, stdout, stderr)
 	case "run":
 		err = serve(ctx, args[1:], getenv, stdout, stderr)
+	case "provider":
+		err = provider(args[1:], getenv, stdin, stdout, stderr)
 	case "doctor":
 		return check(ctx, args[1:], getenv, stdout, stderr)
 	case "health":
@@ -72,7 +76,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdin i
 		fmt.Fprintln(stdout, version)
 		return 0
 	default:
-		fmt.Fprintf(stderr, "nia-edge: unknown command %q (enroll, run, doctor, health, version)\n", args[0])
+		fmt.Fprintf(stderr, "nia-edge: unknown command %q (enroll, provider, run, doctor, health, version)\n", args[0])
 		return 2
 	}
 	if errors.Is(err, flag.ErrHelp) {
@@ -341,8 +345,34 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 	if err != nil {
 		return err
 	}
+	var handler http.Handler = relay.New(relay.Options{Nia: base, Key: saved.Key, Run: run, Status: status.get, Policy: policies.status, Logger: logger})
+	if saved.Provider != nil {
+		// Model calls go from this machine to the provider; Nia decides the
+		// tool calls and sees neither the prompts nor the answers.
+		providerURL, err := providerBaseURL(saved.Provider.BaseURL)
+		if err != nil {
+			return err
+		}
+		model := &local.Handler{
+			Provider:  providerURL,
+			Key:       saved.Provider.Key,
+			Anthropic: saved.Provider.Format == "anthropic",
+			HTTP:      local.NewProviderClient(15 * time.Minute),
+			Nia:       &local.Remote{Base: base, Key: saved.Key, Run: run, HTTP: niaclient.NewHTTPClient(time.Duration(30+wait) * time.Second), Wait: wait},
+			Logger:    logger,
+		}
+		relayed := handler
+		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if _, ok := local.Format(r.URL.Path); ok && r.URL.RawPath == "" && r.Method == http.MethodPost {
+				model.ServeHTTP(w, r)
+				return
+			}
+			relayed.ServeHTTP(w, r)
+		})
+		fmt.Fprintf(stdout, "nia-edge %s: model calls go from this machine to %s; Nia decides the tool calls\n", version, providerURL.Host)
+	}
 	server := &http.Server{
-		Handler: relay.New(relay.Options{Nia: base, Key: saved.Key, Run: run, Status: status.get, Policy: policies.status, Logger: logger}),
+		Handler: handler,
 		// Headers must arrive promptly. Bodies and answers have no time
 		// limit: a model answer streams, and a held call waits for a reviewer.
 		ReadHeaderTimeout: 10 * time.Second,
@@ -525,6 +555,98 @@ func (k *keeper) refresh(ctx context.Context, client *niaclient.Client, machineK
 		logger.Info("policy in force", "version", opened.Version, "digest", opened.Digest, "valid_until", opened.NotAfter.UTC().Format(time.RFC3339))
 	}
 	return changed
+}
+
+// providerBaseURL reads the base URL of a model provider: https, or http on
+// this machine for a model that runs here.
+func providerBaseURL(raw string) (*url.URL, error) {
+	parsed, err := url.Parse(strings.TrimRight(strings.TrimSpace(raw), "/"))
+	if err != nil || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return nil, errors.New("the provider URL must look like https://api.example.com/v1")
+	}
+	host := parsed.Hostname()
+	local := host == "localhost" || host == "127.0.0.1" || host == "::1"
+	if parsed.Scheme != "https" && !(parsed.Scheme == "http" && local) {
+		return nil, errors.New("the provider URL must be https (http only for a model on this machine)")
+	}
+	return parsed, nil
+}
+
+// provider sets, shows or removes the model provider this machine calls
+// itself. The key comes from NIA_PROVIDER_KEY, a file or standard input:
+// never from the command line.
+func provider(args []string, getenv func(string) string, stdin io.Reader, stdout, stderr io.Writer) error {
+	flags := flag.NewFlagSet("nia-edge provider", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	stateFile := flags.String("state", "", "state file (or EDGE_STATE; default "+defaultState+")")
+	base := flags.String("url", "", "base URL of the provider, as its clients use it (https://api.example.com/v1)")
+	format := flags.String("format", "openai", "how the key is sent: openai (Authorization: Bearer) or anthropic (x-api-key)")
+	keyFile := flags.String("key-file", "", "file holding the provider key")
+	remove := flags.Bool("remove", false, "forget the provider: model calls go through Nia again")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		// Not echoed: it may be the key.
+		return errors.New("unexpected argument: the key is never given on the command line")
+	}
+	path := statePath(*stateFile, getenv)
+	saved, err := state.Load(path)
+	if errors.Is(err, state.ErrNotEnrolled) {
+		return errors.New("this machine is not enrolled: run nia-edge enroll first")
+	}
+	if err != nil {
+		return err
+	}
+	switch {
+	case *remove:
+		saved.Provider = nil
+		if err := state.Save(path, saved); err != nil {
+			return err
+		}
+		fmt.Fprintln(stdout, "provider removed: model calls go through Nia again (restart nia-edge)")
+		return nil
+	case *base == "":
+		if saved.Provider == nil {
+			fmt.Fprintln(stdout, "no provider: model calls go through Nia")
+		} else {
+			fmt.Fprintf(stdout, "provider %s (%s): model calls go from this machine\n", saved.Provider.BaseURL, saved.Provider.Format)
+		}
+		return nil
+	}
+	parsed, err := providerBaseURL(*base)
+	if err != nil {
+		return err
+	}
+	if *format != "openai" && *format != "anthropic" {
+		return errors.New("-format is openai or anthropic")
+	}
+	key := getenv("NIA_PROVIDER_KEY")
+	switch {
+	case key != "":
+	case *keyFile != "":
+		raw, err := os.ReadFile(*keyFile)
+		if err != nil {
+			return err
+		}
+		key = string(raw)
+	default:
+		line, err := bufio.NewReader(io.LimitReader(stdin, 4096)).ReadString('\n')
+		if err != nil && !errors.Is(err, io.EOF) {
+			return err
+		}
+		key = line
+	}
+	key = strings.TrimSpace(key)
+	if key == "" || strings.ContainsAny(key, " \t\r\n") {
+		return errors.New("no provider key: set NIA_PROVIDER_KEY, pass -key-file, or write the key on standard input")
+	}
+	saved.Provider = &state.Provider{BaseURL: parsed.String(), Key: key, Format: *format}
+	if err := state.Save(path, saved); err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "provider %s (%s) kept in %s: model calls go from this machine (restart nia-edge)\n", parsed, *format, path)
+	return nil
 }
 
 // heartbeat reports to Nia until ctx ends, and keeps the signed policy
