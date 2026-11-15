@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -27,6 +28,8 @@ type fakeNia struct {
 	heartbeats  int
 	lastToken   string
 	lastAgent   http.Header
+	decisions   []string
+	results     int
 	enrollCode  int
 }
 
@@ -58,7 +61,12 @@ func newFakeNia(t *testing.T) *fakeNia {
 		case "/health/ready":
 		case "/v1/tools/decide":
 			nia.lastAgent = r.Header.Clone()
+			raw, _ := io.ReadAll(r.Body)
+			nia.decisions = append(nia.decisions, string(raw))
 			fmt.Fprint(w, `{"decision":"allow"}`)
+		case "/v1/tools/result":
+			nia.results++
+			fmt.Fprint(w, `{"action":"allow","output":"x"}`)
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -209,7 +217,7 @@ func TestRunRelaysWithTheMachineKeyAndReportsToNia(t *testing.T) {
 	var stdout, stderr syncBuffer
 	done := make(chan int, 1)
 	go func() {
-		done <- run(ctx, []string{"run", "-state", path, "-listen", "127.0.0.1:0"}, env(map[string]string{"NIA_RUN": "run-7"}), strings.NewReader(""), &stdout, &stderr)
+		done <- run(ctx, []string{"run", "-state", path, "-listen", "127.0.0.1:0", "-proxy-listen", "off"}, env(map[string]string{"NIA_RUN": "run-7"}), strings.NewReader(""), &stdout, &stderr)
 	}()
 	address := ""
 	for deadline := time.Now().Add(5 * time.Second); address == "" && time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
@@ -263,11 +271,79 @@ func TestRunRelaysWithTheMachineKeyAndReportsToNia(t *testing.T) {
 	}
 }
 
+func TestRunServesTheEgressProxyWithTheMachineKey(t *testing.T) {
+	nia := newFakeNia(t)
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "from the network") }))
+	defer target.Close()
+	path := filepath.Join(t.TempDir(), "state.json")
+	if code, _, stderr := command(t, context.Background(), map[string]string{"NIA_ENROLL_TOKEN": "nen_token"}, "", "enroll", "-url", nia.URL, "-state", path); code != 0 {
+		t.Fatal(stderr)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var stdout, stderr syncBuffer
+	done := make(chan int, 1)
+	go func() {
+		// The test target is on this machine: only 127.0.0.1 is exempt.
+		done <- run(ctx, []string{"run", "-state", path, "-listen", "127.0.0.1:0", "-proxy-listen", "127.0.0.1:0"}, env(map[string]string{"NIA_SESSION": "box-1", "EDGE_ALLOW_PRIVATE": "127.0.0.1"}), strings.NewReader(""), &stdout, &stderr)
+	}()
+	address := ""
+	for deadline := time.Now().Add(5 * time.Second); address == "" && time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		if match := regexp.MustCompile(`egress proxy on (\S+),`).FindStringSubmatch(stdout.String()); match != nil {
+			address = match[1]
+		}
+	}
+	if address == "" {
+		t.Fatalf("the egress proxy did not start: %s %s", stdout.String(), stderr.String())
+	}
+	proxyURL, _ := url.Parse("http://agent:its-own-secret@" + address)
+	client := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)}, Timeout: 10 * time.Second}
+	response, err := client.Get(target.URL + "/page")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(response.Body)
+	response.Body.Close()
+	if response.StatusCode != 200 || string(body) != "from the network" {
+		t.Fatalf("through the proxy: %d %q", response.StatusCode, body)
+	}
+	nia.mu.Lock()
+	agent, decisions, results := nia.lastAgent, nia.decisions, nia.results
+	nia.mu.Unlock()
+	if agent.Get("Authorization") != "Bearer nia_key1" || agent.Get("X-Nia-Session-Id") != "box-1" || agent.Get("X-Nia-Run-Id") != "box-1" {
+		t.Errorf("the decision was asked with %v", agent)
+	}
+	if len(decisions) != 1 || !strings.Contains(decisions[0], `"tool":"egress"`) || !strings.Contains(decisions[0], `"method":"GET"`) || results != 1 {
+		t.Errorf("decisions %v, %d results", decisions, results)
+	}
+	// Another internal address is refused without asking Nia.
+	refused, err := client.Get("http://169.254.169.254/latest/meta-data/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	refused.Body.Close()
+	nia.mu.Lock()
+	asked := len(nia.decisions)
+	nia.mu.Unlock()
+	if refused.StatusCode != http.StatusForbidden || asked != 1 {
+		t.Errorf("metadata address: %d, %d decisions asked", refused.StatusCode, asked)
+	}
+	cancel()
+	select {
+	case code := <-done:
+		if code != 0 {
+			t.Errorf("exit %d on shutdown: %s", code, stderr.String())
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("nia-edge did not stop")
+	}
+}
+
 func TestRunRefusesABadRun(t *testing.T) {
 	nia := newFakeNia(t)
 	path := filepath.Join(t.TempDir(), "state.json")
 	command(t, context.Background(), map[string]string{"NIA_ENROLL_TOKEN": "nen_token"}, "", "enroll", "-url", nia.URL, "-state", path)
-	code, _, stderr := command(t, context.Background(), map[string]string{"NIA_RUN": "bad run!"}, "", "run", "-state", path, "-listen", "127.0.0.1:0")
+	code, _, stderr := command(t, context.Background(), map[string]string{"NIA_RUN": "bad run!"}, "", "run", "-state", path, "-listen", "127.0.0.1:0", "-proxy-listen", "off")
 	if code == 0 || !strings.Contains(stderr, "NIA_RUN") {
 		t.Errorf("exit %d: %s", code, stderr)
 	}

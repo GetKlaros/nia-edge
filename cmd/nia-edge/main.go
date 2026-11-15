@@ -25,11 +25,13 @@ import (
 	"os/signal"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
+	"github.com/GetKlaros/nia-edge/internal/egress"
 	"github.com/GetKlaros/nia-edge/internal/niaclient"
 	"github.com/GetKlaros/nia-edge/internal/relay"
 	"github.com/GetKlaros/nia-edge/internal/state"
@@ -205,7 +207,8 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 	flags := flag.NewFlagSet("nia-edge run", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	stateFile := flags.String("state", "", "state file (or EDGE_STATE; default "+defaultState+")")
-	listen := flags.String("listen", getenv("EDGE_LISTEN"), "address to listen on (or EDGE_LISTEN; default 127.0.0.1:8787)")
+	listen := flags.String("listen", getenv("EDGE_LISTEN"), "address of the relay (or EDGE_LISTEN; default 127.0.0.1:8787)")
+	proxyListen := flags.String("proxy-listen", getenv("EDGE_PROXY_LISTEN"), "address of the egress proxy (or EDGE_PROXY_LISTEN; default 127.0.0.1:3128; \"off\" to disable)")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -214,6 +217,9 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 	}
 	if *listen == "" {
 		*listen = "127.0.0.1:8787"
+	}
+	if *proxyListen == "" {
+		*proxyListen = "127.0.0.1:3128"
 	}
 	saved, err := state.Load(statePath(*stateFile, getenv))
 	if errors.Is(err, state.ErrNotEnrolled) {
@@ -228,18 +234,42 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 	}
 	// The run links this machine's conversations: what one read hardens the
 	// others. NIA_RUN=none unlinks them.
+	// The egress proxy is one session of this machine. By default it shares
+	// its run with the conversations: what a conversation read hardens the
+	// network, and what came back from the network hardens the conversations.
+	session := getenv("NIA_SESSION")
+	if session == "" {
+		session = "edge-" + hostname()
+		if len(session) > 128 {
+			session = session[:128]
+		}
+	}
+	if !relay.ValidRun(session) {
+		return errors.New("NIA_SESSION: 1 to 128 characters of A-Z a-z 0-9 . _ : -")
+	}
 	run := getenv("NIA_RUN")
 	switch run {
 	case "":
-		run = "edge-" + hostname()
-		if len(run) > 128 {
-			run = run[:128]
-		}
+		run = session
 	case "none":
 		run = ""
 	}
 	if run != "" && !relay.ValidRun(run) {
 		return errors.New("NIA_RUN: 1 to 128 characters of A-Z a-z 0-9 . _ : -")
+	}
+	wait := 0
+	if raw := getenv("EDGE_APPROVAL_WAIT"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 0 || parsed > 900 {
+			return errors.New("EDGE_APPROVAL_WAIT: seconds a held connection waits for a reviewer, 0 to 900")
+		}
+		wait = parsed
+	}
+	var allowPrivate []string
+	for _, host := range strings.Split(getenv("EDGE_ALLOW_PRIVATE"), ",") {
+		if host = strings.TrimSpace(host); host != "" {
+			allowPrivate = append(allowPrivate, host)
+		}
 	}
 
 	logger := slog.New(slog.NewTextHandler(stderr, nil))
@@ -258,12 +288,43 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 	}
 	fmt.Fprintf(stdout, "nia-edge %s: listening on %s, Nia at %s, machine %s, role %s\n", version, listener.Addr(), base, saved.MachineID, saved.Role)
 
+	var proxy *http.Server
+	served := make(chan error, 2)
+	if *proxyListen != "off" {
+		proxyListener, err := net.Listen("tcp", *proxyListen)
+		if err != nil {
+			listener.Close()
+			return err
+		}
+		proxy = &http.Server{
+			Handler: egress.New(egress.Options{
+				Authority: &egress.Remote{
+					Base: base,
+					Key:  saved.Key,
+					// No time limit on the client: each call sets its own, which
+					// covers the wait for a reviewer.
+					HTTP:   niaclient.NewHTTPClient(0),
+					Wait:   wait,
+					Logger: logger,
+				},
+				Session:      session,
+				Run:          run,
+				AllowPrivate: allowPrivate,
+				Logger:       logger,
+			}),
+			ReadHeaderTimeout: 10 * time.Second,
+			IdleTimeout:       2 * time.Minute,
+			ErrorLog:          slog.NewLogLogger(logger.Handler(), slog.LevelWarn),
+		}
+		fmt.Fprintf(stdout, "nia-edge %s: egress proxy on %s, session %s\n", version, proxyListener.Addr(), session)
+		go func() { served <- proxy.Serve(proxyListener) }()
+	}
+
 	beats := make(chan struct{})
 	go func() {
 		defer close(beats)
 		heartbeat(ctx, &niaclient.Client{Base: base, HTTP: niaclient.NewHTTPClient(15 * time.Second)}, saved.Key, status, logger)
 	}()
-	served := make(chan error, 1)
 	go func() { served <- server.Serve(listener) }()
 
 	select {
@@ -275,6 +336,11 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 	defer cancel()
 	if err := server.Shutdown(shutdown); err != nil {
 		server.Close()
+	}
+	if proxy != nil {
+		// Tunnels are taken over from the server: Close ends its listener,
+		// and the tunnels end with the process.
+		proxy.Close()
 	}
 	<-beats
 	return nil
