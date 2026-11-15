@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Runs the verification before every push.
+# Enable once per clone: git config core.hooksPath .githooks
+# Skip for one push: git push --no-verify
+set -euo pipefail
+pushes=0
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+  case "$local_sha" in *[!0]*) pushes=1 ;; esac
+done
+[ "$pushes" = "1" ] || exit 0
+echo "pre-push: running scripts/verify.sh (git push --no-verify to skip)"
+exec </dev/null
+scripts/verify.sh

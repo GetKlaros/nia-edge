@@ -1,0 +1,3350 @@
+{
+ "version": 1,
+ "description": "decideToolCall(role, tool, tainted, arguments, exposed), with the role named by each case.",
+ "roles": [
+  {
+   "name": "research",
+   "mode": "enforce",
+   "rule_of_two": "require_approval",
+   "destructive": "require_approval",
+   "tools": [
+    {
+     "name": "web_search",
+     "when_untrusted": "allow",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    },
+    {
+     "name": "write_file",
+     "when_untrusted": "allow",
+     "output": "trusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    },
+    {
+     "name": "terminal",
+     "when_untrusted": "require_approval",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    },
+    {
+     "name": "send_*",
+     "when_untrusted": "deny",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    }
+   ]
+  },
+  {
+   "name": "support",
+   "mode": "enforce",
+   "rule_of_two": "deny",
+   "destructive": "require_approval",
+   "tools": [
+    {
+     "name": "crm_read",
+     "when_untrusted": "allow",
+     "output": "untrusted",
+     "sensitive": true,
+     "effect": "none",
+     "arguments": []
+    },
+    {
+     "name": "send_email",
+     "when_untrusted": "require_approval",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "external",
+     "arguments": []
+    },
+    {
+     "name": "http_get",
+     "when_untrusted": "allow",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "external",
+     "arguments": []
+    },
+    {
+     "name": "delete_*",
+     "when_untrusted": "allow",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "destructive",
+     "arguments": []
+    },
+    {
+     "name": "note",
+     "when_untrusted": "allow",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    }
+   ]
+  },
+  {
+   "name": "rules",
+   "mode": "enforce",
+   "rule_of_two": "require_approval",
+   "destructive": "require_approval",
+   "tools": [
+    {
+     "name": "terminal",
+     "when_untrusted": "deny",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": [
+      {
+       "applies": "always",
+       "decision": "deny",
+       "match": {
+        "command": "^\\s*(sudo|rm)\\b"
+       }
+      },
+      {
+       "applies": "untrusted",
+       "decision": "allow",
+       "match": {
+        "command": "^(ls|cat|git status)( |$)"
+       },
+       "shell_safe": {
+        "path": "command"
+       }
+      }
+     ]
+    },
+    {
+     "name": "fetch",
+     "when_untrusted": "require_approval",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": [
+      {
+       "applies": "untrusted",
+       "decision": "allow",
+       "hosts": {
+        "path": "url",
+        "allow": [
+         "example.com",
+         "*.example.org"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "mcp__*__read_*",
+     "when_untrusted": "allow",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    },
+    {
+     "name": "mcp__*",
+     "when_untrusted": "require_approval",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    }
+   ]
+  },
+  {
+   "name": "observed",
+   "mode": "observe",
+   "rule_of_two": "require_approval",
+   "destructive": "deny",
+   "tools": [
+    {
+     "name": "terminal",
+     "when_untrusted": "deny",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    },
+    {
+     "name": "drop_table",
+     "when_untrusted": "allow",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "destructive",
+     "arguments": []
+    }
+   ]
+  }
+ ],
+ "cases": [
+  {
+   "name": "research: web_search {\"q\":\"nia\"}",
+   "role": "research",
+   "tool": "web_search",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"q\":\"nia\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "web_search"
+   }
+  },
+  {
+   "name": "research: web_search {\"q\":\"nia\"}, exposed",
+   "role": "research",
+   "tool": "web_search",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"q\":\"nia\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "web_search"
+   }
+  },
+  {
+   "name": "research: web_search {\"q\":\"nia\"}, tainted",
+   "role": "research",
+   "tool": "web_search",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"q\":\"nia\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "web_search"
+   }
+  },
+  {
+   "name": "research: web_search {\"q\":\"nia\"}, tainted, exposed",
+   "role": "research",
+   "tool": "web_search",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"q\":\"nia\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "web_search"
+   }
+  },
+  {
+   "name": "research: write_file {\"path\":\"a.txt\"}",
+   "role": "research",
+   "tool": "write_file",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"path\":\"a.txt\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "write_file"
+   }
+  },
+  {
+   "name": "research: write_file {\"path\":\"a.txt\"}, exposed",
+   "role": "research",
+   "tool": "write_file",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"path\":\"a.txt\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "write_file"
+   }
+  },
+  {
+   "name": "research: write_file {\"path\":\"a.txt\"}, tainted",
+   "role": "research",
+   "tool": "write_file",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"path\":\"a.txt\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "write_file"
+   }
+  },
+  {
+   "name": "research: write_file {\"path\":\"a.txt\"}, tainted, exposed",
+   "role": "research",
+   "tool": "write_file",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"path\":\"a.txt\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "write_file"
+   }
+  },
+  {
+   "name": "research: terminal {\"command\":\"ls\"}",
+   "role": "research",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "research: terminal {\"command\":\"ls\"}, exposed",
+   "role": "research",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "research: terminal {\"command\":\"ls\"}, tainted",
+   "role": "research",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "research: terminal {\"command\":\"ls\"}, tainted, exposed",
+   "role": "research",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "research: send_email {\"to\":\"a@example.com\"}",
+   "role": "research",
+   "tool": "send_email",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"to\":\"a@example.com\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "send_*"
+   }
+  },
+  {
+   "name": "research: send_email {\"to\":\"a@example.com\"}, exposed",
+   "role": "research",
+   "tool": "send_email",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"to\":\"a@example.com\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "send_*"
+   }
+  },
+  {
+   "name": "research: send_email {\"to\":\"a@example.com\"}, tainted",
+   "role": "research",
+   "tool": "send_email",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"to\":\"a@example.com\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "send_*"
+   }
+  },
+  {
+   "name": "research: send_email {\"to\":\"a@example.com\"}, tainted, exposed",
+   "role": "research",
+   "tool": "send_email",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"to\":\"a@example.com\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "send_*"
+   }
+  },
+  {
+   "name": "research: send_ {}",
+   "role": "research",
+   "tool": "send_",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "send_*"
+   }
+  },
+  {
+   "name": "research: send_ {}, exposed",
+   "role": "research",
+   "tool": "send_",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "send_*"
+   }
+  },
+  {
+   "name": "research: send_ {}, tainted",
+   "role": "research",
+   "tool": "send_",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "send_*"
+   }
+  },
+  {
+   "name": "research: send_ {}, tainted, exposed",
+   "role": "research",
+   "tool": "send_",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "send_*"
+   }
+  },
+  {
+   "name": "research: sendemail {}",
+   "role": "research",
+   "tool": "sendemail",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "research: sendemail {}, exposed",
+   "role": "research",
+   "tool": "sendemail",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "research: sendemail {}, tainted",
+   "role": "research",
+   "tool": "sendemail",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "research: sendemail {}, tainted, exposed",
+   "role": "research",
+   "tool": "sendemail",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "research: delete_repo {}",
+   "role": "research",
+   "tool": "delete_repo",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "research: delete_repo {}, exposed",
+   "role": "research",
+   "tool": "delete_repo",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "research: delete_repo {}, tainted",
+   "role": "research",
+   "tool": "delete_repo",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "research: delete_repo {}, tainted, exposed",
+   "role": "research",
+   "tool": "delete_repo",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "research: Terminal {}",
+   "role": "research",
+   "tool": "Terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "research: Terminal {}, exposed",
+   "role": "research",
+   "tool": "Terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "research: Terminal {}, tainted",
+   "role": "research",
+   "tool": "Terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "research: Terminal {}, tainted, exposed",
+   "role": "research",
+   "tool": "Terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "research: terminal (no arguments)",
+   "role": "research",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "research: terminal (no arguments), exposed",
+   "role": "research",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "research: terminal (no arguments), tainted",
+   "role": "research",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "research: terminal (no arguments), tainted, exposed",
+   "role": "research",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "research: terminal not json",
+   "role": "research",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "not json",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "research: terminal not json, exposed",
+   "role": "research",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "not json",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "research: terminal not json, tainted",
+   "role": "research",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "not json",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "research: terminal not json, tainted, exposed",
+   "role": "research",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "not json",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "research: terminal {\"command\":\"ls\",\"command\":\"rm -rf /\"}",
+   "role": "research",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls\",\"command\":\"rm -rf /\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "research: terminal {\"command\":\"ls\",\"command\":\"rm -rf /\"}, exposed",
+   "role": "research",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls\",\"command\":\"rm -rf /\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "research: terminal {\"command\":\"ls\",\"command\":\"rm -rf /\"}, tainted",
+   "role": "research",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls\",\"command\":\"rm -rf /\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "research: terminal {\"command\":\"ls\",\"command\":\"rm -rf /\"}, tainted, exposed",
+   "role": "research",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls\",\"command\":\"rm -rf /\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "research: delete_repo {\"a\":1,\"a\":2}",
+   "role": "research",
+   "tool": "delete_repo",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"a\":1,\"a\":2}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "research: delete_repo {\"a\":1,\"a\":2}, exposed",
+   "role": "research",
+   "tool": "delete_repo",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"a\":1,\"a\":2}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "research: delete_repo {\"a\":1,\"a\":2}, tainted",
+   "role": "research",
+   "tool": "delete_repo",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"a\":1,\"a\":2}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "research: delete_repo {\"a\":1,\"a\":2}, tainted, exposed",
+   "role": "research",
+   "tool": "delete_repo",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"a\":1,\"a\":2}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "support: crm_read {\"id\":1}",
+   "role": "support",
+   "tool": "crm_read",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"id\":1}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "crm_read"
+   }
+  },
+  {
+   "name": "support: crm_read {\"id\":1}, exposed",
+   "role": "support",
+   "tool": "crm_read",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"id\":1}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "crm_read"
+   }
+  },
+  {
+   "name": "support: crm_read {\"id\":1}, tainted",
+   "role": "support",
+   "tool": "crm_read",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"id\":1}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "crm_read"
+   }
+  },
+  {
+   "name": "support: crm_read {\"id\":1}, tainted, exposed",
+   "role": "support",
+   "tool": "crm_read",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"id\":1}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "crm_read"
+   }
+  },
+  {
+   "name": "support: send_email {\"to\":\"a@example.com\"}",
+   "role": "support",
+   "tool": "send_email",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"to\":\"a@example.com\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "send_email"
+   }
+  },
+  {
+   "name": "support: send_email {\"to\":\"a@example.com\"}, exposed",
+   "role": "support",
+   "tool": "send_email",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"to\":\"a@example.com\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "send_email"
+   }
+  },
+  {
+   "name": "support: send_email {\"to\":\"a@example.com\"}, tainted",
+   "role": "support",
+   "tool": "send_email",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"to\":\"a@example.com\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "send_email"
+   }
+  },
+  {
+   "name": "support: send_email {\"to\":\"a@example.com\"}, tainted, exposed",
+   "role": "support",
+   "tool": "send_email",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"to\":\"a@example.com\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "send_email"
+   }
+  },
+  {
+   "name": "support: http_get {\"url\":\"https://example.com\"}",
+   "role": "support",
+   "tool": "http_get",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http_get"
+   }
+  },
+  {
+   "name": "support: http_get {\"url\":\"https://example.com\"}, exposed",
+   "role": "support",
+   "tool": "http_get",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http_get"
+   }
+  },
+  {
+   "name": "support: http_get {\"url\":\"https://example.com\"}, tainted",
+   "role": "support",
+   "tool": "http_get",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "http_get"
+   }
+  },
+  {
+   "name": "support: http_get {\"url\":\"https://example.com\"}, tainted, exposed",
+   "role": "support",
+   "tool": "http_get",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "http_get"
+   }
+  },
+  {
+   "name": "support: delete_customer {\"id\":1}",
+   "role": "support",
+   "tool": "delete_customer",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"id\":1}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "destructive",
+    "rule": "delete_*"
+   }
+  },
+  {
+   "name": "support: delete_customer {\"id\":1}, exposed",
+   "role": "support",
+   "tool": "delete_customer",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"id\":1}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "destructive",
+    "rule": "delete_*"
+   }
+  },
+  {
+   "name": "support: delete_customer {\"id\":1}, tainted",
+   "role": "support",
+   "tool": "delete_customer",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"id\":1}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "destructive",
+    "rule": "delete_*"
+   }
+  },
+  {
+   "name": "support: delete_customer {\"id\":1}, tainted, exposed",
+   "role": "support",
+   "tool": "delete_customer",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"id\":1}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "delete_*"
+   }
+  },
+  {
+   "name": "support: delete_ {}",
+   "role": "support",
+   "tool": "delete_",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "destructive",
+    "rule": "delete_*"
+   }
+  },
+  {
+   "name": "support: delete_ {}, exposed",
+   "role": "support",
+   "tool": "delete_",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "destructive",
+    "rule": "delete_*"
+   }
+  },
+  {
+   "name": "support: delete_ {}, tainted",
+   "role": "support",
+   "tool": "delete_",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "destructive",
+    "rule": "delete_*"
+   }
+  },
+  {
+   "name": "support: delete_ {}, tainted, exposed",
+   "role": "support",
+   "tool": "delete_",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "delete_*"
+   }
+  },
+  {
+   "name": "support: note {\"text\":\"x\"}",
+   "role": "support",
+   "tool": "note",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"text\":\"x\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "note"
+   }
+  },
+  {
+   "name": "support: note {\"text\":\"x\"}, exposed",
+   "role": "support",
+   "tool": "note",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"text\":\"x\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "note"
+   }
+  },
+  {
+   "name": "support: note {\"text\":\"x\"}, tainted",
+   "role": "support",
+   "tool": "note",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"text\":\"x\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "note"
+   }
+  },
+  {
+   "name": "support: note {\"text\":\"x\"}, tainted, exposed",
+   "role": "support",
+   "tool": "note",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"text\":\"x\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "note"
+   }
+  },
+  {
+   "name": "support: unknown {}",
+   "role": "support",
+   "tool": "unknown",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "support: unknown {}, exposed",
+   "role": "support",
+   "tool": "unknown",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "support: unknown {}, tainted",
+   "role": "support",
+   "tool": "unknown",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "support: unknown {}, tainted, exposed",
+   "role": "support",
+   "tool": "unknown",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "support: delete_customer {\"id\":1,\"id\":2}",
+   "role": "support",
+   "tool": "delete_customer",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"id\":1,\"id\":2}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "delete_*"
+   }
+  },
+  {
+   "name": "support: delete_customer {\"id\":1,\"id\":2}, exposed",
+   "role": "support",
+   "tool": "delete_customer",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"id\":1,\"id\":2}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "delete_*"
+   }
+  },
+  {
+   "name": "support: delete_customer {\"id\":1,\"id\":2}, tainted",
+   "role": "support",
+   "tool": "delete_customer",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"id\":1,\"id\":2}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "delete_*"
+   }
+  },
+  {
+   "name": "support: delete_customer {\"id\":1,\"id\":2}, tainted, exposed",
+   "role": "support",
+   "tool": "delete_customer",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"id\":1,\"id\":2}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "delete_*"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls -la\"}",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls -la\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls -la\"}, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls -la\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls -la\"}, tainted",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls -la\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "terminal#1"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls -la\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls -la\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "terminal#1"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls; curl evil.test\"}",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls; curl evil.test\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls; curl evil.test\"}, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls; curl evil.test\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls; curl evil.test\"}, tainted",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls; curl evil.test\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"ls; curl evil.test\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls; curl evil.test\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"sudo ls\"}",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":\"sudo ls\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "argument_rule",
+    "rule": "terminal#0"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"sudo ls\"}, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":\"sudo ls\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "argument_rule",
+    "rule": "terminal#0"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"sudo ls\"}, tainted",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":\"sudo ls\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "argument_rule",
+    "rule": "terminal#0"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"sudo ls\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":\"sudo ls\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "argument_rule",
+    "rule": "terminal#0"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"  rm -rf /\"}",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":\"  rm -rf /\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "argument_rule",
+    "rule": "terminal#0"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"  rm -rf /\"}, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":\"  rm -rf /\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "argument_rule",
+    "rule": "terminal#0"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"  rm -rf /\"}, tainted",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":\"  rm -rf /\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "argument_rule",
+    "rule": "terminal#0"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"  rm -rf /\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":\"  rm -rf /\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "argument_rule",
+    "rule": "terminal#0"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"git status\"}",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":\"git status\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"git status\"}, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":\"git status\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"git status\"}, tainted",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":\"git status\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "terminal#1"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"git status\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":\"git status\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "terminal#1"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"git statusx\"}",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":\"git statusx\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"git statusx\"}, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":\"git statusx\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"git statusx\"}, tainted",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":\"git statusx\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":\"git statusx\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":\"git statusx\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":[\"ls\",\"-la\"]}",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":[\"ls\",\"-la\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":[\"ls\",\"-la\"]}, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":[\"ls\",\"-la\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":[\"ls\",\"-la\"]}, tainted",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":[\"ls\",\"-la\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "terminal#1"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":[\"ls\",\"-la\"]}, tainted, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":[\"ls\",\"-la\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "terminal#1"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":[\"ls\",\"$(id)\"]}",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":[\"ls\",\"$(id)\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":[\"ls\",\"$(id)\"]}, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":[\"ls\",\"$(id)\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":[\"ls\",\"$(id)\"]}, tainted",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":[\"ls\",\"$(id)\"]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":[\"ls\",\"$(id)\"]}, tainted, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":[\"ls\",\"$(id)\"]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":42}",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":42}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":42}, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":42}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":42}, tainted",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":42}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"command\":42}, tainted, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":42}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"cmd\":\"ls\"}",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"cmd\":\"ls\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"cmd\":\"ls\"}, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"cmd\":\"ls\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"cmd\":\"ls\"}, tainted",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"cmd\":\"ls\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal {\"cmd\":\"ls\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"cmd\":\"ls\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal []",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "[]",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal [], exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "[]",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal [], tainted",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "[]",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal [], tainted, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "[]",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal null",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "null",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal null, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "null",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal null, tainted",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "null",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal null, tainted, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "null",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal \"ls\"",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "\"ls\"",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal \"ls\", exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "\"ls\"",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal \"ls\", tainted",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "\"ls\"",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: terminal \"ls\", tainted, exposed",
+   "role": "rules",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "\"ls\"",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://example.com/a\"}",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com/a\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://example.com/a\"}, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com/a\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://example.com/a\"}, tainted",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com/a\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "fetch#0"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://example.com/a\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com/a\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "fetch#0"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://EXAMPLE.com:8443/a?b#c\"}",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://EXAMPLE.com:8443/a?b#c\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://EXAMPLE.com:8443/a?b#c\"}, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://EXAMPLE.com:8443/a?b#c\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://EXAMPLE.com:8443/a?b#c\"}, tainted",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://EXAMPLE.com:8443/a?b#c\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "fetch#0"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://EXAMPLE.com:8443/a?b#c\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://EXAMPLE.com:8443/a?b#c\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "fetch#0"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://api.example.org/a\"}",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://api.example.org/a\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://api.example.org/a\"}, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://api.example.org/a\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://api.example.org/a\"}, tainted",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://api.example.org/a\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "fetch#0"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://api.example.org/a\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://api.example.org/a\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "fetch#0"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://example.org/a\"}",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.org/a\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://example.org/a\"}, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.org/a\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://example.org/a\"}, tainted",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.org/a\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://example.org/a\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.org/a\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://example.com.evil.test/a\"}",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com.evil.test/a\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://example.com.evil.test/a\"}, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com.evil.test/a\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://example.com.evil.test/a\"}, tainted",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com.evil.test/a\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://example.com.evil.test/a\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com.evil.test/a\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://evil.test#@example.com\"}",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://evil.test#@example.com\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://evil.test#@example.com\"}, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://evil.test#@example.com\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://evil.test#@example.com\"}, tainted",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://evil.test#@example.com\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://evil.test#@example.com\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://evil.test#@example.com\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://user:pw@example.com/\"}",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://user:pw@example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://user:pw@example.com/\"}, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://user:pw@example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://user:pw@example.com/\"}, tainted",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://user:pw@example.com/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://user:pw@example.com/\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://user:pw@example.com/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://example.com/ and https://evil.test/\"}",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com/ and https://evil.test/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://example.com/ and https://evil.test/\"}, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com/ and https://evil.test/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://example.com/ and https://evil.test/\"}, tainted",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com/ and https://evil.test/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://example.com/ and https://evil.test/\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com/ and https://evil.test/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://example.com/ and https://api.example.org/x\"}",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com/ and https://api.example.org/x\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://example.com/ and https://api.example.org/x\"}, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com/ and https://api.example.org/x\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://example.com/ and https://api.example.org/x\"}, tainted",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com/ and https://api.example.org/x\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "fetch#0"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://example.com/ and https://api.example.org/x\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com/ and https://api.example.org/x\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "fetch#0"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"ftp://example.com/\"}",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"ftp://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"ftp://example.com/\"}, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"ftp://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"ftp://example.com/\"}, tainted",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"ftp://example.com/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"ftp://example.com/\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"ftp://example.com/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://127.0.0.1/\"}",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://127.0.0.1/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://127.0.0.1/\"}, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://127.0.0.1/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://127.0.0.1/\"}, tainted",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://127.0.0.1/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://127.0.0.1/\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://127.0.0.1/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://[::1]/\"}",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://[::1]/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://[::1]/\"}, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://[::1]/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://[::1]/\"}, tainted",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://[::1]/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://[::1]/\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://[::1]/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://exa%6dple.com/\"}",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://exa%6dple.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://exa%6dple.com/\"}, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://exa%6dple.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://exa%6dple.com/\"}, tainted",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://exa%6dple.com/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://exa%6dple.com/\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://exa%6dple.com/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://example.com\\\\@evil.test/\"}",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com\\\\@evil.test/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://example.com\\\\@evil.test/\"}, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com\\\\@evil.test/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://example.com\\\\@evil.test/\"}, tainted",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com\\\\@evil.test/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://example.com\\\\@evil.test/\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com\\\\@evil.test/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://exämple.com/\"}",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://exämple.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://exämple.com/\"}, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://exämple.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://exämple.com/\"}, tainted",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://exämple.com/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"https://exämple.com/\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://exämple.com/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"example.com\"}",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"example.com\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"example.com\"}, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"example.com\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"example.com\"}, tainted",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"example.com\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"example.com\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"example.com\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"\"}",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"\"}, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"\"}, tainted",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {\"url\":\"\"}, tainted, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {}",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {}, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {}, tainted",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: fetch {}, tainted, exposed",
+   "role": "rules",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "rules: mcp__github__read_file {}",
+   "role": "rules",
+   "tool": "mcp__github__read_file",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mcp__*__read_*"
+   }
+  },
+  {
+   "name": "rules: mcp__github__read_file {}, exposed",
+   "role": "rules",
+   "tool": "mcp__github__read_file",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mcp__*__read_*"
+   }
+  },
+  {
+   "name": "rules: mcp__github__read_file {}, tainted",
+   "role": "rules",
+   "tool": "mcp__github__read_file",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mcp__*__read_*"
+   }
+  },
+  {
+   "name": "rules: mcp__github__read_file {}, tainted, exposed",
+   "role": "rules",
+   "tool": "mcp__github__read_file",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mcp__*__read_*"
+   }
+  },
+  {
+   "name": "rules: mcp__github__create_issue {}",
+   "role": "rules",
+   "tool": "mcp__github__create_issue",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mcp__*"
+   }
+  },
+  {
+   "name": "rules: mcp__github__create_issue {}, exposed",
+   "role": "rules",
+   "tool": "mcp__github__create_issue",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mcp__*"
+   }
+  },
+  {
+   "name": "rules: mcp__github__create_issue {}, tainted",
+   "role": "rules",
+   "tool": "mcp__github__create_issue",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "mcp__*"
+   }
+  },
+  {
+   "name": "rules: mcp__github__create_issue {}, tainted, exposed",
+   "role": "rules",
+   "tool": "mcp__github__create_issue",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "mcp__*"
+   }
+  },
+  {
+   "name": "rules: mcp__ {}",
+   "role": "rules",
+   "tool": "mcp__",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mcp__*"
+   }
+  },
+  {
+   "name": "rules: mcp__ {}, exposed",
+   "role": "rules",
+   "tool": "mcp__",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mcp__*"
+   }
+  },
+  {
+   "name": "rules: mcp__ {}, tainted",
+   "role": "rules",
+   "tool": "mcp__",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "mcp__*"
+   }
+  },
+  {
+   "name": "rules: mcp__ {}, tainted, exposed",
+   "role": "rules",
+   "tool": "mcp__",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "mcp__*"
+   }
+  },
+  {
+   "name": "rules: mcp_github {}",
+   "role": "rules",
+   "tool": "mcp_github",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "rules: mcp_github {}, exposed",
+   "role": "rules",
+   "tool": "mcp_github",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "rules: mcp_github {}, tainted",
+   "role": "rules",
+   "tool": "mcp_github",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "rules: mcp_github {}, tainted, exposed",
+   "role": "rules",
+   "tool": "mcp_github",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "observed: terminal {\"command\":\"ls\"}",
+   "role": "observed",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "observed: terminal {\"command\":\"ls\"}, exposed",
+   "role": "observed",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "observed: terminal {\"command\":\"ls\"}, tainted",
+   "role": "observed",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "terminal",
+    "would": {
+     "decision": "deny",
+     "reason": "untrusted_session"
+    }
+   }
+  },
+  {
+   "name": "observed: terminal {\"command\":\"ls\"}, tainted, exposed",
+   "role": "observed",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "terminal",
+    "would": {
+     "decision": "deny",
+     "reason": "untrusted_session"
+    }
+   }
+  },
+  {
+   "name": "observed: drop_table {\"name\":\"users\"}",
+   "role": "observed",
+   "tool": "drop_table",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"name\":\"users\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "drop_table",
+    "would": {
+     "decision": "deny",
+     "reason": "destructive"
+    }
+   }
+  },
+  {
+   "name": "observed: drop_table {\"name\":\"users\"}, exposed",
+   "role": "observed",
+   "tool": "drop_table",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"name\":\"users\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "drop_table",
+    "would": {
+     "decision": "deny",
+     "reason": "destructive"
+    }
+   }
+  },
+  {
+   "name": "observed: drop_table {\"name\":\"users\"}, tainted",
+   "role": "observed",
+   "tool": "drop_table",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"name\":\"users\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "drop_table",
+    "would": {
+     "decision": "deny",
+     "reason": "destructive"
+    }
+   }
+  },
+  {
+   "name": "observed: drop_table {\"name\":\"users\"}, tainted, exposed",
+   "role": "observed",
+   "tool": "drop_table",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"name\":\"users\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "drop_table",
+    "would": {
+     "decision": "deny",
+     "reason": "destructive"
+    }
+   }
+  },
+  {
+   "name": "observed: unknown {}",
+   "role": "observed",
+   "tool": "unknown",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": null,
+    "would": {
+     "decision": "deny",
+     "reason": "tool_not_in_role"
+    }
+   }
+  },
+  {
+   "name": "observed: unknown {}, exposed",
+   "role": "observed",
+   "tool": "unknown",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": null,
+    "would": {
+     "decision": "deny",
+     "reason": "tool_not_in_role"
+    }
+   }
+  },
+  {
+   "name": "observed: unknown {}, tainted",
+   "role": "observed",
+   "tool": "unknown",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": null,
+    "would": {
+     "decision": "deny",
+     "reason": "tool_not_in_role"
+    }
+   }
+  },
+  {
+   "name": "observed: unknown {}, tainted, exposed",
+   "role": "observed",
+   "tool": "unknown",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": null,
+    "would": {
+     "decision": "deny",
+     "reason": "tool_not_in_role"
+    }
+   }
+  },
+  {
+   "name": "observed: terminal {\"a\":1,\"a\":2}",
+   "role": "observed",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"a\":1,\"a\":2}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "observed: terminal {\"a\":1,\"a\":2}, exposed",
+   "role": "observed",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"a\":1,\"a\":2}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "observed: terminal {\"a\":1,\"a\":2}, tainted",
+   "role": "observed",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"a\":1,\"a\":2}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "observed: terminal {\"a\":1,\"a\":2}, tainted, exposed",
+   "role": "observed",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"a\":1,\"a\":2}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "terminal"
+   }
+  },
+  {
+   "name": "observed: unknown {\"a\":1,\"a\":2}",
+   "role": "observed",
+   "tool": "unknown",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"a\":1,\"a\":2}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": null
+   }
+  },
+  {
+   "name": "observed: unknown {\"a\":1,\"a\":2}, exposed",
+   "role": "observed",
+   "tool": "unknown",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"a\":1,\"a\":2}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": null
+   }
+  },
+  {
+   "name": "observed: unknown {\"a\":1,\"a\":2}, tainted",
+   "role": "observed",
+   "tool": "unknown",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"a\":1,\"a\":2}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": null
+   }
+  },
+  {
+   "name": "observed: unknown {\"a\":1,\"a\":2}, tainted, exposed",
+   "role": "observed",
+   "tool": "unknown",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"a\":1,\"a\":2}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": null
+   }
+  }
+ ]
+}
