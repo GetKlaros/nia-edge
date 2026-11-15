@@ -49,3 +49,5 @@ official documentation (`go doc`, go.dev), and use the latest stable release.
 - `go test ./canon -run '^$' -fuzz FuzzCanonical -fuzztime 60s`: the JSON
   grammar against `encoding/json`.
 - `scripts/sync-conformance.sh <dir>`: refresh the cases from the server's.
+- `scripts/release.sh <tag>`: the release binaries and their checksums, from
+  a clean tagged commit. Reproducible: same tag, same Go, same bytes.

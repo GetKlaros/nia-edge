@@ -6,7 +6,7 @@
 #   sudo NIA_URL=https://nia.example NIA_ENROLL_TOKEN=nen_... install/linux.sh <agent-user>
 #
 # NIA_EDGE_BINARY names the binary to install (default ./nia-edge):
-#   CGO_ENABLED=0 go build -ldflags "-X main.version=0.3.0" -o nia-edge ./cmd/nia-edge
+#   CGO_ENABLED=0 go build -ldflags "-X main.version=0.1.0" -o nia-edge ./cmd/nia-edge
 # NIA_ENROLL_TOKEN_FILE can hold the token instead of NIA_ENROLL_TOKEN.
 # A machine that is already enrolled keeps its key: no token is needed then.
 #
