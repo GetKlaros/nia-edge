@@ -18,12 +18,15 @@ nia-edge relays today; Nia decides every call.
 | Relay of the agent's model and MCP calls (`/v1/`, `/mcp/`) | done |
 | Heartbeat and health route | done |
 | Hash of a call's arguments, identical to the server's (`canon`) | done |
-| Egress proxy, so that the agent has no other way out | not yet |
+| Egress proxy: every outbound connection decided by the role | done |
+| Installers that leave the agent no other way out than nia-edge | not yet |
 | Local MCP servers | not yet |
 | Decisions made on the machine, from a signed policy | not yet |
 
-Until the egress proxy is here, nia-edge alone does not close a sandbox's
-network: an agent with another route out is not held by it.
+The egress proxy governs the connections that go through it. It closes a
+sandbox's network only when the agent has no other route out: a firewall rule
+by user, or a container whose only network is nia-edge. Until the installers
+are here, that rule is yours to set.
 
 ## Build
 
@@ -46,14 +49,27 @@ NIA_ENROLL_TOKEN=nen_… ./nia-edge enroll -url https://nia.example
 ```
 
 Then point the agent's model at `http://127.0.0.1:8787/v1`. Any API key works
-there: nia-edge replaces it with the machine's.
+there: nia-edge replaces it with the machine's. For the network, give the
+agent the proxy and no other route:
+
+```bash
+export HTTP_PROXY=http://127.0.0.1:3128 HTTPS_PROXY=http://127.0.0.1:3128
+```
+
+Every connection is then a call to the `egress` tool of the machine's role:
+list it in the role (`when_untrusted: require_approval`, for instance) or the
+network is denied.
 
 | Setting | Meaning |
 | --- | --- |
 | `-url` / `NIA_URL` | The Nia server. `https`, or `http` for a server on this machine. |
 | `-state` / `EDGE_STATE` | State file, default `/var/lib/nia-edge/state.json`. It holds the key: mode 0600, replaced atomically, refused when another user can read it. |
-| `-listen` / `EDGE_LISTEN` | Listening address, default `127.0.0.1:8787`. |
-| `NIA_RUN` | Run that links this machine's conversations (default `edge-<hostname>`; `none` to unlink). The agent's own `x-nia-run-id` is ignored. |
+| `-listen` / `EDGE_LISTEN` | Address of the relay, default `127.0.0.1:8787`. |
+| `-proxy-listen` / `EDGE_PROXY_LISTEN` | Address of the egress proxy, default `127.0.0.1:3128`; `off` to disable. |
+| `NIA_SESSION` | Session of the egress proxy (default `edge-<hostname>`). |
+| `NIA_RUN` | Run that links this machine's conversations and its egress proxy (default: the session; `none` to unlink). What a conversation read hardens the network, and the reverse. The agent's own `x-nia-run-id` is ignored. |
+| `EDGE_ALLOW_PRIVATE` | Hosts allowed on internal addresses, comma-separated: names, addresses or `*.suffix`. They are still decided by the role. |
+| `EDGE_APPROVAL_WAIT` | Seconds a held connection waits for a reviewer (0 to 900, default 0). |
 | `-force` (enroll) | Enroll again and replace the key this machine has. |
 
 `GET /edge/health` answers `{"edge":"ok","nia":"ready","machine":"active"}`:
@@ -72,6 +88,22 @@ file is protected by file permissions.
 - When Nia cannot be reached, the call is refused (`502 nia_unreachable`).
   A redirect is handed back, never followed with the key.
 - An enrollment that could not keep its key does not use the token.
+
+The egress proxy:
+
+- An internal IP literal (this machine, the local network, cloud metadata,
+  and every IPv6 form that carries such an IPv4 address) is refused before
+  Nia is asked.
+- A name is resolved only after the connection is allowed, once, and the
+  connection goes to the address that was checked. A name that resolves to
+  any internal address is refused.
+- A name some resolvers read as an address (`127.1`, `0x7f.0.0.1`,
+  `2130706433`) is refused.
+- Only an explicit `allow` from Nia opens a connection. An error, an answer
+  that cannot be read, or a connection Nia could not record refuses it.
+- HTTPS is tunnelled without interception: Nia sees the host and the port.
+  Plain HTTP also shows the method and the URL. Credentials the agent puts in
+  the proxy URL are ignored and never reach the target.
 - Neither the token nor the key is printed or logged.
 
 ## The contract with the server

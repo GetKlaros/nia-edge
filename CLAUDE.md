@@ -22,6 +22,11 @@ private code base; this repository is public.
 - Arguments that are not valid UTF-8, or that cannot be canonicalised where a
   canonical form is needed, are refused, never guessed.
 - What the machine reports about itself decides nothing.
+- The egress proxy refuses an internal IP literal before any decision,
+  resolves a name only after the connection is allowed, once, and connects to
+  the address it checked. Only an explicit `allow` opens a connection; a
+  connection Nia could not record is refused. Credentials from the agent are
+  ignored and never forwarded.
 - This repository is public: no secret, no customer name, no internal host
   name, and nothing copied from the server's code.
 
