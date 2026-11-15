@@ -11,6 +11,12 @@
 # EDGE_HTTP_PORT and EDGE_PROXY_PORT name the ports when they are not 8787
 # and 3128.
 #
+# The agent may still reach its own services on 127.0.0.1 (Hermes' command
+# talks to its gateway on a port the kernel picks), never another user's: a
+# TCP connection the agent opens on the loopback is marked, and its answers
+# must come from a socket of the agent. A local proxy or database of another
+# user answers nothing it can use.
+#
 # Unix sockets are not network traffic: the user must not be in a group that
 # reaches a privileged socket (docker, lxd, libvirt) or root (sudo, wheel).
 # install/linux.sh checks it.
@@ -20,6 +26,8 @@ ACTION=${1:-show}
 RELAY_PORT=${EDGE_HTTP_PORT:-8787}
 PROXY_PORT=${EDGE_PROXY_PORT:-3128}
 TABLE=nia_agent
+# The bit of the connection mark that names the agent's loopback connections.
+AGENT_MARK=0x40000000
 
 command -v nft >/dev/null || { echo "nftables (nft) is required" >&2; exit 2; }
 
@@ -41,11 +49,15 @@ table inet $TABLE {
   chain output {
     type filter hook output priority filter; policy accept;
     meta skuid $uid oifname "lo" ip daddr 127.0.0.1 tcp dport { $RELAY_PORT, $PROXY_PORT } accept
+    meta skuid $uid oifname "lo" ip daddr 127.0.0.1 meta l4proto tcp ct state new ct mark set ct mark or $AGENT_MARK accept
+    meta skuid $uid oifname "lo" ip daddr 127.0.0.1 meta l4proto tcp ct mark and $AGENT_MARK == $AGENT_MARK accept
+    ct direction reply ct mark and $AGENT_MARK == $AGENT_MARK meta skuid $uid accept
+    ct direction reply ct mark and $AGENT_MARK == $AGENT_MARK counter drop
     meta skuid $uid counter reject with icmpx admin-prohibited
   }
 }
 RULES
-    echo "nia-edge: user $AGENT_USER (uid $uid) can only reach 127.0.0.1:$RELAY_PORT and 127.0.0.1:$PROXY_PORT"
+    echo "nia-edge: user $AGENT_USER (uid $uid) can only reach 127.0.0.1:$RELAY_PORT, 127.0.0.1:$PROXY_PORT and its own services on 127.0.0.1"
     ;;
   remove)
     nft delete table inet $TABLE 2>/dev/null || true

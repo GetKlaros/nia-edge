@@ -20,6 +20,7 @@ nia-edge relays today; Nia decides every call.
 | Hash of a call's arguments, identical to the server's (`canon`) | done |
 | Egress proxy: every outbound connection decided by the role | done |
 | Linux installer: systemd service, firewall rule, proof of isolation | done |
+| Hermes installer: its own user, its terminal in a rootless container without network, migration of an existing Hermes | done |
 | macOS installer | not yet |
 | Local MCP servers | not yet |
 | Signed policy: fetched, verified against the key learned at enrollment, kept, reported | done |
@@ -88,6 +89,50 @@ To undo the rule: `/usr/local/lib/nia-edge/firewall-linux.sh remove`.
 (the server directly, raw TCP, the resolver, DNS over UDP) and reports to
 Nia, which shows the machine as isolated or breached. Nia also sees the
 attempt itself, so the result does not rest on what the machine says.
+
+## Install a Hermes agent on Linux
+
+`install/hermes-linux.sh` installs Hermes so that it cannot go around Nia,
+whatever command or script it runs:
+
+```bash
+sudo NIA_URL=https://nia.example NIA_ENROLL_TOKEN=nen_… \
+     NIA_PROVIDER_URL=https://api.example.com/v1 NIA_PROVIDER_KEY_FILE=/root/provider.key \
+     install/hermes-linux.sh --from <user>      # or --fresh
+```
+
+It needs systemd, nftables and rootless Podman (Debian, Ubuntu:
+`apt install podman uidmap catatonit`). It:
+
+1. looks for Hermes under every account. Hermes installs itself under the
+   account that runs its installer, with that account's files and network;
+   nia-edge cannot close that account without closing its owner's own
+   network. So the script stops and says so, unless told `--from <user>`
+   (copy that Hermes' configuration, `.env`, memories, skills, sessions and
+   scheduled jobs; the original is left as it is) or `--fresh`;
+2. creates the user `hermes`, with subordinate ids and a user manager that
+   runs without a login, and installs Hermes there with its official
+   installer;
+3. points Hermes' model at nia-edge, and runs its terminal and file tools in
+   a container (`terminal.backend docker` through rootless Podman, no
+   network, no host directory mounted); Podman runs as `hermes`, so the
+   container is never root on the machine and the user is in no `docker`
+   group;
+4. runs `install/linux.sh hermes`: nia-edge, the firewall rule, enrollment,
+   and the proof with `nia-edge doctor`;
+5. gives nia-edge the provider, when `NIA_PROVIDER_URL` is set, so prompts
+   do not go through Nia;
+6. checks that a container of `hermes` has no network interface but loopback
+   and sees nothing of its home.
+
+What holds then, for a script the agent wrote and ran (tested by the
+server's `npm run e2e:hermes`, with real Hermes and real calls the role
+allows): it reads, deletes and sends nothing outside its container. Without
+the container (`terminal.backend local`), the same script deletes the agent's
+own files, but still nobody else's and still sends nothing.
+
+The messaging gateway (Telegram…) is not installed by this script: its host
+needs an `egress` rule in the role first.
 
 ## Use without the installer
 
@@ -242,6 +287,15 @@ The egress proxy:
   Plain HTTP also shows the method and the URL. Credentials the agent puts in
   the proxy URL are ignored and never reach the target.
 - Neither the token nor the key is printed or logged.
+
+The firewall rule (`install/firewall-linux.sh`), for the agent's user:
+
+- TCP to nia-edge (`127.0.0.1:8787`, `127.0.0.1:3128`) only, and to its own
+  services on `127.0.0.1` (Hermes' command talks to its gateway on a port the
+  kernel picks): a connection the agent opens on the loopback is marked, and
+  its answers must come from a socket of the agent. A local proxy, database
+  or API of another user answers nothing it can use.
+- Nothing else, UDP and DNS included.
 
 ## The contract with the server
 
