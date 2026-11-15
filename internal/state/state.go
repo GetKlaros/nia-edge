@@ -32,6 +32,9 @@ type State struct {
 	// PolicyKey is the key that signs this machine's policy, as the server
 	// gave it at enrollment. Nil when the server signs nothing.
 	PolicyKey *policy.Key `json:"policy_key,omitempty"`
+	// Provider is the model provider this machine calls itself. When it is
+	// set, prompts and answers do not go through Nia: only the tool calls do.
+	Provider *Provider `json:"provider,omitempty"`
 }
 
 // ErrNotEnrolled reports that there is no state file yet.
@@ -118,4 +121,14 @@ func CheckWritable(path string) error {
 	}
 	probe.Close()
 	return os.Remove(probe.Name())
+}
+
+// Provider is a model provider and the credential to call it.
+type Provider struct {
+	// BaseURL ends in /v1, or wherever the provider serves its API.
+	BaseURL string `json:"base_url"`
+	// Key is the provider's API key. It never reaches the agent.
+	Key string `json:"key"`
+	// Format is "openai" (Authorization: Bearer) or "anthropic" (x-api-key).
+	Format string `json:"format"`
 }

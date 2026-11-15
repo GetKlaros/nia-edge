@@ -28,6 +28,13 @@ private code base; this repository is public.
 - The decision engine answers as the server or not at all: what it cannot be
   sure of is `ErrUndecidable`, never a guess, and a role with a field it does
   not know is refused whole.
+- With a provider set on the machine, the model path is local: a turn is read
+  whole before anything is released; a request or a response that cannot be
+  read as the server reads it, a provider-run tool, a secret in the model's
+  answer, or Nia out of reach refuse it. Prompts, tool results and model text
+  are never sent to Nia or logged; the provider key is in the state file
+  only, never shown, never accepted on the command line, never sent anywhere
+  but to the provider.
 - What the machine reports about itself decides nothing.
 - The egress proxy refuses an internal IP literal before any decision,
   resolves a name only after the connection is allowed, once, and connects to

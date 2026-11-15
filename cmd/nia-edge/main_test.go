@@ -367,3 +367,50 @@ func TestUsage(t *testing.T) {
 		t.Errorf("version: exit %d %q", code, stdout)
 	}
 }
+
+func TestTheProviderKeyIsKeptInTheStateFileAndNeverShown(t *testing.T) {
+	nia := newFakeNia(t)
+	defer nia.Close()
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	if code, _, stderr := command(t, context.Background(), map[string]string{"NIA_ENROLL_TOKEN": "nen_token"}, "", "enroll", "-url", nia.URL, "-state", statePath); code != 0 {
+		t.Fatal(stderr)
+	}
+	// The key is not an argument.
+	if code, out, stderr := command(t, context.Background(), nil, "", "provider", "-state", statePath, "-url", "https://api.example.com/v1", "sk-provider-key"); code == 0 || strings.Contains(out+stderr, "sk-provider-key") {
+		t.Fatalf("a key on the command line: %d %s %s", code, out, stderr)
+	}
+	for name, args := range map[string][]string{
+		"plain http to another host": {"-url", "http://api.example.com/v1"},
+		"a URL with credentials":     {"-url", "https://user:pw@api.example.com/v1"},
+		"an unknown format":          {"-url", "https://api.example.com/v1", "-format", "azure"},
+	} {
+		if code, _, _ := command(t, context.Background(), map[string]string{"NIA_PROVIDER_KEY": "sk-provider-key"}, "", append([]string{"provider", "-state", statePath}, args...)...); code == 0 {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+	if code, _, _ := command(t, context.Background(), nil, "\n", "provider", "-state", statePath, "-url", "https://api.example.com/v1"); code == 0 {
+		t.Error("an empty key was accepted")
+	}
+	code, out, stderr := command(t, context.Background(), nil, "sk-provider-key\n", "provider", "-state", statePath, "-url", "https://api.example.com/v1/", "-format", "anthropic")
+	if code != 0 || strings.Contains(out+stderr, "sk-provider-key") || !strings.Contains(out, "https://api.example.com/v1 (anthropic)") {
+		t.Fatalf("%d %s %s", code, out, stderr)
+	}
+	info, err := os.Stat(statePath)
+	if err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("state file: %v %v", info.Mode(), err)
+	}
+	raw, _ := os.ReadFile(statePath)
+	if !strings.Contains(string(raw), `"key": "sk-provider-key"`) || !strings.Contains(string(raw), `"nia_key1"`) {
+		t.Errorf("the state lost something: %s", regexp.MustCompile(`(sk-|nia_)[a-z0-9-]+`).ReplaceAllString(string(raw), "$1…"))
+	}
+	if code, out, _ := command(t, context.Background(), nil, "", "provider", "-state", statePath); code != 0 || !strings.Contains(out, "api.example.com") || strings.Contains(out, "sk-provider-key") {
+		t.Errorf("showing the provider: %s", out)
+	}
+	if code, out, _ := command(t, context.Background(), nil, "", "provider", "-state", statePath, "-remove"); code != 0 || !strings.Contains(out, "through Nia again") {
+		t.Errorf("removing: %s", out)
+	}
+	raw, _ = os.ReadFile(statePath)
+	if strings.Contains(string(raw), "sk-provider-key") || !strings.Contains(string(raw), `"nia_key1"`) {
+		t.Error("the provider key is still in the state, or the machine key is gone")
+	}
+}

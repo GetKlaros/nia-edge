@@ -303,3 +303,11 @@ func WellFormed(units []uint16) (text string, ok bool) {
 	}
 	return string(utf16.Decode(units)), true
 }
+
+// SetText replaces the text of a string value in place, in the document it
+// was read from. It does nothing to a value that is not a string.
+func (v *Value) SetText(text string) {
+	if v != nil && v.n.kind == kindString {
+		v.n.text = utf16.Encode([]rune(text))
+	}
+}
