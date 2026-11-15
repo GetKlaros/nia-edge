@@ -1,0 +1,4 @@
+/nia-edge
+/dist/
+*.test
+*.out
