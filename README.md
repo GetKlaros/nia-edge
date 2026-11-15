@@ -19,27 +19,60 @@ nia-edge relays today; Nia decides every call.
 | Heartbeat and health route | done |
 | Hash of a call's arguments, identical to the server's (`canon`) | done |
 | Egress proxy: every outbound connection decided by the role | done |
-| Installers that leave the agent no other way out than nia-edge | not yet |
+| Linux installer: systemd service, firewall rule, proof of isolation | done |
+| macOS installer | not yet |
 | Local MCP servers | not yet |
 | Decisions made on the machine, from a signed policy | not yet |
 
-The egress proxy governs the connections that go through it. It closes a
-sandbox's network only when the agent has no other route out: a firewall rule
-by user, or a container whose only network is nia-edge. Until the installers
-are here, that rule is yours to set.
+The egress proxy governs the connections that go through it. It closes the
+agent's network only when the agent has no other route out. On Linux the
+installer sets that up and proves it; elsewhere it is yours to set (a firewall
+rule by user, or a container whose only network is nia-edge).
 
 ## Build
 
 Go 1.27.4 or later of the 1.27 line ([go.dev/dl](https://go.dev/dl/)).
 
 ```bash
-go build -ldflags "-X main.version=0.3.0" -o nia-edge ./cmd/nia-edge
+CGO_ENABLED=0 go build -ldflags "-X main.version=0.3.0" -o nia-edge ./cmd/nia-edge
 ```
 
-## Use
+`CGO_ENABLED=0` gives a static binary that runs on any Linux of the same
+architecture.
+
+## Install on Linux
 
 An admin creates a one-time enrollment token in the Nia console (Machines).
-It carries the role of this machine; the machine chooses nothing.
+Then, on the machine, as root:
+
+```bash
+sudo NIA_URL=https://nia.example NIA_ENROLL_TOKEN=nen_… install/linux.sh <agent-user>
+```
+
+It needs systemd and nftables. It:
+
+1. creates the agent's user if needed, and refuses one that is in a group
+   which goes around the rule (`sudo`, `docker`, `lxd`, …);
+2. installs the binary and runs it as a service under its own user,
+   `nia-edge`, whose state directory (mode 0700) holds the key;
+3. enrolls the machine, the token passed on standard input;
+4. loads an nftables rule, at every boot, that lets the agent's user reach
+   `127.0.0.1:8787` and `127.0.0.1:3128` and nothing else, DNS included;
+5. writes the proxy variables to the agent's profile;
+6. runs `nia-edge doctor` as the agent's user, and fails if that user still
+   has a way out.
+
+Running it again keeps the key: no token is needed then. Root is not locked.
+To undo the rule: `/usr/local/lib/nia-edge/firewall-linux.sh remove`.
+
+`nia-edge doctor`, run as the agent's user at any time, tries every way out
+(the server directly, raw TCP, the resolver, DNS over UDP) and reports to
+Nia, which shows the machine as isolated or breached. Nia also sees the
+attempt itself, so the result does not rest on what the machine says.
+
+## Use without the installer
+
+The token carries the role of this machine; the machine chooses nothing.
 
 ```bash
 # The token comes from the environment, a file (-token-file) or standard
@@ -71,6 +104,7 @@ network is denied.
 | `EDGE_ALLOW_PRIVATE` | Hosts allowed on internal addresses, comma-separated: names, addresses or `*.suffix`. They are still decided by the role. |
 | `EDGE_APPROVAL_WAIT` | Seconds a held connection waits for a reviewer (0 to 900, default 0). |
 | `-force` (enroll) | Enroll again and replace the key this machine has. |
+| `-edge` / `NIA_EDGE` (doctor, health) | The relay, as the agent reaches it; default `http://127.0.0.1:8787`. |
 
 `GET /edge/health` answers `{"edge":"ok","nia":"ready","machine":"active"}`:
 whether Nia is reachable, and what the last heartbeat learned.
@@ -122,8 +156,12 @@ nia-edge calls three kinds of routes on the server:
 
 ## Development
 
+The installer is tested from the server's repository, in a machine with
+systemd and nftables, against a real server: install, enrollment, services,
+isolation, a breach when the rule is removed, a reboot, a second run.
+
 ```bash
-scripts/verify.sh          # gofmt, go vet, tests with the race detector
+scripts/verify.sh          # gofmt, go vet, tests with the race detector, shell syntax
 git config core.hooksPath .githooks   # run it before every push
 go test ./canon -run '^$' -fuzz FuzzCanonical -fuzztime 60s
 ```

@@ -17,4 +17,7 @@ unformatted=$(gofmt -l .)
 go vet ./...
 go test -count=1 -race ./...
 go build -o /dev/null ./cmd/nia-edge
+for script in install/*.sh; do
+  sh -n "$script" || fail "$script does not parse"
+done
 echo "verify: all steps passed (Go $current)"

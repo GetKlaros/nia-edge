@@ -4,6 +4,8 @@
 //
 //	nia-edge enroll -url https://nia.example   exchange a one-time token for this machine's key
 //	nia-edge run                               relay the agent's calls and report to Nia
+//	nia-edge doctor                            from the agent's user: is nia-edge its only way out?
+//	nia-edge health                            is nia-edge running, and does it reach Nia?
 //	nia-edge version
 //
 // The enrollment token is read from NIA_ENROLL_TOKEN, from -token-file, or
@@ -31,6 +33,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/GetKlaros/nia-edge/internal/doctor"
 	"github.com/GetKlaros/nia-edge/internal/egress"
 	"github.com/GetKlaros/nia-edge/internal/niaclient"
 	"github.com/GetKlaros/nia-edge/internal/relay"
@@ -50,7 +53,7 @@ func main() {
 
 func run(ctx context.Context, args []string, getenv func(string) string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: nia-edge enroll|run|version")
+		fmt.Fprintln(stderr, "usage: nia-edge enroll|run|doctor|health|version")
 		return 2
 	}
 	var err error
@@ -59,11 +62,15 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdin i
 		err = enroll(ctx, args[1:], getenv, stdin, stdout, stderr)
 	case "run":
 		err = serve(ctx, args[1:], getenv, stdout, stderr)
+	case "doctor":
+		return check(ctx, args[1:], getenv, stdout, stderr)
+	case "health":
+		return health(ctx, args[1:], getenv, stdout, stderr)
 	case "version":
 		fmt.Fprintln(stdout, version)
 		return 0
 	default:
-		fmt.Fprintf(stderr, "nia-edge: unknown command %q (enroll, run, version)\n", args[0])
+		fmt.Fprintf(stderr, "nia-edge: unknown command %q (enroll, run, doctor, health, version)\n", args[0])
 		return 2
 	}
 	if errors.Is(err, flag.ErrHelp) {
@@ -74,6 +81,57 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdin i
 		return 1
 	}
 	return 0
+}
+
+func edgeFlag(flags *flag.FlagSet, getenv func(string) string) *string {
+	edge := getenv("NIA_EDGE")
+	if edge == "" {
+		edge = "http://127.0.0.1:8787"
+	}
+	return flags.String("edge", edge, "relay of nia-edge, as the agent reaches it (or NIA_EDGE)")
+}
+
+// health asks the relay's health route: 0 when nia-edge runs and reaches
+// Nia, 1 otherwise. It records nothing.
+func health(ctx context.Context, args []string, getenv func(string) string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet("nia-edge health", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	relayURL := edgeFlag(flags, getenv)
+	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
+		return 2
+	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil
+	client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(*relayURL, "/")+"/edge/health", nil)
+	if err != nil {
+		fmt.Fprintf(stderr, "nia-edge: %v\n", err)
+		return 2
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		fmt.Fprintf(stdout, "nia-edge is not reachable at %s\n", *relayURL)
+		return 1
+	}
+	defer response.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
+	fmt.Fprintln(stdout, strings.TrimSpace(string(body)))
+	if response.StatusCode != http.StatusOK {
+		return 1
+	}
+	return 0
+}
+
+// check runs the doctor: 0 isolated, 1 breached, 2 could not check.
+func check(ctx context.Context, args []string, getenv func(string) string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet("nia-edge doctor", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	relayURL := edgeFlag(flags, getenv)
+	timeout := flags.Duration("timeout", 4*time.Second, "time given to each attempt to get out")
+	if err := flags.Parse(args); err != nil || flags.NArg() != 0 || *timeout <= 0 {
+		return doctor.CouldNotCheck
+	}
+	return doctor.Run(ctx, doctor.Options{Edge: *relayURL, Timeout: *timeout, Out: stdout})
 }
 
 var unsafeInName = regexp.MustCompile(`[^A-Za-z0-9._-]`)

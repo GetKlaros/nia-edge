@@ -256,6 +256,13 @@ func TestRunRelaysWithTheMachineKeyAndReportsToNia(t *testing.T) {
 	if !strings.Contains(health, `"machine":"active"`) || !strings.Contains(health, `"nia":"ready"`) {
 		t.Errorf("health %q", health)
 	}
+	// The health command asks the same route, and records nothing on Nia.
+	if code, out, _ := command(t, context.Background(), nil, "", "health", "-edge", "http://"+address); code != 0 || !strings.Contains(out, `"nia":"ready"`) {
+		t.Errorf("health: exit %d %q", code, out)
+	}
+	if code, out, _ := command(t, context.Background(), nil, "", "health", "-edge", "http://127.0.0.1:1"); code != 1 || !strings.Contains(out, "not reachable") {
+		t.Errorf("health without nia-edge: exit %d %q", code, out)
+	}
 	// The key is never logged.
 	if strings.Contains(stdout.String()+stderr.String(), "nia_key1") {
 		t.Errorf("the machine key was logged: %s %s", stdout.String(), stderr.String())
