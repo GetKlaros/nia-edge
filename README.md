@@ -24,7 +24,7 @@ nia-edge relays today; Nia decides every call.
 | Local MCP servers | not yet |
 | Signed policy: fetched, verified against the key learned at enrollment, kept, reported | done |
 | Decision engine: roles, argument rules, dispatchers, answering as the server on its cases | done, not used yet |
-| Reading a model's response (Chat Completions, Responses, Anthropic Messages; documents and streams) as the server does | done, not used yet |
+| Reading a request and a model's response (Chat Completions, Responses, Anthropic Messages; documents and streams) as the server does | done, not used yet |
 | Decisions made on the machine, from that policy | not yet |
 
 The egress proxy governs the connections that go through it. It closes the
