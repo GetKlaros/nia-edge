@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -36,6 +37,7 @@ import (
 	"github.com/GetKlaros/nia-edge/internal/doctor"
 	"github.com/GetKlaros/nia-edge/internal/egress"
 	"github.com/GetKlaros/nia-edge/internal/niaclient"
+	"github.com/GetKlaros/nia-edge/internal/policy"
 	"github.com/GetKlaros/nia-edge/internal/relay"
 	"github.com/GetKlaros/nia-edge/internal/state"
 )
@@ -235,6 +237,7 @@ func enroll(ctx context.Context, args []string, getenv func(string) string, stdi
 		Upstream:     enrolled.Upstream,
 		KeyExpiresAt: enrolled.KeyExpiresAt,
 		EnrolledAt:   time.Now().UTC(),
+		PolicyKey:    enrolled.PolicyKey,
 	}
 	if err := state.Save(path, saved); err != nil {
 		return fmt.Errorf("enrolled as machine %s, but the key could not be written to %s (%w): revoke this machine in the console and enroll again", enrolled.MachineID, path, err)
@@ -332,12 +335,14 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 
 	logger := slog.New(slog.NewTextHandler(stderr, nil))
 	status := &machineStatus{value: "unknown"}
+	policies := &keeper{path: filepath.Join(filepath.Dir(statePath(*stateFile, getenv)), "policy.json"), key: saved.PolicyKey, machineID: saved.MachineID}
+	policies.load(logger)
 	listener, err := net.Listen("tcp", *listen)
 	if err != nil {
 		return err
 	}
 	server := &http.Server{
-		Handler: relay.New(relay.Options{Nia: base, Key: saved.Key, Run: run, Status: status.get, Logger: logger}),
+		Handler: relay.New(relay.Options{Nia: base, Key: saved.Key, Run: run, Status: status.get, Policy: policies.status, Logger: logger}),
 		// Headers must arrive promptly. Bodies and answers have no time
 		// limit: a model answer streams, and a held call waits for a reviewer.
 		ReadHeaderTimeout: 10 * time.Second,
@@ -381,7 +386,7 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 	beats := make(chan struct{})
 	go func() {
 		defer close(beats)
-		heartbeat(ctx, &niaclient.Client{Base: base, HTTP: niaclient.NewHTTPClient(15 * time.Second)}, saved.Key, status, logger)
+		heartbeat(ctx, &niaclient.Client{Base: base, HTTP: niaclient.NewHTTPClient(15 * time.Second)}, saved.Key, status, policies, logger)
 	}()
 	go func() { served <- server.Serve(listener) }()
 
@@ -404,14 +409,136 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 	return nil
 }
 
-// heartbeat reports to Nia until ctx ends. A failure is logged and tried
-// again at the next beat: the relay keeps running, and Nia refuses the calls
-// of a key it no longer accepts.
-func heartbeat(ctx context.Context, client *niaclient.Client, key string, status *machineStatus, logger *slog.Logger) {
+// keeper holds the signed policy of this machine: read from disk at start,
+// refreshed from the server, and gone once it has expired.
+type keeper struct {
+	mu        sync.Mutex
+	current   *policy.Policy
+	note      string
+	path      string
+	key       *policy.Key
+	machineID string
+}
+
+// valid returns the policy in force at now, or nil.
+func (k *keeper) valid(now time.Time) *policy.Policy {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.current != nil && !now.Before(k.current.NotAfter) {
+		k.current = nil
+		k.note = "expired"
+	}
+	return k.current
+}
+
+// status is what the health route says about the policy.
+func (k *keeper) status() string {
+	current := k.valid(time.Now())
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if current == nil {
+		return "none (" + k.note + ")"
+	}
+	described := fmt.Sprintf("version %s, digest %s, valid until %s", current.Version, current.Digest, current.NotAfter.UTC().Format(time.RFC3339))
+	if k.note != "" {
+		described += " (not refreshed: " + k.note + ")"
+	}
+	return described
+}
+
+func (k *keeper) set(current *policy.Policy, note string) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if current != nil {
+		k.current = current
+	}
+	k.note = note
+}
+
+// fail notes why there is no newer policy, and logs it once per reason.
+func (k *keeper) fail(logger *slog.Logger, note string) {
+	k.mu.Lock()
+	again := k.note == note
+	k.note = note
+	k.mu.Unlock()
+	if !again {
+		logger.Error("no new policy", "reason", note)
+	}
+}
+
+// load reads the policy kept on disk. It is verified like one from the
+// server: a file that was changed, or has expired, is no policy.
+func (k *keeper) load(logger *slog.Logger) {
+	if k.key == nil {
+		k.set(nil, "the server signs none")
+		return
+	}
+	signed, err := policy.Load(k.path)
+	if errors.Is(err, policy.ErrNone) {
+		k.set(nil, "not fetched yet")
+		return
+	}
+	if err == nil {
+		var opened *policy.Policy
+		if opened, err = policy.Open(signed, *k.key, k.machineID, time.Now()); err == nil {
+			k.set(opened, "")
+			logger.Info("policy read from disk", "version", opened.Version, "digest", opened.Digest, "valid_until", opened.NotAfter.UTC().Format(time.RFC3339))
+			return
+		}
+	}
+	k.set(nil, "the one on disk was refused")
+	logger.Warn("the policy on disk was refused", "error", err.Error())
+}
+
+// refresh fetches a new policy when the server has another one, or when the
+// one in force is past half of its life. It reports whether the policy in
+// force changed. A failure keeps the policy in force until it expires.
+func (k *keeper) refresh(ctx context.Context, client *niaclient.Client, machineKey string, beat *niaclient.Beat, logger *slog.Logger) bool {
+	if k.key == nil || beat.PolicyKeyID == "" {
+		return false
+	}
+	if beat.PolicyKeyID != k.key.ID {
+		k.fail(logger, "the server signs with another key ("+beat.PolicyKeyID+") than the one learned at enrollment ("+k.key.ID+"): enroll again")
+		return false
+	}
+	now := time.Now()
+	current := k.valid(now)
+	if current != nil && beat.Policy != nil && current.Digest == beat.Policy.Digest && now.Before(current.IssuedAt.Add(current.NotAfter.Sub(current.IssuedAt)/2)) {
+		return false
+	}
+	signed, err := client.SignedPolicy(ctx, machineKey)
+	if err != nil {
+		k.fail(logger, "the server gave none: "+err.Error())
+		return false
+	}
+	opened, err := policy.Open(signed, *k.key, k.machineID, now)
+	if err != nil {
+		k.fail(logger, "the one from the server was refused: "+err.Error())
+		return false
+	}
+	if err := policy.Save(k.path, signed); err != nil {
+		logger.Warn("the policy could not be kept on disk", "error", err.Error())
+	}
+	changed := current == nil || current.Digest != opened.Digest
+	k.set(opened, "")
+	if changed {
+		logger.Info("policy in force", "version", opened.Version, "digest", opened.Digest, "valid_until", opened.NotAfter.UTC().Format(time.RFC3339))
+	}
+	return changed
+}
+
+// heartbeat reports to Nia until ctx ends, and keeps the signed policy
+// fresh. A failure is logged and tried again at the next beat: the relay
+// keeps running, and Nia refuses the calls of a key it no longer accepts.
+func heartbeat(ctx context.Context, client *niaclient.Client, key string, status *machineStatus, policies *keeper, logger *slog.Logger) {
 	interval := 30 * time.Second
 	last := ""
 	for {
-		beat, err := client.Heartbeat(ctx, key, report(), "")
+		digest := ""
+		if current := policies.valid(time.Now()); current != nil {
+			digest = current.Digest
+		}
+		beat, err := client.Heartbeat(ctx, key, report(), digest)
 		now := "active"
 		var refused *niaclient.Refused
 		switch {
@@ -438,10 +565,15 @@ func heartbeat(ctx context.Context, client *niaclient.Client, key string, status
 			last = now
 		}
 		status.set(now)
+		wait := interval
+		if err == nil && policies.refresh(ctx, client, key, beat, logger) {
+			// Tell the server at once which policy is now in force.
+			wait = 0
+		}
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(interval):
+		case <-time.After(wait):
 		}
 	}
 }

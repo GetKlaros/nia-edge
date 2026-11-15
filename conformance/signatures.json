@@ -1,0 +1,99 @@
+{
+ "version": 1,
+ "description": "Ed25519 signatures of policies, over the UTF-8 bytes of the payload. seed is a test key, public on purpose.",
+ "seed": "bmlhIGNvbmZvcm1hbmNlOiBub3QgYSByZWFsIGtleSE=",
+ "key_id": "f4cde9d894750b4a",
+ "cases": [
+  {
+   "name": "a policy as the server signs it",
+   "public_key": "6X0oxncjHjgLMMyiQJ+EpAOWJXEP+Utwlb6/iqEUOgQ=",
+   "payload": "{\"dispatchers\":[],\"issued_at\":\"2026-11-15T10:00:00.000Z\",\"key_id\":\"f4cde9d894750b4a\",\"machine_id\":\"0198c2a0-0000-7000-8000-000000000002\",\"not_after\":\"2026-11-16T10:00:00.000Z\",\"policy\":{\"digest\":\"abcdef0123456789\",\"version\":3},\"role\":{\"destructive\":\"require_approval\",\"mode\":\"enforce\",\"name\":\"research\",\"rule_of_two\":\"require_approval\",\"tools\":[{\"arguments\":[],\"effect\":\"none\",\"name\":\"web_search\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"write_file\",\"output\":\"trusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"terminal\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"require_approval\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"send_*\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"deny\"}]},\"tenant_id\":\"0198c2a0-0000-7000-8000-000000000001\",\"v\":1}",
+   "signature": "AJ1x21F7LVBxAOaNZoub7HlyfSo+CveEoU5P+fDJkPJ1CxQaSbZrRv7V2MEFaCld7WtabaL7WKX8qrLee4xHBA==",
+   "valid": true
+  },
+  {
+   "name": "a policy with text outside ASCII",
+   "public_key": "6X0oxncjHjgLMMyiQJ+EpAOWJXEP+Utwlb6/iqEUOgQ=",
+   "payload": "{\"dispatchers\":[],\"issued_at\":\"2026-11-15T10:00:00.000Z\",\"key_id\":\"f4cde9d894750b4a\",\"machine_id\":\"m\",\"not_after\":\"2026-11-16T10:00:00.000Z\",\"policy\":{\"digest\":\"0000000000000000\",\"version\":\"file\"},\"role\":{\"description\":\"déjà vu — 日本語 😀\",\"destructive\":\"require_approval\",\"mode\":\"enforce\",\"name\":\"research\",\"rule_of_two\":\"require_approval\",\"tools\":[{\"arguments\":[],\"effect\":\"none\",\"name\":\"web_search\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"write_file\",\"output\":\"trusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"terminal\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"require_approval\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"send_*\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"deny\"}]},\"tenant_id\":\"t\",\"v\":1}",
+   "signature": "4MmbtsIGxiG04YYpOV60vQQRXZiksMJZEbSnlI8CHEK3zg6bVbVw34x2PmJh48R7HgwMyd2e/r+LeW2Me64wBQ==",
+   "valid": true
+  },
+  {
+   "name": "one character of the payload changed",
+   "public_key": "6X0oxncjHjgLMMyiQJ+EpAOWJXEP+Utwlb6/iqEUOgQ=",
+   "payload": "{\"dispatchers\":[],\"issued_at\":\"2026-11-15T10:00:00.000Z\",\"key_id\":\"f4cde9d894750b4a\",\"machine_id\":\"0198c2a0-0000-7000-8000-000000000002\",\"not_after\":\"2026-11-16T10:00:00.000Z\",\"policy\":{\"digest\":\"abcdef0123456789\",\"version\":3},\"role\":{\"destructive\":\"require_approval\",\"mode\":\"enforce\",\"name\":\"research\",\"rule_of_two\":\"require_approval\",\"tools\":[{\"arguments\":[],\"effect\":\"none\",\"name\":\"web_search\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"write_file\",\"output\":\"trusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"terminal\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"require_approval\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"send_*\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"}]},\"tenant_id\":\"0198c2a0-0000-7000-8000-000000000001\",\"v\":1}",
+   "signature": "AJ1x21F7LVBxAOaNZoub7HlyfSo+CveEoU5P+fDJkPJ1CxQaSbZrRv7V2MEFaCld7WtabaL7WKX8qrLee4xHBA==",
+   "valid": false
+  },
+  {
+   "name": "a later expiry",
+   "public_key": "6X0oxncjHjgLMMyiQJ+EpAOWJXEP+Utwlb6/iqEUOgQ=",
+   "payload": "{\"dispatchers\":[],\"issued_at\":\"2026-11-15T10:00:00.000Z\",\"key_id\":\"f4cde9d894750b4a\",\"machine_id\":\"0198c2a0-0000-7000-8000-000000000002\",\"not_after\":\"2036-11-16T10:00:00.000Z\",\"policy\":{\"digest\":\"abcdef0123456789\",\"version\":3},\"role\":{\"destructive\":\"require_approval\",\"mode\":\"enforce\",\"name\":\"research\",\"rule_of_two\":\"require_approval\",\"tools\":[{\"arguments\":[],\"effect\":\"none\",\"name\":\"web_search\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"write_file\",\"output\":\"trusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"terminal\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"require_approval\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"send_*\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"deny\"}]},\"tenant_id\":\"0198c2a0-0000-7000-8000-000000000001\",\"v\":1}",
+   "signature": "AJ1x21F7LVBxAOaNZoub7HlyfSo+CveEoU5P+fDJkPJ1CxQaSbZrRv7V2MEFaCld7WtabaL7WKX8qrLee4xHBA==",
+   "valid": false
+  },
+  {
+   "name": "a space added to the payload",
+   "public_key": "6X0oxncjHjgLMMyiQJ+EpAOWJXEP+Utwlb6/iqEUOgQ=",
+   "payload": "{\"dispatchers\":[],\"issued_at\":\"2026-11-15T10:00:00.000Z\",\"key_id\":\"f4cde9d894750b4a\",\"machine_id\":\"0198c2a0-0000-7000-8000-000000000002\",\"not_after\":\"2026-11-16T10:00:00.000Z\",\"policy\":{\"digest\":\"abcdef0123456789\",\"version\":3},\"role\":{\"destructive\":\"require_approval\",\"mode\":\"enforce\",\"name\":\"research\",\"rule_of_two\":\"require_approval\",\"tools\":[{\"arguments\":[],\"effect\":\"none\",\"name\":\"web_search\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"write_file\",\"output\":\"trusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"terminal\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"require_approval\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"send_*\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"deny\"}]},\"tenant_id\":\"0198c2a0-0000-7000-8000-000000000001\",\"v\":1} ",
+   "signature": "AJ1x21F7LVBxAOaNZoub7HlyfSo+CveEoU5P+fDJkPJ1CxQaSbZrRv7V2MEFaCld7WtabaL7WKX8qrLee4xHBA==",
+   "valid": false
+  },
+  {
+   "name": "one bit of the signature changed",
+   "public_key": "6X0oxncjHjgLMMyiQJ+EpAOWJXEP+Utwlb6/iqEUOgQ=",
+   "payload": "{\"dispatchers\":[],\"issued_at\":\"2026-11-15T10:00:00.000Z\",\"key_id\":\"f4cde9d894750b4a\",\"machine_id\":\"0198c2a0-0000-7000-8000-000000000002\",\"not_after\":\"2026-11-16T10:00:00.000Z\",\"policy\":{\"digest\":\"abcdef0123456789\",\"version\":3},\"role\":{\"destructive\":\"require_approval\",\"mode\":\"enforce\",\"name\":\"research\",\"rule_of_two\":\"require_approval\",\"tools\":[{\"arguments\":[],\"effect\":\"none\",\"name\":\"web_search\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"write_file\",\"output\":\"trusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"terminal\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"require_approval\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"send_*\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"deny\"}]},\"tenant_id\":\"0198c2a0-0000-7000-8000-000000000001\",\"v\":1}",
+   "signature": "AZ1x21F7LVBxAOaNZoub7HlyfSo+CveEoU5P+fDJkPJ1CxQaSbZrRv7V2MEFaCld7WtabaL7WKX8qrLee4xHBA==",
+   "valid": false
+  },
+  {
+   "name": "the last bit of the signature changed",
+   "public_key": "6X0oxncjHjgLMMyiQJ+EpAOWJXEP+Utwlb6/iqEUOgQ=",
+   "payload": "{\"dispatchers\":[],\"issued_at\":\"2026-11-15T10:00:00.000Z\",\"key_id\":\"f4cde9d894750b4a\",\"machine_id\":\"0198c2a0-0000-7000-8000-000000000002\",\"not_after\":\"2026-11-16T10:00:00.000Z\",\"policy\":{\"digest\":\"abcdef0123456789\",\"version\":3},\"role\":{\"destructive\":\"require_approval\",\"mode\":\"enforce\",\"name\":\"research\",\"rule_of_two\":\"require_approval\",\"tools\":[{\"arguments\":[],\"effect\":\"none\",\"name\":\"web_search\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"write_file\",\"output\":\"trusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"terminal\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"require_approval\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"send_*\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"deny\"}]},\"tenant_id\":\"0198c2a0-0000-7000-8000-000000000001\",\"v\":1}",
+   "signature": "AJ1x21F7LVBxAOaNZoub7HlyfSo+CveEoU5P+fDJkPJ1CxQaSbZrRv7V2MEFaCld7WtabaL7WKX8qrLee4xHBQ==",
+   "valid": false
+  },
+  {
+   "name": "a truncated signature",
+   "public_key": "6X0oxncjHjgLMMyiQJ+EpAOWJXEP+Utwlb6/iqEUOgQ=",
+   "payload": "{\"dispatchers\":[],\"issued_at\":\"2026-11-15T10:00:00.000Z\",\"key_id\":\"f4cde9d894750b4a\",\"machine_id\":\"0198c2a0-0000-7000-8000-000000000002\",\"not_after\":\"2026-11-16T10:00:00.000Z\",\"policy\":{\"digest\":\"abcdef0123456789\",\"version\":3},\"role\":{\"destructive\":\"require_approval\",\"mode\":\"enforce\",\"name\":\"research\",\"rule_of_two\":\"require_approval\",\"tools\":[{\"arguments\":[],\"effect\":\"none\",\"name\":\"web_search\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"write_file\",\"output\":\"trusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"terminal\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"require_approval\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"send_*\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"deny\"}]},\"tenant_id\":\"0198c2a0-0000-7000-8000-000000000001\",\"v\":1}",
+   "signature": "AJ1x21F7LVBxAOaNZoub7HlyfSo+CveEoU5P+fDJkPJ1CxQaSbZrRv7V2MEFaCld7WtabaL7WKX8qrLee4xH",
+   "valid": false
+  },
+  {
+   "name": "an empty signature",
+   "public_key": "6X0oxncjHjgLMMyiQJ+EpAOWJXEP+Utwlb6/iqEUOgQ=",
+   "payload": "{\"dispatchers\":[],\"issued_at\":\"2026-11-15T10:00:00.000Z\",\"key_id\":\"f4cde9d894750b4a\",\"machine_id\":\"0198c2a0-0000-7000-8000-000000000002\",\"not_after\":\"2026-11-16T10:00:00.000Z\",\"policy\":{\"digest\":\"abcdef0123456789\",\"version\":3},\"role\":{\"destructive\":\"require_approval\",\"mode\":\"enforce\",\"name\":\"research\",\"rule_of_two\":\"require_approval\",\"tools\":[{\"arguments\":[],\"effect\":\"none\",\"name\":\"web_search\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"write_file\",\"output\":\"trusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"terminal\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"require_approval\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"send_*\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"deny\"}]},\"tenant_id\":\"0198c2a0-0000-7000-8000-000000000001\",\"v\":1}",
+   "signature": "",
+   "valid": false
+  },
+  {
+   "name": "the signature of another payload",
+   "public_key": "6X0oxncjHjgLMMyiQJ+EpAOWJXEP+Utwlb6/iqEUOgQ=",
+   "payload": "{\"dispatchers\":[],\"issued_at\":\"2026-11-15T10:00:00.000Z\",\"key_id\":\"f4cde9d894750b4a\",\"machine_id\":\"0198c2a0-0000-7000-8000-000000000002\",\"not_after\":\"2026-11-16T10:00:00.000Z\",\"policy\":{\"digest\":\"abcdef0123456789\",\"version\":3},\"role\":{\"destructive\":\"require_approval\",\"mode\":\"enforce\",\"name\":\"research\",\"rule_of_two\":\"require_approval\",\"tools\":[{\"arguments\":[],\"effect\":\"none\",\"name\":\"web_search\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"write_file\",\"output\":\"trusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"terminal\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"require_approval\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"send_*\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"deny\"}]},\"tenant_id\":\"0198c2a0-0000-7000-8000-000000000001\",\"v\":1}",
+   "signature": "4MmbtsIGxiG04YYpOV60vQQRXZiksMJZEbSnlI8CHEK3zg6bVbVw34x2PmJh48R7HgwMyd2e/r+LeW2Me64wBQ==",
+   "valid": false
+  },
+  {
+   "name": "signed by another key",
+   "public_key": "6X0oxncjHjgLMMyiQJ+EpAOWJXEP+Utwlb6/iqEUOgQ=",
+   "payload": "{\"dispatchers\":[],\"issued_at\":\"2026-11-15T10:00:00.000Z\",\"key_id\":\"f4cde9d894750b4a\",\"machine_id\":\"0198c2a0-0000-7000-8000-000000000002\",\"not_after\":\"2026-11-16T10:00:00.000Z\",\"policy\":{\"digest\":\"abcdef0123456789\",\"version\":3},\"role\":{\"destructive\":\"require_approval\",\"mode\":\"enforce\",\"name\":\"research\",\"rule_of_two\":\"require_approval\",\"tools\":[{\"arguments\":[],\"effect\":\"none\",\"name\":\"web_search\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"write_file\",\"output\":\"trusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"terminal\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"require_approval\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"send_*\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"deny\"}]},\"tenant_id\":\"0198c2a0-0000-7000-8000-000000000001\",\"v\":1}",
+   "signature": "YQ2I+u4hxoD9Bdly5Chfe5W45uLUfvK/ra/n8DiIqjFGuXqtf5ygOW32V7jwcbZrqYIzSraQOiO9bMJWIDLoAQ==",
+   "valid": false
+  },
+  {
+   "name": "checked against another key",
+   "public_key": "b+KaPhQD6lS6OKFyc1xPt1U5crew3cdB7nEra79I4fw=",
+   "payload": "{\"dispatchers\":[],\"issued_at\":\"2026-11-15T10:00:00.000Z\",\"key_id\":\"f4cde9d894750b4a\",\"machine_id\":\"0198c2a0-0000-7000-8000-000000000002\",\"not_after\":\"2026-11-16T10:00:00.000Z\",\"policy\":{\"digest\":\"abcdef0123456789\",\"version\":3},\"role\":{\"destructive\":\"require_approval\",\"mode\":\"enforce\",\"name\":\"research\",\"rule_of_two\":\"require_approval\",\"tools\":[{\"arguments\":[],\"effect\":\"none\",\"name\":\"web_search\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"write_file\",\"output\":\"trusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"terminal\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"require_approval\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"send_*\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"deny\"}]},\"tenant_id\":\"0198c2a0-0000-7000-8000-000000000001\",\"v\":1}",
+   "signature": "AJ1x21F7LVBxAOaNZoub7HlyfSo+CveEoU5P+fDJkPJ1CxQaSbZrRv7V2MEFaCld7WtabaL7WKX8qrLee4xHBA==",
+   "valid": false
+  },
+  {
+   "name": "a public key of the wrong length",
+   "public_key": "6X0oxncjHjgLMMyiQJ+EpAOWJXEP+Utwlb6/iqEUOg==",
+   "payload": "{\"dispatchers\":[],\"issued_at\":\"2026-11-15T10:00:00.000Z\",\"key_id\":\"f4cde9d894750b4a\",\"machine_id\":\"0198c2a0-0000-7000-8000-000000000002\",\"not_after\":\"2026-11-16T10:00:00.000Z\",\"policy\":{\"digest\":\"abcdef0123456789\",\"version\":3},\"role\":{\"destructive\":\"require_approval\",\"mode\":\"enforce\",\"name\":\"research\",\"rule_of_two\":\"require_approval\",\"tools\":[{\"arguments\":[],\"effect\":\"none\",\"name\":\"web_search\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"write_file\",\"output\":\"trusted\",\"sensitive\":false,\"when_untrusted\":\"allow\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"terminal\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"require_approval\"},{\"arguments\":[],\"effect\":\"none\",\"name\":\"send_*\",\"output\":\"untrusted\",\"sensitive\":false,\"when_untrusted\":\"deny\"}]},\"tenant_id\":\"0198c2a0-0000-7000-8000-000000000001\",\"v\":1}",
+   "signature": "AJ1x21F7LVBxAOaNZoub7HlyfSo+CveEoU5P+fDJkPJ1CxQaSbZrRv7V2MEFaCld7WtabaL7WKX8qrLee4xHBA==",
+   "valid": false
+  }
+ ]
+}

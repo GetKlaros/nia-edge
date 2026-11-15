@@ -7,6 +7,7 @@ They are what the server answers for a fixed set of inputs. Do not edit them.
 | --- | --- | --- |
 | `canonical.json` | The hash a call's arguments are bound to: canonical JSON, repeated keys, and the hash itself | `canon` |
 | `addresses.json` | Which addresses the egress proxy refuses as internal, and which hosts a list exempts | `internal/egress` |
+| `signatures.json` | Ed25519 signatures of the server over a policy payload, good and bad, from a test seed that signs nothing real | `internal/policy` |
 | `decisions.json` | Role decisions (`allow`, `require_approval`, `deny`) over several roles, in clean, tainted and exposed sessions | nothing yet: the decision engine is not written here |
 
 A change of the server's behaviour regenerates the cases. They are refreshed

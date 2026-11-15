@@ -13,6 +13,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/GetKlaros/nia-edge/internal/policy"
 )
 
 // maxAnswer bounds what is read from Nia: these answers are small.
@@ -35,6 +37,8 @@ type Enrollment struct {
 	Role             string    `json:"role"`
 	Upstream         string    `json:"upstream"`
 	HeartbeatSeconds int       `json:"heartbeat_seconds"`
+	// PolicyKey signs this machine's policy; nil when the server signs nothing.
+	PolicyKey *policy.Key `json:"policy_key"`
 }
 
 // Policy names the policy version a machine is to apply.
@@ -52,7 +56,9 @@ type Beat struct {
 	Policy           *Policy   `json:"policy"`
 	KeyExpiresAt     time.Time `json:"key_expires_at"`
 	HeartbeatSeconds int       `json:"heartbeat_seconds"`
-	ServerTime       time.Time `json:"server_time"`
+	// PolicyKeyID is the key the server signs with now; empty when it signs nothing.
+	PolicyKeyID string    `json:"policy_key_id"`
+	ServerTime  time.Time `json:"server_time"`
 }
 
 // Refused is an answer from Nia other than success. The message is Nia's;
@@ -146,12 +152,30 @@ func (c *Client) Heartbeat(ctx context.Context, key string, report Report, polic
 	return &answer, nil
 }
 
-func (c *Client) post(ctx context.Context, path, bearer string, body any, want int, answer any) error {
-	encoded, err := json.Marshal(body)
-	if err != nil {
-		return err
+// SignedPolicy fetches the policy this machine is to apply, signed. It is not
+// verified here: policy.Open does that, with the key pinned at enrollment.
+func (c *Client) SignedPolicy(ctx context.Context, key string) (policy.Signed, error) {
+	var answer policy.Signed
+	if err := c.call(ctx, http.MethodGet, "/edge/v1/policy", key, nil, http.StatusOK, &answer); err != nil {
+		return policy.Signed{}, err
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.Base.JoinPath(path).String(), bytes.NewReader(encoded))
+	return answer, nil
+}
+
+func (c *Client) post(ctx context.Context, path, bearer string, body any, want int, answer any) error {
+	return c.call(ctx, http.MethodPost, path, bearer, body, want, answer)
+}
+
+func (c *Client) call(ctx context.Context, method, path, bearer string, body any, want int, answer any) error {
+	var payload io.Reader
+	if body != nil {
+		encoded, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+		payload = bytes.NewReader(encoded)
+	}
+	request, err := http.NewRequestWithContext(ctx, method, c.Base.JoinPath(path).String(), payload)
 	if err != nil {
 		return err
 	}
