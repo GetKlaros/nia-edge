@@ -29,12 +29,25 @@ agent's network only when the agent has no other route out. On Linux the
 installer sets that up and proves it; elsewhere it is yours to set (a firewall
 rule by user, or a container whose only network is nia-edge).
 
-## Build
+## Get the binary
 
-Go 1.27.4 or later of the 1.27 line ([go.dev/dl](https://go.dev/dl/)).
+Releases are on the [releases page](https://github.com/GetKlaros/nia-edge/releases):
+one static binary per system, the Linux installer, and `SHA256SUMS`.
 
 ```bash
-CGO_ENABLED=0 go build -ldflags "-X main.version=0.3.0" -o nia-edge ./cmd/nia-edge
+sha256sum -c --ignore-missing SHA256SUMS      # before running anything
+chmod +x nia-edge_*_linux_amd64 && mv nia-edge_*_linux_amd64 nia-edge
+```
+
+The builds are reproducible: `scripts/release.sh <tag>` on the tagged commit,
+with the Go version `go.mod` names, gives the same checksums.
+
+## Build
+
+Go 1.27.4 ([go.dev/dl](https://go.dev/dl/)).
+
+```bash
+CGO_ENABLED=0 go build -ldflags "-X main.version=0.1.0" -o nia-edge ./cmd/nia-edge
 ```
 
 `CGO_ENABLED=0` gives a static binary that runs on any Linux of the same
