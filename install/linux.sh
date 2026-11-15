@@ -25,6 +25,7 @@ LIB=/usr/local/lib/nia-edge
 fail() { echo "install: $1" >&2; exit "${2:-2}"; }
 
 [ "$(id -u)" -eq 0 ] || fail "run as root"
+[ -f "$HERE/firewall-linux.sh" ] || fail "firewall-linux.sh must be next to this script"
 [ -x "$BINARY" ] || fail "no nia-edge binary at $BINARY (build it, or set NIA_EDGE_BINARY)"
 "$BINARY" version >/dev/null || fail "$BINARY does not run on this machine"
 command -v nft >/dev/null || fail "nftables is required (for instance: apt install nftables)"

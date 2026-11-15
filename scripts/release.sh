@@ -4,7 +4,11 @@
 #   scripts/release.sh v0.1.0            builds dist/ from the tag v0.1.0
 #
 # The tag must exist and be the commit checked out, with nothing modified:
-# what is published is exactly what the tag names. The builds are static
+# what is published is exactly what the tag names. Then publish dist/ with:
+#
+#   git push origin v0.1.0
+#   gh release create v0.1.0 dist/* --prerelease --title "nia-edge 0.1.0" --notes-file release-notes/v0.1.0.md
+# The builds are static
 # (CGO_ENABLED=0) and reproducible: the same tag and the same Go version give
 # the same bytes, so anyone can rebuild a binary and compare its checksum.
 set -euo pipefail
@@ -34,9 +38,14 @@ for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
   GOOS=$os GOARCH=$arch go build -trimpath -ldflags "-s -w -X main.version=${version#v}" -o "dist/$name" ./cmd/nia-edge
   echo "built dist/$name"
 done
-# The installer and its firewall rule go with the Linux binaries.
-tar --sort=name --owner=0 --group=0 --numeric-owner --mtime="@$(git log -1 --format=%ct)" \
-  -czf "dist/nia-edge_${version#v}_install-linux.tar.gz" install/linux.sh install/firewall-linux.sh
-(cd dist && sha256sum -- * > SHA256SUMS)
+# The installer and its firewall rule go with the Linux binaries, as they are.
+cp install/linux.sh "dist/nia-edge_${version#v}_install-linux.sh"
+cp install/firewall-linux.sh dist/firewall-linux.sh
+# sha256sum on Linux, shasum on macOS: the same output.
+if command -v sha256sum >/dev/null 2>&1; then
+  (cd dist && sha256sum -- * > SHA256SUMS)
+else
+  (cd dist && shasum -a 256 -- * > SHA256SUMS)
+fi
 echo
 cat dist/SHA256SUMS
