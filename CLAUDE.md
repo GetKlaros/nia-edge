@@ -27,8 +27,13 @@ private code base; this repository is public.
   the address it checked. Only an explicit `allow` opens a connection; a
   connection Nia could not record is refused. Credentials from the agent are
   ignored and never forwarded.
+- The installer never puts the token or the key on a command line or in a
+  file other than the state file, enrolls only after everything else that can
+  fail, and ends by proving isolation with `nia-edge doctor`: it fails when
+  the agent's user still has a way out. Isolation is Nia's verdict, never the
+  machine's own.
 - This repository is public: no secret, no customer name, no internal host
-  name, and nothing copied from the server's code.
+  name, and nothing of the server's engine.
 
 ## Stack
 
@@ -38,7 +43,8 @@ official documentation (`go doc`, go.dev), and use the latest stable release.
 
 ## Commands
 
-- `scripts/verify.sh`: gofmt, go vet, tests with the race detector, build.
+- `scripts/verify.sh`: gofmt, go vet, tests with the race detector, build,
+  shell syntax. The installer itself is run by the server's `npm run e2e:native`.
   `git config core.hooksPath .githooks` runs it before every push.
 - `go test ./canon -run '^$' -fuzz FuzzCanonical -fuzztime 60s`: the JSON
   grammar against `encoding/json`.
