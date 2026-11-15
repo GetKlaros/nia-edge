@@ -36,6 +36,10 @@ private code base; this repository is public.
   are never sent to Nia or logged; the provider key is in the state file
   only, never shown, never accepted on the command line, never sent anywhere
   but to the provider.
+- The firewall lets the agent's user reach nia-edge and its own services on
+  the loopback, never another user's, and nothing else. The Hermes installer
+  never leaves Hermes under a person's account without saying so, and runs
+  its terminal in a rootless container without network or host directory.
 - What the machine reports about itself decides nothing.
 - The egress proxy refuses an internal IP literal before any decision,
   resolves a name only after the connection is allowed, once, and connects to
