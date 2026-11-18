@@ -58,6 +58,10 @@ done
 for tool in podman newuidmap newgidmap loginctl runuser; do
   command -v "$tool" >/dev/null || fail "$tool is required (Debian, Ubuntu: apt install podman uidmap catatonit)"
 done
+# The docker group is root on the machine: an agent in it has a way out.
+if id -nG "$AGENT" 2>/dev/null | tr ' ' '\n' | grep -qx docker; then
+  fail "$AGENT is in the docker group, which is root on this machine: gpasswd -d $AGENT docker"
+fi
 command -v catatonit >/dev/null || [ -x /usr/libexec/podman/catatonit ] || command -v tini >/dev/null ||
   fail "an init for containers is required (Debian, Ubuntu: apt install catatonit)"
 [ "$AGENT" != root ] || fail "the agent cannot run as root"
@@ -251,7 +255,11 @@ fi
 set_hermes terminal.backend docker
 set_hermes terminal.docker_network false
 set_hermes terminal.docker_mount_cwd_to_workspace false
-set_hermes HERMES_DOCKER_BINARY podman
+# Hermes takes HERMES_DOCKER_BINARY only as the path of a file, else the
+# docker on the PATH: the path of podman, never a rootful daemon.
+PODMAN=$(command -v podman)
+case "$PODMAN" in /*) ;; *) fail "podman is not a file on the PATH: $PODMAN" ;; esac
+set_hermes HERMES_DOCKER_BINARY "$PODMAN"
 [ -z "${HERMES_SANDBOX_IMAGE:-}" ] || set_hermes terminal.docker_image "$HERMES_SANDBOX_IMAGE"
 get_hermes() { as_agent "hermes config get $1" 2>/dev/null | tail -n 1; }
 [ "$(get_hermes terminal.backend)" = docker ] || fail "Hermes does not report terminal.backend docker"

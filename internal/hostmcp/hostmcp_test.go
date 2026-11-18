@@ -53,7 +53,7 @@ func rpc(t *testing.T, h http.Handler, body string, headers ...string) (int, map
 	return recorder.Code, answer
 }
 
-func TestItSpeaksMCPAndListsTheCatalogue(t *testing.T) {
+func TestItSpeaksMCPAndListsTheFiveActionsAlways(t *testing.T) {
 	h, _, _ := setup()
 	if code, answer := rpc(t, h, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}`); code != 200 || answer["result"].(map[string]any)["protocolVersion"] != "2025-06-18" {
 		t.Fatalf("%d %v", code, answer)
@@ -63,14 +63,16 @@ func TestItSpeaksMCPAndListsTheCatalogue(t *testing.T) {
 	}
 	_, answer := rpc(t, h, `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`)
 	listed, _ := json.Marshal(answer["result"])
-	for _, want := range []string{`"service_restart"`, `"enum":["nginx"]`, `"sync"`, `"enum":["site"]`} {
+	for _, want := range []string{`"service_status"`, `"service_restart"`, `"service_reload"`, `"package_install"`, `"sync"`, `"readOnlyHint":true`} {
 		if !strings.Contains(string(listed), want) {
 			t.Errorf("tools/list lacks %s: %s", want, listed)
 		}
 	}
-	// No package in the catalogue: no tool to install one.
-	if strings.Contains(string(listed), "package_install") {
-		t.Errorf("an empty kind is listed: %s", listed)
+	// The list does not follow the catalogue: an agent keeps what it listed.
+	h.Catalogue = func() (*hostd.Catalogue, error) { return nil, errors.New("no catalogue") }
+	_, again := rpc(t, h, `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`)
+	if relisted, _ := json.Marshal(again["result"]); string(relisted) != string(listed) {
+		t.Errorf("the list changed with the catalogue: %s", relisted)
 	}
 	if code, _ := rpc(t, h, `{"jsonrpc":"2.0","id":3,"method":"tools/list"}`, "Origin", "https://evil.example"); code != http.StatusForbidden {
 		t.Errorf("a foreign origin: %d", code)
@@ -102,6 +104,16 @@ func TestACallRunsOnlyAgainstItsReleaseOnce(t *testing.T) {
 	_, answer = rpc(t, h, call)
 	if answer["result"].(map[string]any)["isError"] != true || len(host.asked) != 1 {
 		t.Errorf("ran on another release: %v", answer)
+	}
+	// A name outside the catalogue, even released: refused, with the names allowed.
+	releases.Release("mcp__host__service_restart", `{"service":"sshd"}`, now)
+	_, answer = rpc(t, h, `{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"service_restart","arguments":{"service":"sshd"}}}`)
+	if text, _ := json.Marshal(answer); answer["result"].(map[string]any)["isError"] != true || len(host.asked) != 1 || !strings.Contains(string(text), "accepts: nginx") {
+		t.Errorf("ran outside the catalogue: %s", text)
+	}
+	_, answer = rpc(t, h, `{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"package_install","arguments":{"package":"curl"}}}`)
+	if text, _ := json.Marshal(answer); answer["result"].(map[string]any)["isError"] != true || !strings.Contains(string(text), "allows no package") {
+		t.Errorf("a kind without names: %s", text)
 	}
 	// nia-hostd out of reach: nothing ran, and the agent is told.
 	host.down = true
