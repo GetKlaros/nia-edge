@@ -250,15 +250,21 @@ container that has:
 
 - the machine's `/etc` as an overlay: what the script writes goes to a layer
   in memory, bounded to 64 MiB, and the machine's `/etc` is not changed;
-- the rest of the machine's root file system read only, without its other
-  mounts (podman prepares the container in a throwaway layer over it, so a
-  machine without `/etc/mtab` works too), and `/root`, `/home`, `/var`, `/srv`, `/opt`, `/mnt`, `/media`,
+- of the rest of the machine's root file system, only `/usr`, `/bin`,
+  `/sbin` and `/lib*`, read only and without their other mounts (podman
+  prepares the container in a throwaway layer over it, so a machine without
+  `/etc/mtab` works too): every other top-level directory (`/root`, `/home`,
+  `/var`, `/srv`, `/opt`, `/data`, whatever an admin made) is an empty tmpfs
+  and every other top-level file (a swap file) is `/dev/null`, and `/root`, `/home`, `/var`, `/srv`, `/opt`, `/mnt`, `/media`,
   `/boot` and `/tmp` empty;
 - no network (only its own loopback), no capability, no new privilege,
   podman's masked `/proc` and read-only `/proc/sys`, a minimal `/dev`, at most
-  256 processes, 512 MiB of memory and two minutes;
+  256 processes, 512 MiB of memory and two minutes; nia-hostd refuses a dry
+  run on a machine without cgroup v2 and its `pids` and `memory` controllers,
+  where podman could not hold those bounds;
+- a layer of at most 64 MiB and 32,768 files;
 - a decoy in place of every file of `/etc` that the machine's other users
-  cannot read (`/etc/shadow`, private keys, `sudoers`...) and of each secret
+  cannot read, by its own mode or a directory above it they cannot cross (`/etc/shadow`, private keys, `sudoers`...) and of each secret
   of the catalogue. A decoy holds a random token: the run cannot read a
   secret, and nia-hostd sees which decoys it opened (their access time, on a
   tmpfs mounted `strictatime`) and where a token came out.
@@ -275,12 +281,38 @@ weaken it a step at a time. All are on unless the catalogue names them in
 - `accounts`: no new user with uid or gid 0, no new member of `root`, `sudo`,
   `wheel`, `admin`, `adm`, `docker`, `lxd`, `incus-admin`, `libvirt`, `disk`,
   `shadow`, `kmem` or `systemd-journal`;
-- places where a file makes root run something, or decides who is root: no
-  change at all to `sudoers`, `pam`, `cron`, `systemd` (and `init.d`,
-  `rc.local`), `preload` (`ld.so`), `shell_startup` (`profile`, `bash.bashrc`,
-  `environment`), `package_sources` (`/etc/apt`, `/etc/dpkg`, `yum`, `dnf`),
-  `kernel_modules` (`modprobe.d`, `sysctl`), `udev`, `logrotate`, `polkit`
-  (and `dbus-1`), `network_hooks` (dispatcher and if-up scripts).
+- `ssh` also refuses any change to the settings that decide who logs in, as
+  whom and what runs (`AuthorizedKeysCommand`, `AuthorizedPrincipals*`,
+  `TrustedUserCAKeys`, `PermitUserEnvironment`, `ForceCommand`, `AllowUsers`,
+  `Port`, `ListenAddress`...), and an `Include` outside `/etc`;
+- `accounts` also counts a user whose primary group is privileged, and a
+  group that shares a privileged group's gid, and refuses any change to
+  `subuid`, `subgid` and the defaults of new users;
+- places where a file makes root run something, decides who is root or what
+  root trusts: no change at all to `sudoers` (and `sudo.conf`, `doas.conf`),
+  `pam` (and `login.defs`, `securetty`, `shells`), `cron` (and `at`),
+  `systemd` (and `init.d`, `rc?.d`, `rc.local`, `/etc/default`,
+  `/etc/sysconfig`), `preload` (`ld.so`), `shell_startup` (`profile`,
+  `bash.bashrc`, `environment`, `zsh`), `login_scripts` (`update-motd.d`,
+  `ssh/sshrc`, Xsession, autostart), `ssh_client` (root's `ssh_config`),
+  `package_sources` (`/etc/apt`, `/etc/dpkg`, yum, dnf, zypp, pacman, apk,
+  pip, npm, gem), `kernel_modules` (`modprobe.d`, `sysctl`, `binfmt.d`),
+  `boot` (`grub.d`, `kernel`, `initramfs-tools`, dracut, `fstab`,
+  `crypttab`), `udev`, `logrotate` (and rsyslog), `polkit` (and `dbus-1`),
+  `mac` (AppArmor, SELinux), `trust_store` (`/etc/ssl`, `ca-certificates`,
+  `pki`, `gnupg`), `name_resolution` (`hosts`, `resolv.conf`, `nsswitch.conf`,
+  `gai.conf`), `interpreters` (`/etc/python*`, `perl`, `php*`, `ruby*`,
+  `node*`, `java*`: sitecustomize, auto_prepend_file) and `network_hooks`.
+
+Guards are a list of what is known to be dangerous: a file of another
+program can still make root run something. `etc.writable` is the list of the
+only paths a role's plans may change (for example `[/etc/nginx]`); set it.
+
+A plan is not applicable either when it makes more than 1,000 changes or
+writes more than 8 MiB, when a file or a directory would be writable by every
+user, or when a symbolic link would point outside `/etc`, `/usr`, `/bin`,
+`/sbin`, `/lib*`, `/dev/null`, `/run/systemd` and `/proc/self/mounts`: whoever
+writes there would write the configuration after the review.
 
 The answer is the run's plan: the files it created, changed or deleted, those
 whose owner or mode alone changed, the protected paths it changed, and the

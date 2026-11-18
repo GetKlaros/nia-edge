@@ -76,9 +76,9 @@ func (n *fakeNia) Hosted(_ context.Context, session string, tools []string) ([]s
 }
 
 func (n *fakeNia) Decide(_ context.Context, session, tool, arguments string, reviews []json.RawMessage) (Verdict, error) {
-	n.reviews = append(n.reviews, reviews...)
 	n.mu.Lock()
 	defer n.mu.Unlock()
+	n.reviews = append(n.reviews, reviews...)
 	if n.down {
 		return Verdict{}, errors.New("down")
 	}
@@ -595,5 +595,24 @@ func TestAnApplySendsItsPlanForTheReviewer(t *testing.T) {
 	h.decide(ctx, "c-1", "mcp__host__apply", `{"plan":"../x"}`)
 	if len(asked) != 2 || asked[0] != plan || len(nia.reviews) != 2 {
 		t.Errorf("asked %v, sent %d reviews", asked, len(nia.reviews))
+	}
+}
+
+func TestATurnWithARefusalReleasesNoHostCall(t *testing.T) {
+	h, p, nia := setup(t)
+	h.Releases = &Releases{Prefix: "mcp__host__"}
+	nia.verdicts["terminal"] = Verdict{Message: "held"}
+	p.answer = `{"choices":[{"message":{"content":null,"tool_calls":[` +
+		`{"id":"c1","type":"function","function":{"name":"mcp__host__service_restart","arguments":"{\"service\":\"nginx\"}"}},` +
+		`{"id":"c2","type":"function","function":{"name":"terminal","arguments":"{}"}}]}}]}`
+	post(h, "/v1/chat/completions", `{"model":"m","messages":[{"role":"user","content":"x"}]}`)
+	if h.Releases.Take("mcp__host__service_restart", `{"service":"nginx"}`, time.Now()) {
+		t.Error("a turn with a refused call released a host call")
+	}
+	// Allowed whole: released, once.
+	delete(nia.verdicts, "terminal")
+	post(h, "/v1/chat/completions", `{"model":"m","messages":[{"role":"user","content":"x"}]}`)
+	if !h.Releases.Take("mcp__host__service_restart", `{"service":"nginx"}`, time.Now()) || h.Releases.Take("mcp__host__service_restart", `{"service":"nginx"}`, time.Now()) {
+		t.Error("an allowed turn is not released once")
 	}
 }

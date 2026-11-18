@@ -28,27 +28,47 @@ type Finding struct {
 // who is root: no plan changes them unless the guard is permitted.
 var rootHooks = []struct {
 	guard, why string
-	paths      []string
+	// paths are files and directories; one ending in * is a prefix of names.
+	paths []string
 }{
-	{"sudoers", "decides who runs commands as root", []string{"/etc/sudoers", "/etc/sudoers.d"}},
-	{"pam", "decides how anyone logs in", []string{"/etc/pam.d", "/etc/pam.conf", "/etc/security"}},
-	{"cron", "runs commands on a schedule, as root for the system's", []string{"/etc/crontab", "/etc/cron.d", "/etc/cron.hourly", "/etc/cron.daily", "/etc/cron.weekly", "/etc/cron.monthly", "/etc/anacrontab", "/etc/cron.allow", "/etc/cron.deny"}},
-	{"systemd", "runs services, as root by default", []string{"/etc/systemd", "/etc/init.d", "/etc/rc.local", "/etc/init"}},
+	{"sudoers", "decides who runs commands as root", []string{"/etc/sudoers", "/etc/sudoers.d", "/etc/sudo.conf", "/etc/sudo_logsrvd.conf", "/etc/doas.conf"}},
+	{"pam", "decides how anyone logs in", []string{"/etc/pam.d", "/etc/pam.conf", "/etc/security", "/etc/login.defs", "/etc/securetty", "/etc/shells", "/etc/nologin"}},
+	{"cron", "runs commands on a schedule, as root for the system's", []string{"/etc/crontab", "/etc/cron.d", "/etc/cron.hourly", "/etc/cron.daily", "/etc/cron.weekly", "/etc/cron.monthly", "/etc/anacrontab", "/etc/cron.allow", "/etc/cron.deny", "/etc/at.allow", "/etc/at.deny"}},
+	{"systemd", "starts services, as root by default, and the environment they start with", []string{"/etc/systemd", "/etc/init.d", "/etc/init", "/etc/rc.local", "/etc/rc0.d", "/etc/rc1.d", "/etc/rc2.d", "/etc/rc3.d", "/etc/rc4.d", "/etc/rc5.d", "/etc/rc6.d", "/etc/rcS.d", "/etc/default", "/etc/sysconfig", "/etc/inittab"}},
 	{"preload", "loads code into every program", []string{"/etc/ld.so.preload", "/etc/ld.so.conf", "/etc/ld.so.conf.d"}},
-	{"shell_startup", "runs in every login shell, root's included", []string{"/etc/profile", "/etc/profile.d", "/etc/bash.bashrc", "/etc/environment", "/etc/zsh", "/etc/csh.cshrc", "/etc/csh.login"}},
-	{"package_sources", "decides where packages come from and runs APT hooks as root", []string{"/etc/apt", "/etc/dpkg", "/etc/yum.repos.d", "/etc/dnf"}},
-	{"kernel_modules", "loads kernel modules and runs modprobe commands", []string{"/etc/modules", "/etc/modprobe.d", "/etc/modules-load.d", "/etc/sysctl.conf", "/etc/sysctl.d"}},
+	{"shell_startup", "runs in every login shell, root's included", []string{"/etc/profile", "/etc/profile.d", "/etc/bash.bashrc", "/etc/bashrc", "/etc/bash_completion.d", "/etc/environment", "/etc/zsh", "/etc/zshenv", "/etc/zshrc", "/etc/csh.cshrc", "/etc/csh.login", "/etc/inputrc"}},
+	{"login_scripts", "runs when someone logs in, root included", []string{"/etc/update-motd.d", "/etc/ssh/sshrc", "/etc/X11/Xsession.d", "/etc/X11/Xsession", "/etc/xdg/autostart"}},
+	{"ssh_client", "is how root's ssh connects (ProxyCommand, LocalCommand run programs)", []string{"/etc/ssh/ssh_config", "/etc/ssh/ssh_config.d", "/etc/ssh/ssh_known_hosts"}},
+	{"package_sources", "decides where packages come from and runs APT hooks as root", []string{"/etc/apt", "/etc/dpkg", "/etc/yum.repos.d", "/etc/yum.conf", "/etc/dnf", "/etc/zypp", "/etc/pacman.conf", "/etc/pacman.d", "/etc/apk", "/etc/pip.conf", "/etc/npmrc", "/etc/gemrc"}},
+	{"kernel_modules", "loads kernel modules, runs modprobe commands and sets the kernel's settings", []string{"/etc/modules", "/etc/modprobe.d", "/etc/modules-load.d", "/etc/sysctl.conf", "/etc/sysctl.d", "/etc/binfmt.d"}},
+	{"boot", "runs as root when the system or its kernel is installed or started", []string{"/etc/grub.d", "/etc/kernel", "/etc/initramfs-tools", "/etc/dracut.conf", "/etc/dracut.conf.d", "/etc/mkinitcpio.conf", "/etc/fstab", "/etc/crypttab"}},
 	{"udev", "runs commands as root on device events", []string{"/etc/udev"}},
-	{"logrotate", "runs scripts as root after rotations", []string{"/etc/logrotate.conf", "/etc/logrotate.d"}},
+	{"logrotate", "runs scripts as root after rotations", []string{"/etc/logrotate.conf", "/etc/logrotate.d", "/etc/rsyslog.conf", "/etc/rsyslog.d"}},
 	{"polkit", "grants privileged actions", []string{"/etc/polkit-1", "/etc/dbus-1"}},
-	{"network_hooks", "runs scripts as root on network events", []string{"/etc/NetworkManager/dispatcher.d", "/etc/network/if-up.d", "/etc/network/if-down.d", "/etc/network/if-pre-up.d", "/etc/network/if-post-down.d", "/etc/dhcp/dhclient-enter-hooks.d", "/etc/dhcp/dhclient-exit-hooks.d", "/etc/ppp"}},
+	{"mac", "confines programs (AppArmor, SELinux)", []string{"/etc/apparmor", "/etc/apparmor.d", "/etc/selinux"}},
+	{"trust_store", "decides which certificates root trusts, and which engines OpenSSL loads", []string{"/etc/ssl", "/etc/ca-certificates", "/etc/ca-certificates.conf", "/etc/pki", "/etc/gnupg"}},
+	{"name_resolution", "decides where names lead, Nia's and the package sources' included", []string{"/etc/hosts", "/etc/resolv.conf", "/etc/nsswitch.conf", "/etc/gai.conf", "/etc/host.conf", "/etc/hosts.allow", "/etc/hosts.deny"}},
+	{"interpreters", "runs in every program of that language, root's included (sitecustomize, auto_prepend_file)", []string{"/etc/python*", "/etc/perl", "/etc/php*", "/etc/ruby*", "/etc/node*", "/etc/java*", "/etc/R"}},
+	{"network_hooks", "runs scripts as root on network events", []string{"/etc/NetworkManager/dispatcher.d", "/etc/network/if-up.d", "/etc/network/if-down.d", "/etc/network/if-pre-up.d", "/etc/network/if-post-down.d", "/etc/dhcp/dhclient-enter-hooks.d", "/etc/dhcp/dhclient-exit-hooks.d", "/etc/ppp", "/etc/networkd-dispatcher"}},
+	{"accounts", "maps who may become another user", []string{"/etc/subuid", "/etc/subgid", "/etc/adduser.conf", "/etc/default/useradd"}},
+}
+
+// hookMatch reports whether a change at c touches the hook path p.
+func hookMatch(c Change, p string) bool {
+	if strings.HasSuffix(p, "*") {
+		prefix := strings.TrimSuffix(p, "*")
+		return strings.HasPrefix(c.Path, prefix) || strings.HasPrefix(prefix, c.Path+"/") && (c.Kind == "deleted" || c.Replaced)
+	}
+	return c.Path == p || strings.HasPrefix(c.Path, p+"/") || strings.HasPrefix(p, c.Path+"/") && (c.Kind == "deleted" || c.Replaced)
 }
 
 // Guards names every guard, for the catalogue.
 var Guards = func() []string {
 	names := []string{"ssh", "accounts"}
 	for _, hook := range rootHooks {
-		names = append(names, hook.guard)
+		if !slices.Contains(names, hook.guard) {
+			names = append(names, hook.guard)
+		}
 	}
 	return names
 }()
@@ -70,7 +90,7 @@ func judge(permit []string, changes []Change, before, after view) []Finding {
 		}
 		for _, c := range changes {
 			for _, p := range hook.paths {
-				if c.Path == p || strings.HasPrefix(c.Path, p+"/") || strings.HasPrefix(p, c.Path+"/") && (c.Kind == "deleted" || c.Replaced) {
+				if hookMatch(c, p) {
 					findings = append(findings, Finding{Guard: hook.guard, Path: c.Path, Detail: fmt.Sprintf("%s %s: this %s", c.Kind, c.Path, hook.why)})
 					break
 				}
@@ -117,6 +137,24 @@ type sshState struct {
 	matched  map[string]int
 	keyFiles string
 	unread   string
+	// sensitive lists every setting of sshSensitive, in order, Match blocks
+	// marked: any difference is a finding.
+	sensitive []string
+}
+
+// sshSensitive are settings that decide who logs in, as whom, or what runs:
+// a plan may not set, change or remove one.
+var sshSensitive = map[string]bool{
+	"authorizedkeyscommand": true, "authorizedkeyscommanduser": true, "authorizedprincipalsfile": true,
+	"authorizedprincipalscommand": true, "authorizedprincipalscommanduser": true, "trustedusercakeys": true,
+	"revokedkeys": true, "permituserenvironment": true, "setenv": true, "acceptenv": true, "forcecommand": true,
+	"chrootdirectory": true, "subsystem": true, "hostbasedauthentication": true, "ignorerhosts": true,
+	"strictmodes": true, "usepam": true, "kbdinteractiveauthentication": true, "challengeresponseauthentication": true,
+	"gssapiauthentication": true, "kerberosauthentication": true, "allowusers": true, "allowgroups": true,
+	"denyusers": true, "denygroups": true, "authenticationmethods": true, "pubkeyacceptedalgorithms": true,
+	"permittunnel": true, "gatewayports": true, "allowtcpforwarding": true, "allowstreamlocalforwarding": true,
+	"permitopen": true, "permitlisten": true, "listenaddress": true, "port": true, "hostkey": true, "hostcertificate": true,
+	"securitykeyprovider": true, "pidfile": true, "modulifile": true,
 }
 
 func readSSH(v view) sshState {
@@ -153,6 +191,12 @@ func readSSH(v view) sshState {
 					if !path.IsAbs(pattern) {
 						pattern = path.Join("/etc/ssh", pattern)
 					}
+					// sshd reads it at each start: outside /etc, someone else
+					// may write it after the review.
+					if clean := path.Clean(pattern); clean != "/etc" && !strings.HasPrefix(clean, "/etc/") {
+						st.unread = "sshd would Include " + pattern + ", outside /etc"
+						continue
+					}
 					for _, p := range glob(v, pattern) {
 						read(p)
 					}
@@ -165,6 +209,9 @@ func readSSH(v view) sshState {
 					st.keyFiles += " | match: " + value
 				}
 				continue
+			}
+			if sshSensitive[keyword] {
+				st.sensitive = append(st.sensitive, fmt.Sprintf("%s%s %s", map[bool]string{true: "Match: ", false: ""}[inMatch], keyword, value))
 			}
 			ranks, ranked := sshRanks[keyword]
 			if !ranked {
@@ -219,6 +266,10 @@ func sshWeakened(before, after view) []Finding {
 			findings = append(findings, Finding{Guard: "ssh", Path: "/etc/ssh/sshd_config", Detail: fmt.Sprintf("sshd's %s would be weaker than it is (%s)", keyword, sshValue(a, keyword))})
 		}
 	}
+	if !slices.Equal(a.sensitive, b.sensitive) {
+		added, removed := difference(a.sensitive, b.sensitive), difference(b.sensitive, a.sensitive)
+		findings = append(findings, Finding{Guard: "ssh", Path: "/etc/ssh/sshd_config", Detail: fmt.Sprintf("sshd's settings of who logs in and what runs would change (set: %s; unset: %s)", strings.Join(added, ", "), strings.Join(removed, ", "))})
+	}
 	if a.keyFiles != b.keyFiles {
 		findings = append(findings, Finding{Guard: "ssh", Path: "/etc/ssh/sshd_config", Detail: fmt.Sprintf("sshd's AuthorizedKeysFile would change from %q to %q", b.keyFiles, a.keyFiles)})
 	}
@@ -270,6 +321,39 @@ var privilegedGroups = []string{"root", "sudo", "wheel", "admin", "adm", "docker
 func readAccounts(v view) (rootUsers map[string]bool, members map[string]map[string]bool) {
 	rootUsers = map[string]bool{}
 	members = map[string]map[string]bool{}
+	privileged := map[string]string{} // gid → group name
+	var groups [][]string
+	if data, ok := v.read("/etc/group"); ok {
+		for _, line := range strings.Split(string(data), "\n") {
+			fields := strings.Split(line, ":")
+			if len(fields) < 4 || strings.HasPrefix(line, "#") {
+				continue
+			}
+			groups = append(groups, fields)
+			name := fields[0]
+			if fields[2] == "0" {
+				name = "root"
+			}
+			if slices.Contains(privilegedGroups, name) {
+				privileged[fields[2]] = name
+			}
+		}
+		// A group that shares a privileged group's gid is that group.
+		for _, fields := range groups {
+			name, ok := privileged[fields[2]]
+			if !ok {
+				continue
+			}
+			if members[name] == nil {
+				members[name] = map[string]bool{}
+			}
+			for _, member := range strings.Split(fields[3], ",") {
+				if member = strings.TrimSpace(member); member != "" {
+					members[name][member] = true
+				}
+			}
+		}
+	}
 	if data, ok := v.read("/etc/passwd"); ok {
 		for _, line := range strings.Split(string(data), "\n") {
 			fields := strings.Split(line, ":")
@@ -281,30 +365,9 @@ func readAccounts(v view) (rootUsers map[string]bool, members map[string]map[str
 			if err1 != nil || err2 != nil || uid == 0 || gid == 0 {
 				rootUsers[fields[0]] = true
 			}
-		}
-	}
-	gids := map[string]string{}
-	if data, ok := v.read("/etc/group"); ok {
-		for _, line := range strings.Split(string(data), "\n") {
-			fields := strings.Split(line, ":")
-			if len(fields) < 4 || strings.HasPrefix(line, "#") {
-				continue
-			}
-			name := fields[0]
-			if fields[2] == "0" {
-				name = "root"
-			}
-			gids[fields[0]] = fields[2]
-			if !slices.Contains(privilegedGroups, name) {
-				continue
-			}
-			if members[name] == nil {
-				members[name] = map[string]bool{}
-			}
-			for _, member := range strings.Split(fields[3], ",") {
-				if member = strings.TrimSpace(member); member != "" {
-					members[name][member] = true
-				}
+			// A primary group is a membership the group file does not show.
+			if group, ok := privileged[fields[3]]; ok && group != "root" {
+				members[group][fields[0]] = true
 			}
 		}
 	}
@@ -337,4 +400,17 @@ func sortedKeys[V any](m map[string]V) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+func difference(a, b []string) []string {
+	out := []string{}
+	for _, x := range a {
+		if !slices.Contains(b, x) {
+			out = append(out, x)
+		}
+	}
+	if len(out) == 0 {
+		out = append(out, "the same, in another order")
+	}
+	return out
 }

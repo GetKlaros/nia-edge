@@ -268,3 +268,26 @@ func contains(list []string, s string) bool {
 	}
 	return false
 }
+
+func TestADryRunNeedsBoundsItCanEnforce(t *testing.T) {
+	dir := t.TempDir()
+	controllers := filepath.Join(dir, "cgroup.controllers")
+	p := Podman{Limits: true, Controllers: controllers}
+	if why := p.bounded(); !strings.Contains(why, "no cgroup v2") {
+		t.Errorf("%q", why)
+	}
+	os.WriteFile(controllers, []byte("cpuset cpu io pids\n"), 0o644)
+	if why := p.bounded(); !strings.Contains(why, "no memory controller") {
+		t.Errorf("%q", why)
+	}
+	os.WriteFile(controllers, []byte("cpuset cpu io memory hugetlb pids rdma misc\n"), 0o644)
+	if why := p.bounded(); why != "" {
+		t.Errorf("%q", why)
+	}
+	if _, err := (Podman{Limits: true, Controllers: filepath.Join(dir, "none")}).Run(t.Context(), SandboxSpec{}); err == nil {
+		t.Error("ran unbounded")
+	}
+	if !DefaultSandbox().(Podman).Limits {
+		t.Error("nia-hostd's sandbox does not require bounds")
+	}
+}

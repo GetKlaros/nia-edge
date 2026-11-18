@@ -57,15 +57,18 @@ private code base; this repository is public.
   chain that must verify before anything runs; its head goes to Nia with
   each heartbeat, as a report that decides nothing.
 - The one script an agent writes, a dry run, runs only in a container: the
-  machine's `/etc` as an overlay whose layer is in a bounded tmpfs, the rest
-  read only, homes and state empty, no network, no capability. Every file of
+  machine's `/etc` as an overlay whose layer is in a bounded tmpfs, of the
+  rest only `/usr`, `/bin`, `/sbin` and `/lib*`, read only, no network, no
+  capability, and bounded processes and memory (no cgroup v2, no dry run). Every file of
   `/etc` its other users cannot read, and each secret of the catalogue, is a
   decoy there. What leaves the container is the list of its changes, and a
   plan that changes a protected path or a secret, lets a decoy out, makes a
   setuid file or failed is never applicable. Guards judge the state a plan
   leaves against the machine as it is (sshd not weaker, no new root or
   privileged member, no change where root runs something); only the
-  catalogue's `etc.permit` lifts one, by name.
+  catalogue's `etc.permit` lifts one, by name, and `etc.writable` narrows
+  what any plan may change. A plan never makes a file writable by all or a
+  link out of the system's trees, and stays under 1,000 changes and 8 MiB.
 - An apply writes a plan exactly as its layer holds it, once, and only where
   the machine still holds what the dry run saw. It never leaves `/etc` (no
   symbolic link out is followed), saves what it replaces first, checks the
