@@ -41,6 +41,8 @@ done
 # The installer and its firewall rule go with the Linux binaries, as they are.
 cp install/linux.sh "dist/nia-edge_${version#v}_install-linux.sh"
 cp install/firewall-linux.sh dist/firewall-linux.sh
+cp install/hermes-linux.sh dist/hermes-linux.sh
+cp install/hermes-config.py dist/hermes-config.py
 # sha256sum on Linux, shasum on macOS: the same output.
 if command -v sha256sum >/dev/null 2>&1; then
   (cd dist && sha256sum -- * > SHA256SUMS)
