@@ -115,7 +115,7 @@ It needs systemd, nftables and rootless Podman (Debian, Ubuntu:
    scheduled jobs; the original is left as it is) or `--fresh`;
 2. with `--from` and no `NIA_PROVIDER_URL`, takes over the provider that
    Hermes uses: Hermes' own code says which endpoint and which key it would
-   send (`install/hermes-provider.py`), the key moves from the agent's `.env`
+   send (`install/hermes-config.py`), the key moves from the agent's `.env`
    and `config.yaml` to nia-edge's state file, and is never printed. A
    provider Hermes signs in to by itself (OAuth: Nous Portal, Codex…), or
    one that does not speak chat completions, cannot be taken over: the script
@@ -130,7 +130,11 @@ It needs systemd, nftables and rootless Podman (Debian, Ubuntu:
    group;
 5. runs `install/linux.sh hermes`: nia-edge, the firewall rule, enrollment,
    and the proof with `nia-edge doctor`;
-6. gives nia-edge the provider, so prompts do not go through Nia;
+6. gives nia-edge the provider, so prompts do not go through Nia, and gives
+   every MCP server Hermes starts the proxy of nia-edge in its own `env`
+   (Hermes passes a server only a few variables), with `NODE_USE_ENV_PROXY=1`
+   for Node; it names the servers whose command `hermes` may not reach (one
+   under another person's home, say);
 7. checks that a container of `hermes` has no network interface but loopback
    and sees nothing of its home.
 
