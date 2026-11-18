@@ -4,6 +4,9 @@ package hostd
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -181,4 +184,39 @@ func TestAnApplyRefusesAMachineThatMovedOrAPathOutOfEtc(t *testing.T) {
 		t.Errorf("written outside /etc: %v", err)
 	}
 	t.Logf("writer: %v", err)
+}
+
+func TestAPlanReviewIsWhatItsIDHashes(t *testing.T) {
+	sandbox := &layer{script: nginxScript(t)}
+	s, _, _ := applyMachine(t, sandbox)
+	r := report(t, s.Do(context.Background(), Request{Action: DryRunAction, Script: "x"}))
+	resp := s.Do(context.Background(), Request{Action: PlanReviewAction, Name: r.Plan})
+	var review Review
+	if !resp.OK || json.Unmarshal([]byte(resp.Output), &review) != nil {
+		t.Fatalf("%+v", resp)
+	}
+	sum := sha256.Sum256([]byte(review.Changes))
+	if hex.EncodeToString(sum[:16]) != r.Plan || review.Plan != r.Plan {
+		t.Errorf("the changes do not hash to the plan id")
+	}
+	files := map[string]ReviewFile{}
+	for _, f := range review.Files {
+		files[f.Path] = f
+	}
+	conf := files["/etc/nginx/nginx.conf"]
+	if conf.Before == nil || *conf.Before != "worker_processes 1;\n" || conf.After == nil || *conf.After != "worker_processes 4;\n" {
+		t.Errorf("nginx.conf: %+v", conf)
+	}
+	if site := files["/etc/nginx/conf.d/site.conf"]; site.Before != nil || site.After == nil {
+		t.Errorf("site.conf: %+v", site)
+	}
+	if _, ok := files["/etc/issue"]; ok {
+		t.Error("a mode change carries texts")
+	}
+	if resp := s.Do(context.Background(), Request{Action: PlanReviewAction, Name: "0123456789abcdef0123456789abcdef"}); resp.OK {
+		t.Error("an unknown plan is reviewed")
+	}
+	if entries, _ := s.Journal(); len(entries) != 1 {
+		t.Errorf("a review was journaled: %d entries", len(entries))
+	}
 }

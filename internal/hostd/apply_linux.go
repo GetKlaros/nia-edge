@@ -3,6 +3,7 @@
 package hostd
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -17,6 +18,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode/utf8"
 )
 
 // backupLimit bounds what an apply saves before it writes.
@@ -550,4 +552,85 @@ func (s *Server) restoreEntry(target Entry) Entry {
 	}
 	entry.OK = true
 	return entry
+}
+
+// Review is what nia-hostd shows of a plan: Changes is the exact text whose
+// SHA-256 makes the plan id; Files hold the texts small enough to show.
+type Review struct {
+	Plan    string       `json:"plan"`
+	Changes string       `json:"changes"`
+	Files   []ReviewFile `json:"files"`
+}
+
+// ReviewFile is one file's text before and after, each when it is UTF-8 text
+// of at most 64 KiB.
+type ReviewFile struct {
+	Path   string  `json:"path"`
+	Before *string `json:"before,omitempty"`
+	After  *string `json:"after,omitempty"`
+}
+
+const (
+	reviewFileLimit  = 64 << 10
+	reviewTotalLimit = 512 << 10
+)
+
+func showable(data []byte) *string {
+	if len(data) > reviewFileLimit || !utf8.Valid(data) || bytes.IndexByte(data, 0) >= 0 {
+		return nil
+	}
+	text := string(data)
+	return &text
+}
+
+// planReview answers the review of a kept plan. Called with s.mu held.
+func (s *Server) planReview(id string) Response {
+	s.expirePlans()
+	p, ok := s.plans[id]
+	if !ok {
+		return Response{Error: "no plan " + id + " is kept"}
+	}
+	changes, err := json.Marshal(p.report.Changes)
+	if err != nil {
+		return Response{Error: err.Error()}
+	}
+	review := Review{Plan: id, Changes: string(changes), Files: []ReviewFile{}}
+	root, err := os.OpenRoot(s.etcRoot())
+	if err != nil {
+		return Response{Error: err.Error()}
+	}
+	defer root.Close()
+	total := len(changes)
+	for _, c := range p.report.Changes {
+		if c.Type != "file" || c.Kind == "metadata" || c.Kind == "deleted" {
+			continue
+		}
+		file := ReviewFile{Path: c.Path}
+		if data, err := os.ReadFile(filepath.Join(p.scratch, "upper", rel(c.Path))); err == nil {
+			file.After = showable(data)
+		}
+		if strings.HasPrefix(c.Base, "sha256:") {
+			if data, err := root.ReadFile(rel(c.Path)); err == nil {
+				file.Before = showable(data)
+			}
+		}
+		size := 0
+		for _, text := range []*string{file.Before, file.After} {
+			if text != nil {
+				size += len(*text)
+			}
+		}
+		if total+size > reviewTotalLimit {
+			continue
+		}
+		total += size
+		if file.Before != nil || file.After != nil {
+			review.Files = append(review.Files, file)
+		}
+	}
+	text, err := json.Marshal(review)
+	if err != nil {
+		return Response{Error: err.Error()}
+	}
+	return Response{OK: true, Output: string(text)}
 }

@@ -32,6 +32,7 @@ type fakeNia struct {
 	hashed        []Hashed
 	tainted       bool
 	wantArguments bool
+	reviews       []json.RawMessage
 }
 
 func (n *fakeNia) DecideHashed(_ context.Context, _ string, call Hashed) (Verdict, bool, error) {
@@ -74,7 +75,8 @@ func (n *fakeNia) Hosted(_ context.Context, session string, tools []string) ([]s
 	return n.hostedAllowed, nil
 }
 
-func (n *fakeNia) Decide(_ context.Context, session, tool, arguments string) (Verdict, error) {
+func (n *fakeNia) Decide(_ context.Context, session, tool, arguments string, reviews []json.RawMessage) (Verdict, error) {
+	n.reviews = append(n.reviews, reviews...)
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.down {
@@ -391,10 +393,10 @@ func TestRemoteSpeaksTheDecisionAPI(t *testing.T) {
 	if err := remote.Ingested(ctx, "c-1", "read_file"); err != nil {
 		t.Fatal(err)
 	}
-	if v, err := remote.Decide(ctx, "c-1", "read_file", `{"path":"a"}`); err != nil || !v.Allowed {
+	if v, err := remote.Decide(ctx, "c-1", "read_file", `{"path":"a"}`, nil); err != nil || !v.Allowed {
 		t.Errorf("allow: %+v %v", v, err)
 	}
-	if v, err := remote.Decide(ctx, "c-1", "terminal", `{}`); err != nil || v.Allowed || v.Message != "held" {
+	if v, err := remote.Decide(ctx, "c-1", "terminal", `{}`, nil); err != nil || v.Allowed || v.Message != "held" {
 		t.Errorf("hold: %+v %v", v, err)
 	}
 	// Decided here: the hash and the decisions go, the arguments never.
@@ -411,7 +413,7 @@ func TestRemoteSpeaksTheDecisionAPI(t *testing.T) {
 	}
 	// Asking again for arguments it was sent is no decision.
 	for _, tool := range []string{"odd", "broken", "arguments_required"} {
-		if v, err := remote.Decide(ctx, "c-1", tool, `{}`); err == nil || v.Allowed {
+		if v, err := remote.Decide(ctx, "c-1", tool, `{}`, nil); err == nil || v.Allowed {
 			t.Errorf("%s: %+v %v", tool, v, err)
 		}
 	}
@@ -570,5 +572,28 @@ func TestAReleasedHostActionCanRunOnceAndARefusedOneCannot(t *testing.T) {
 	post(h, "/v1/chat/completions", `{"model":"m","messages":[{"role":"user","content":"reload"}]}`)
 	if !h.Releases.Take("mcp__host__service_reload", `{"service":"nginx"}`, time.Now()) {
 		t.Error("the inner call of a dispatcher was not released")
+	}
+}
+
+func TestAnApplySendsItsPlanForTheReviewer(t *testing.T) {
+	h, _, nia := setup(t)
+	h.Rules = rules(t)
+	// Nia asks for the arguments of a call it holds for a reviewer.
+	nia.wantArguments = true
+	plan := strings.Repeat("ab", 16)
+	asked := []string{}
+	h.Review = func(_ context.Context, id string) json.RawMessage {
+		asked = append(asked, id)
+		return json.RawMessage(`{"plan":"` + id + `"}`)
+	}
+	ctx := context.Background()
+	// Directly, and through a dispatcher.
+	h.decide(ctx, "c-1", "mcp__host__apply", `{"plan":"`+plan+`"}`)
+	h.decide(ctx, "c-1", "shell", `{"calls":[{"name":"mcp__host__apply","arguments":{"plan":"`+plan+`"}},{"name":"terminal","arguments":{}}]}`)
+	// Not an apply, or not a plan id: nothing is asked.
+	h.decide(ctx, "c-1", "terminal", `{"plan":"`+plan+`"}`)
+	h.decide(ctx, "c-1", "mcp__host__apply", `{"plan":"../x"}`)
+	if len(asked) != 2 || asked[0] != plan || len(nia.reviews) != 2 {
+		t.Errorf("asked %v, sent %d reviews", asked, len(nia.reviews))
 	}
 }

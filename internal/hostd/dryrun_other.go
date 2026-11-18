@@ -18,3 +18,7 @@ func (s *Server) apply(context.Context, Request) Response {
 func (s *Server) restoreEntry(target Entry) Entry {
 	return Entry{ID: newID(), Action: "restore", Of: target.ID, Error: "restoring needs Linux"}
 }
+
+func (s *Server) planReview(string) Response {
+	return Response{Error: "plans need Linux"}
+}

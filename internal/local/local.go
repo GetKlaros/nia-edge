@@ -30,6 +30,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -55,8 +56,9 @@ type Authority interface {
 	Ingested(ctx context.Context, session, tool string) error
 	// Hosted says which provider-run tools the role allows in the session.
 	Hosted(ctx context.Context, session string, tools []string) (allowed []string, err error)
-	// Decide answers for one proposed call, from its arguments.
-	Decide(ctx context.Context, session, tool, arguments string) (Verdict, error)
+	// Decide answers for one proposed call, from its arguments. reviews are
+	// the plans of host applies among the calls, for their reviewers.
+	Decide(ctx context.Context, session, tool, arguments string, reviews []json.RawMessage) (Verdict, error)
 	// DecideHashed answers for one proposed call this machine decided: Nia
 	// picks the decision its session state calls for. needsArguments is true
 	// when Nia must see the arguments, and then the verdict is empty.
@@ -102,6 +104,10 @@ type Handler struct {
 	// Releases keeps the released calls of the tools that run on this
 	// machine; nil keeps none.
 	Releases *Releases
+	// Review returns the review of a dry run's plan (nia-hostd's
+	// plan_review), sent with an apply of that plan when Nia must show it
+	// to a reviewer; nil, or a nil answer, sends none.
+	Review func(ctx context.Context, plan string) json.RawMessage
 	// MaxRequest and MaxResponse bound what is read; zero means 4 MiB and 16 MiB.
 	MaxRequest, MaxResponse int64
 	Logger                  *slog.Logger
@@ -312,8 +318,45 @@ func (h *Handler) decide(ctx context.Context, session, tool, arguments string) (
 			}
 		}
 	}
-	return h.Nia.Decide(ctx, session, tool, arguments)
+	return h.Nia.Decide(ctx, session, tool, arguments, h.reviews(ctx, tool, arguments))
 }
+
+// applyTool is the host apply, as the model names it.
+const applyTool = "mcp__host__apply"
+
+// reviews fetches the plans of the host applies a call makes, itself or
+// through a dispatcher: Nia checks each against its plan id and shows it.
+func (h *Handler) reviews(ctx context.Context, tool, arguments string) []json.RawMessage {
+	if h.Review == nil {
+		return nil
+	}
+	calls := []engine.Call{{Name: tool, Arguments: arguments}}
+	if h.Rules != nil {
+		if rules := h.Rules(); rules != nil {
+			if inner, dispatcher, err := rules.Dispatchers.Expand(calls[0]); err == nil && dispatcher {
+				calls = inner
+			}
+		}
+	}
+	var reviews []json.RawMessage
+	for _, call := range calls {
+		if call.Name != applyTool || len(reviews) == 4 {
+			continue
+		}
+		var args struct {
+			Plan string `json:"plan"`
+		}
+		if json.Unmarshal([]byte(call.Arguments), &args) != nil || !planID.MatchString(args.Plan) {
+			continue
+		}
+		if review := h.Review(ctx, args.Plan); review != nil {
+			reviews = append(reviews, review)
+		}
+	}
+	return reviews
+}
+
+var planID = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
 // decideHere decides a call for each state of the session. It declines,
 // leaving it to Nia, a call through a dispatcher and anything the engine
@@ -604,8 +647,11 @@ func (n *Remote) Hosted(ctx context.Context, session string, tools []string) ([]
 }
 
 // Decide asks Nia about one proposed call. Only the answer "allow" allows it.
-func (n *Remote) Decide(ctx context.Context, session, tool, arguments string) (Verdict, error) {
+func (n *Remote) Decide(ctx context.Context, session, tool, arguments string, reviews []json.RawMessage) (Verdict, error) {
 	body := map[string]any{"tool": tool, "arguments": arguments}
+	if len(reviews) > 0 {
+		body["reviews"] = reviews
+	}
 	if n.Wait > 0 {
 		body["wait"] = n.Wait
 	}
