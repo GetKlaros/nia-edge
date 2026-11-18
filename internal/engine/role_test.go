@@ -181,10 +181,20 @@ func TestARoleThisEngineDoesNotKnowIsRefusedWhole(t *testing.T) {
 		"a category with no host":      `{"name":"r",` + base + `,"tools":[{"name":"a","when_untrusted":"allow","output":"trusted","sensitive":false,"effect":"none","arguments":[],"categories":[{"applies":"always","decision":"deny","path":"url","in":["paste"],"hosts":[]}]}]}`,
 		"an unknown category field":    `{"name":"r",` + base + `,"tools":[{"name":"a","when_untrusted":"allow","output":"trusted","sensitive":false,"effect":"none","arguments":[],"categories":[{"applies":"always","decision":"deny","path":"url","in":[],"hosts":["x.example"],"ports":[1]}]}]}`,
 		"a tool rule without its name": `{"name":"r",` + base + `,"tools":[{"when_untrusted":"allow","output":"trusted","sensitive":false,"effect":"none","arguments":[]}]}`,
+		"trusted sources with no host": `{"name":"r",` + base + `,"tools":[{"name":"egress","when_untrusted":"allow","output":"untrusted","sensitive":false,"effect":"none","arguments":[],"trusted_sources":{"path":"url","hosts":[]}}]}`,
+		"an unknown trusted field":     `{"name":"r",` + base + `,"tools":[{"name":"egress","when_untrusted":"allow","output":"untrusted","sensitive":false,"effect":"none","arguments":[],"trusted_sources":{"path":"url","hosts":["a.example"],"ports":[443]}}]}`,
 	} {
 		if _, err := ParseRole(json.RawMessage(text)); err == nil {
 			t.Errorf("%s: read", name)
 		}
+	}
+}
+
+func TestTrustedSourcesAreReadAndDecideNothing(t *testing.T) {
+	r := role(t, `{"name":"r",`+base+`,"tools":[{"name":"egress","when_untrusted":"require_approval","output":"untrusted","sensitive":false,"effect":"none","arguments":[],"trusted_sources":{"path":"url","hosts":["registry.npmjs.org"]}}]}`)
+	got, err := r.Decide("egress", true, `{"url":"https://registry.npmjs.org:443/"}`, false)
+	if err != nil || got.Decision != RequireApproval {
+		t.Fatalf("%+v %v", got, err)
 	}
 }
 

@@ -97,6 +97,10 @@ func TestConnectedMustBeRecorded(t *testing.T) {
 	if body["tool"] != "egress" || body["output"] != "connection to example.com:443" {
 		t.Errorf("body %v", body)
 	}
+	// The target goes with it, as Decide sends it: Nia reads it against the role's trusted sources.
+	if arguments, _ := body["arguments"].(map[string]any); arguments["url"] != "https://example.com:443/" || arguments["host"] != "example.com" || arguments["port"] != float64(443) {
+		t.Errorf("arguments %v", body["arguments"])
+	}
 	failing := remote(t, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusInternalServerError) })
 	if err := failing.Connected(context.Background(), sample); err == nil {
 		t.Error("an unrecorded connection was accepted")
