@@ -171,7 +171,7 @@ func TestRootHooksAreRefusedUnlessPermitted(t *testing.T) {
 // name the server accepts and this nia-edge does not would refuse the
 // catalogue whole.
 func TestTheGuardsAreTheServers(t *testing.T) {
-	want := "ssh accounts sudoers pam cron systemd preload shell_startup package_sources kernel_modules udev logrotate polkit network_hooks"
+	want := "ssh accounts sudoers pam cron systemd preload shell_startup login_scripts ssh_client package_sources kernel_modules boot udev logrotate polkit mac trust_store name_resolution interpreters network_hooks"
 	if got := strings.Join(Guards, " "); got != want {
 		t.Errorf("guards %q, the server's %q", got, want)
 	}

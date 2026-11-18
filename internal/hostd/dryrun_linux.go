@@ -92,10 +92,18 @@ func (s *Server) dryRun(ctx context.Context, c *Catalogue, req Request) Response
 	if err != nil {
 		return Response{Error: "the secrets cannot be hidden, so nothing ran: " + err.Error()}
 	}
-	runCtx, cancel := context.WithTimeout(ctx, dryTimeout+30*time.Second)
+	maskedDirs, maskedFiles, err := masks("/")
+	if err != nil {
+		return Response{Error: "the machine's root cannot be listed, so nothing ran: " + err.Error()}
+	}
+	timeout := dryTimeout
+	if s.DryTimeout > 0 {
+		timeout = s.DryTimeout
+	}
+	runCtx, cancel := context.WithTimeout(ctx, timeout+30*time.Second)
 	output, runErr := s.Sandbox.Run(runCtx, SandboxSpec{
-		Root: filepath.Join(scratch, "root"), Etc: s.etcRoot(), Upper: upper, Work: work, Masked: masked,
-		Script: req.Script, Timeout: dryTimeout, PathVariable: baseEnv[0],
+		Root: filepath.Join(scratch, "root"), Etc: s.etcRoot(), Upper: upper, Work: work, Masked: maskedDirs, MaskedFiles: maskedFiles,
+		Script: req.Script, Timeout: timeout, PathVariable: baseEnv[0],
 	})
 	cancel()
 	report, err := s.readLayer(c, upper, decoys, output)
@@ -132,10 +140,21 @@ func (s *Server) dryRun(ctx context.Context, c *Catalogue, req Request) Response
 func (s *Server) plantDecoys(c *Catalogue, upper string) ([]decoy, error) {
 	root := s.etcRoot()
 	wanted := map[string]bool{}
+	// A directory others cannot cross makes everything under it theirs to
+	// not read, whatever the files' own modes.
+	closed := map[string]bool{}
 	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			// A directory that cannot be read cannot be hidden from.
 			return err
+		}
+		if d.IsDir() {
+			info, err := d.Info()
+			if err != nil {
+				return err
+			}
+			closed[p] = closed[filepath.Dir(p)] && p != root || info.Mode().Perm()&0o001 == 0
+			return nil
 		}
 		if !d.Type().IsRegular() {
 			return nil
@@ -144,7 +163,7 @@ func (s *Server) plantDecoys(c *Catalogue, upper string) ([]decoy, error) {
 		if err != nil {
 			return err
 		}
-		if info.Mode().Perm()&0o004 == 0 {
+		if info.Mode().Perm()&0o004 == 0 || closed[filepath.Dir(p)] {
 			rel, _ := filepath.Rel(root, p)
 			wanted[rel] = true
 		}
@@ -241,6 +260,17 @@ func (s *Server) readLayer(c *Catalogue, upper string, decoys []decoy, output st
 		}
 	}
 	seeTokens([]byte(output))
+	// A plan lists at most planChanges paths, and counts the others.
+	add := func(change Change) {
+		if len(report.Changes) == planChanges && report.TooMany == 0 {
+			report.TooMany = planChanges
+		}
+		if report.TooMany > 0 {
+			report.TooMany++
+			return
+		}
+		report.Changes = append(report.Changes, change)
+	}
 	err := filepath.WalkDir(upper, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -267,7 +297,7 @@ func (s *Server) readLayer(c *Catalogue, upper string, decoys []decoy, output st
 		// A whiteout: a character device 0/0, the path deleted.
 		if info.Mode()&fs.ModeCharDevice != 0 && st.Rdev == 0 {
 			if lower != nil {
-				report.Changes = append(report.Changes, Change{Path: etcPath, Kind: "deleted", Base: base})
+				add(Change{Path: etcPath, Kind: "deleted", Base: base})
 			}
 			return nil
 		}
@@ -333,7 +363,7 @@ func (s *Server) readLayer(c *Catalogue, upper string, decoys []decoy, output st
 				return nil
 			}
 		}
-		report.Changes = append(report.Changes, change)
+		add(change)
 		return nil
 	})
 	if err != nil {
@@ -355,6 +385,19 @@ func (s *Server) readLayer(c *Catalogue, upper string, decoys []decoy, output st
 	}
 	if c.Etc != nil {
 		report.Guards = judge(c.Etc.Permit, report.Changes, lowerView{root}, mergedView{lower: lowerView{root}, upper: upper})
+		if len(c.Etc.Writable) > 0 {
+			for _, change := range report.Changes {
+				inside := false
+				for _, w := range c.Etc.Writable {
+					if change.Path == w || strings.HasPrefix(change.Path, w+"/") {
+						inside = true
+					}
+				}
+				if !inside {
+					report.Guards = append(report.Guards, Finding{Guard: "writable", Path: change.Path, Detail: change.Path + " is outside the paths this role's plans may change"})
+				}
+			}
+		}
 	}
 	report.Output = tail(output)
 	return report, nil

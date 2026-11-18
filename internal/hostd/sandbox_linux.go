@@ -7,7 +7,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
+	"strings"
 	"syscall"
 )
 
@@ -19,6 +21,34 @@ type Podman struct {
 	Binary string
 	// Root and RunRoot are podman's storage for nia-hostd alone.
 	Root, RunRoot string
+	// Limits refuses a dry run on a machine where podman cannot bound its
+	// processes and memory: cgroup v2 with the pids and memory controllers.
+	// Controllers is the file that lists them; empty is the system's.
+	Limits      bool
+	Controllers string
+}
+
+// bounded reports why a dry run's processes and memory cannot be bounded
+// here, or "".
+func (p Podman) bounded() string {
+	if !p.Limits {
+		return ""
+	}
+	file := p.Controllers
+	if file == "" {
+		file = "/sys/fs/cgroup/cgroup.controllers"
+	}
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return "this machine has no cgroup v2, so a dry run's processes and memory cannot be bounded"
+	}
+	have := strings.Fields(string(data))
+	for _, want := range []string{"pids", "memory"} {
+		if !slices.Contains(have, want) {
+			return "cgroup v2 has no " + want + " controller here, so a dry run cannot be bounded"
+		}
+	}
+	return ""
 }
 
 func (p Podman) binary() (string, error) {
@@ -40,7 +70,7 @@ func (p Podman) binary() (string, error) {
 // creates when the machine has none, its mount points), never on the
 // machine; inside, the container's root is read only (--read-only).
 func (Podman) Prepare(scratch string) (func(), error) {
-	if err := syscall.Mount("tmpfs", scratch, "tmpfs", syscall.MS_NOSUID|syscall.MS_STRICTATIME, "size="+strconv.Itoa(layerBytes)+",mode=0700"); err != nil {
+	if err := syscall.Mount("tmpfs", scratch, "tmpfs", syscall.MS_NOSUID|syscall.MS_STRICTATIME, "size="+strconv.Itoa(layerBytes)+",nr_inodes="+strconv.Itoa(layerInodes)+",mode=0700"); err != nil {
 		return nil, fmt.Errorf("tmpfs: %w", err)
 	}
 	lower, root := filepath.Join(scratch, "lower"), filepath.Join(scratch, "root")
@@ -84,12 +114,18 @@ func (p Podman) Args(spec SandboxSpec) []string {
 		"--volume", spec.Etc + ":/etc:O,upperdir=" + spec.Upper + ",workdir=" + spec.Work,
 	}
 	for _, dir := range spec.Masked {
-		args = append(args, "--tmpfs", dir+":rw,nosuid,nodev,notmpcopyup,size=16m,mode=0755")
+		args = append(args, "--tmpfs", dir+":rw,nosuid,nodev,noexec,notmpcopyup,size=16m,mode=0755")
+	}
+	for _, file := range spec.MaskedFiles {
+		args = append(args, "--volume", "/dev/null:"+file+":ro")
 	}
 	return append(args, "--rootfs", spec.Root, "/bin/sh", "-c", spec.Script)
 }
 
 func (p Podman) Run(ctx context.Context, spec SandboxSpec) (string, error) {
+	if why := p.bounded(); why != "" {
+		return "", errors.New(why)
+	}
 	binary, err := p.binary()
 	if err != nil {
 		return "", err
@@ -113,5 +149,5 @@ func (p Podman) Run(ctx context.Context, spec SandboxSpec) (string, error) {
 // DefaultSandbox is nia-hostd's: podman, with its storage in nia-hostd's
 // own directories.
 func DefaultSandbox() Sandbox {
-	return Podman{Root: "/var/lib/nia-hostd/podman", RunRoot: "/run/nia-hostd/podman"}
+	return Podman{Root: "/var/lib/nia-hostd/podman", RunRoot: "/run/nia-hostd/podman", Limits: true}
 }

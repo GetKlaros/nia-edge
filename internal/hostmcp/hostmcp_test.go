@@ -162,3 +162,26 @@ func TestDescribeReport(t *testing.T) {
 		}
 	}
 }
+
+func TestOnlyThisMachinesPagesOrNoPageReachIt(t *testing.T) {
+	h, _, _ := setup()
+	list := `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`
+	for _, origin := range []string{"https://evil.example", "http://localhost.evil.example", "http://127.0.0.1.nip.io", "null", "file://", "http://[::ffff:7f00:1]", "http://0.0.0.0:8787", "http://127.1"} {
+		if code, _ := rpc(t, h, list, "Origin", origin); code != http.StatusForbidden {
+			t.Errorf("Origin %q: %d", origin, code)
+		}
+	}
+	for _, origin := range []string{"http://127.0.0.1:8787", "http://localhost:3000", "http://[::1]:8787"} {
+		if code, _ := rpc(t, h, list, "Origin", origin); code != http.StatusOK {
+			t.Errorf("Origin %q: %d", origin, code)
+		}
+	}
+	// A batch, a GET, a body past 1 MiB: refused.
+	if code, answer := rpc(t, h, `[`+list+`]`); code != 200 || answer["error"] == nil {
+		t.Errorf("batch: %d %v", code, answer)
+	}
+	big := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"dry_run","arguments":{"script":"` + strings.Repeat("a", 2<<20) + `"}}}`
+	if _, answer := rpc(t, h, big); answer["error"] == nil {
+		t.Errorf("a 2 MiB body was read")
+	}
+}

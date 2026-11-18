@@ -111,6 +111,8 @@ type Server struct {
 	// EtcRoot, ScratchRoot and BackupRoot are /etc, where dry runs keep their
 	// layers and where applies save what they replace; tests set others.
 	EtcRoot, ScratchRoot, BackupRoot string
+	// DryTimeout bounds a dry run; zero is two minutes.
+	DryTimeout time.Duration
 	// Installed reports whether a check's program is installed; nil looks.
 	Installed func(program string) bool
 	Now       func() time.Time

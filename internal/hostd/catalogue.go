@@ -44,6 +44,9 @@ type EtcRules struct {
 	// Permit names the guards a plan may pass (guards.go): every other one
 	// refuses what it sees.
 	Permit []string `json:"permit"`
+	// Writable, when set, are the only paths a plan may change, with what
+	// is under them: a change anywhere else is refused.
+	Writable []string `json:"writable"`
 }
 
 // SyncPair copies Source into Destination (rsync -a), deleting what Source
@@ -103,7 +106,7 @@ func ParseCatalogue(raw json.RawMessage) (*Catalogue, error) {
 		}
 	}
 	if c.Etc != nil {
-		for _, list := range [][]string{c.Etc.Protected, c.Etc.Secrets} {
+		for _, list := range [][]string{c.Etc.Protected, c.Etc.Secrets, c.Etc.Writable} {
 			for _, p := range list {
 				if !underEtc(p) {
 					return nil, fmt.Errorf("hostd: %q is not a clean path under /etc", p)
