@@ -263,6 +263,25 @@ for half an hour, in their layers. Every dry run is journaled with its plan.
 Dry runs need podman on the machine; nia-hostd's mounts stay in its own
 namespace (`PrivateMounts=yes`).
 
+`apply` takes a plan and writes it to the machine's `/etc` as the run left
+its layer, without running the script again:
+
+- it refuses a plan whose paths changed on the machine since the dry run (each
+  path's SHA-256, link target or absence is checked), and a layer that no
+  longer holds what the report says;
+- it saves every path it changes, a deleted directory with what it holds,
+  under `/var/lib/nia-hostd/backups` (64 MiB at most);
+- it writes through a handle on `/etc` that never leaves it (Go's `os.Root`: a
+  symbolic link out of `/etc` is not followed); a file is written beside its
+  name, given its owner and mode through its own descriptor, synced and
+  renamed over it;
+- it checks what it touched with the program of that configuration, when it
+  is installed: `visudo -c`, `sshd -t`, `nginx -t`, `apache2ctl configtest`,
+  `haproxy -c`, `findmnt --verify`, `pwck -r`, `grpck -r`. A failed check, or
+  a failed write, puts the former files back;
+- a plan is applied once; `nia-edge hostd undo <id>` puts back what an apply
+  changed, if the machine still holds what it wrote.
+
 ### Calling the model provider from the machine
 
 An enrolled machine calls its model provider itself: its prompts never go to

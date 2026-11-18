@@ -59,6 +59,11 @@ private code base; this repository is public.
   decoy there. What leaves the container is the list of its changes, and a
   plan that changes a protected path or a secret, lets a decoy out, makes a
   setuid file or failed is never applicable.
+- An apply writes a plan exactly as its layer holds it, once, and only where
+  the machine still holds what the dry run saw. It never leaves `/etc` (no
+  symbolic link out is followed), saves what it replaces first, checks the
+  configurations it touched with fixed programs, and puts the former files
+  back when a write or a check fails.
 - What the machine reports about itself decides nothing.
 - The egress proxy refuses an internal IP literal before any decision,
   resolves a name only after the connection is allowed, once, and connects to

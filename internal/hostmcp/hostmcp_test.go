@@ -137,6 +137,11 @@ func TestADryRunTakesAScriptOnlyWithEtcInTheCatalogue(t *testing.T) {
 	if answer["result"].(map[string]any)["isError"] != false || len(host.asked) != 1 || host.asked[0] != (hostd.Request{Action: hostd.DryRunAction, Script: "echo x > /etc/motd"}) {
 		t.Errorf("%v %+v", answer, host.asked)
 	}
+	releases.Release("mcp__host__apply", `{"plan":"p1"}`, now)
+	_, answer = rpc(t, h, `{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"apply","arguments":{"plan":"p1"}}}`)
+	if answer["result"].(map[string]any)["isError"] != false || len(host.asked) != 2 || host.asked[1] != (hostd.Request{Action: hostd.ApplyAction, Name: "p1"}) {
+		t.Errorf("%v %+v", answer, host.asked)
+	}
 }
 
 func TestDescribeReport(t *testing.T) {
@@ -150,7 +155,7 @@ func TestDescribeReport(t *testing.T) {
 		Output: "hi\n",
 	})
 	text := DescribeReport(string(report))
-	for _, want := range []string{"plan p1", "was not changed", "- modified /etc/motd (file, 2 bytes, 0644 0:0)", "- deleted /etc/old", "Secrets read (the run saw decoys, not the secrets): /etc/shadow", "cannot be applied", "Output:\nhi"} {
+	for _, want := range []string{"plan p1", "was not changed", "not changed.", "- modified /etc/motd (file, 2 bytes, 0644 0:0)", "- deleted /etc/old", "Secrets read (the run saw decoys, not the secrets): /etc/shadow", "cannot be applied", "Output:\nhi"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("lacks %q:\n%s", want, text)
 		}

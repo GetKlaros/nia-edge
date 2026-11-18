@@ -49,7 +49,7 @@ type tool struct {
 	readOnly, destructive bool
 }
 
-var order = []string{"service_status", "service_restart", "service_reload", "package_install", "sync", "dry_run"}
+var order = []string{"service_status", "service_restart", "service_reload", "package_install", "sync", "dry_run", "apply"}
 
 var tools = map[string]tool{
 	"service_status":  {hostd.ServiceStatus, "service", "services", "Show the state of a service of the machine and its last log lines.", true, false},
@@ -60,6 +60,9 @@ var tools = map[string]tool{
 	"dry_run": {hostd.DryRunAction, "script", "etc", "Run a shell script against a copy of the machine's /etc, in a container without network or privilege, " +
 		"and get the list of the files it would create, change or delete. The machine is not changed. Files the agent may not read are decoys there. " +
 		"Everything outside /etc is read only, and /root, /home, /var, /tmp are empty.", true, false},
+	"apply": {hostd.ApplyAction, "plan", "etc", "Write a dry run's plan to the machine's /etc, exactly as the dry run left it, without running the script again. " +
+		"Refused when the machine changed since the dry run. The configurations it touches are checked (nginx -t, visudo -c, sshd -t...) " +
+		"and the former files are put back when a check fails.", false, true},
 }
 
 func names(c *hostd.Catalogue, kind string) []string {
@@ -236,14 +239,14 @@ func (h *Handler) call(ctx context.Context, params json.RawMessage) (map[string]
 	runCtx, cancel := context.WithTimeout(ctx, 35*time.Minute)
 	defer cancel()
 	req := hostd.Request{Action: t.action, Name: value}
-	if t.kind == "etc" {
+	if t.action == hostd.DryRunAction {
 		req = hostd.Request{Action: t.action, Script: value}
 	}
 	resp, err := h.Host.Do(runCtx, req)
 	if err != nil {
 		return failed("nia-hostd could not be reached, so nothing ran")
 	}
-	if t.kind == "etc" && resp.OK {
+	if t.action == hostd.DryRunAction && resp.OK {
 		return map[string]any{"content": []map[string]any{{"type": "text", "text": DescribeReport(resp.Output)}}, "isError": false}, nil
 	}
 	text := strings.TrimSpace(resp.Output)
@@ -324,6 +327,8 @@ func DescribeReport(raw string) string {
 	}
 	if ok, why := r.Applicable(); !ok {
 		fmt.Fprintf(&b, "This plan cannot be applied: %s.\n", why)
+	} else {
+		fmt.Fprintf(&b, "To write it to the machine, call apply with plan %q.\n", r.Plan)
 	}
 	if r.Output != "" {
 		fmt.Fprintf(&b, "Output:\n%s", r.Output)
