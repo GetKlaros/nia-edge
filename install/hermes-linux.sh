@@ -172,11 +172,15 @@ if [ -n "$FROM" ]; then
       cp -a "$FROM_HOME/.hermes/$item" "$AGENT_HOME/.hermes/$item"
     fi
   done
-  chown -R "$AGENT:$AGENT" "$AGENT_HOME/.hermes"
   say "copied $FROM's Hermes configuration, memories and skills to $AGENT"
 fi
-# Hermes refuses a home others can write to.
-chmod -R go-w "$AGENT_HOME/.hermes"
+# A running Hermes creates and removes files (SQLite -wal and -shm) while
+# these walk its home: a file that vanished is not an error, a file left
+# behind is. Hermes also refuses a home others can write to.
+find "$AGENT_HOME/.hermes" ! -user "$AGENT" -exec chown -h "$AGENT:$AGENT" {} + 2>/dev/null || true
+find "$AGENT_HOME/.hermes" ! -type l -perm /go=w -exec chmod go-w {} + 2>/dev/null || true
+left=$(find "$AGENT_HOME/.hermes" \( ! -user "$AGENT" -o \( ! -type l -perm /go=w \) \) -print -quit 2>/dev/null || true)
+[ -z "$left" ] || fail "$left is not $AGENT's alone"
 
 # Hermes' own code reads and changes its configuration: hermes-config.py, run
 # as the agent with Hermes' Python.
