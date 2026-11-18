@@ -28,7 +28,7 @@ nia-edge calls the model provider from the machine and decides the calls with th
 | Reading a request and a model's response (Chat Completions, Responses, Anthropic Messages; documents and streams) as the server does | done |
 | Secret detection and redaction (keys, tokens, labelled credentials) as the server does | done |
 | Model calls sent from the machine to the provider; Nia decides the tool calls and sees no prompt | done |
-| Decisions made on the machine, from that policy | not yet |
+| Decisions made on the machine, from that policy: Nia gets a hash of the arguments | done |
 
 The egress proxy governs the connections that go through it. It closes the
 agent's network only when the agent has no other route out. On Linux the
