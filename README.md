@@ -47,6 +47,10 @@ sha256sum -c --ignore-missing SHA256SUMS      # before running anything
 chmod +x nia-edge_*_linux_amd64 && mv nia-edge_*_linux_amd64 nia-edge
 ```
 
+To update a machine later: `sudo sh update-linux.sh <version>` (from a
+release) checks the new binary against `SHA256SUMS`, replaces it and
+restarts the services; the key, the provider and the policy stay.
+
 The builds are reproducible: `scripts/release.sh <tag>` on the tagged commit,
 with the Go version `go.mod` names, gives the same checksums.
 
