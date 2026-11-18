@@ -1,0 +1,242 @@
+// Package hostmcp is the agent's way to the host actions: a small MCP server
+// on nia-edge's own address, whose tools are the actions of the role's
+// catalogue. A tool runs a call only when the model path released that exact
+// call (same tool, same canonical arguments, once), and only through
+// nia-hostd, which checks the catalogue again itself.
+package hostmcp
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"slices"
+	"strings"
+	"time"
+
+	"github.com/GetKlaros/nia-edge/internal/hostd"
+	"github.com/GetKlaros/nia-edge/internal/local"
+)
+
+// Host runs an action: nia-hostd's client.
+type Host interface {
+	Do(ctx context.Context, req hostd.Request) (hostd.Response, error)
+}
+
+// Handler serves the MCP endpoint.
+type Handler struct {
+	// Catalogue is the catalogue of the role in force; an error means none.
+	Catalogue func() (*hostd.Catalogue, error)
+	Releases  *local.Releases
+	Host      Host
+	// Server is the agent's name for this MCP server: tools reach the model
+	// as Releases.Prefix + tool.
+	Version string
+	Now     func() time.Time
+}
+
+// Protocol versions with the initialize handshake that this server answers.
+var versions = []string{"2025-11-25", "2025-06-18", "2025-03-26"}
+
+type tool struct {
+	action string
+	// param is the one argument, and kind what it names in the catalogue.
+	param, kind, description string
+}
+
+var tools = map[string]tool{
+	"service_status":  {hostd.ServiceStatus, "service", "services", "Show the state of a service of the machine and its last log lines."},
+	"service_restart": {hostd.ServiceRestart, "service", "services", "Restart a service of the machine."},
+	"service_reload":  {hostd.ServiceReload, "service", "services", "Reload the configuration of a service of the machine."},
+	"package_install": {hostd.PackageInstall, "package", "packages", "Install a package from the machine's package sources."},
+	"sync":            {hostd.Sync, "pair", "sync", "Copy a source directory into its destination, as the pair defines them."},
+}
+
+func names(c *hostd.Catalogue, kind string) []string {
+	switch kind {
+	case "services":
+		return c.Services
+	case "packages":
+		return c.Packages
+	}
+	var pairs []string
+	for _, pair := range c.Sync {
+		pairs = append(pairs, pair.Name)
+	}
+	return pairs
+}
+
+type message struct {
+	JSONRPC string          `json:"jsonrpc"`
+	ID      json.RawMessage `json:"id,omitempty"`
+	Method  string          `json:"method"`
+	Params  json.RawMessage `json:"params,omitempty"`
+}
+
+func (h *Handler) now() time.Time {
+	if h.Now != nil {
+		return h.Now()
+	}
+	return time.Now()
+}
+
+// localOrigin reports whether an Origin is this machine's: a page elsewhere
+// must not drive the host actions through the agent's browser.
+func localOrigin(origin string) bool {
+	if origin == "" {
+		return true
+	}
+	parsed, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	host := parsed.Hostname()
+	return host == "127.0.0.1" || host == "localhost" || host == "::1"
+}
+
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if !localOrigin(r.Header.Get("Origin")) {
+		http.Error(w, "forbidden origin", http.StatusForbidden)
+		return
+	}
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", "POST")
+		http.Error(w, "this MCP server answers POST only", http.StatusMethodNotAllowed)
+		return
+	}
+	raw, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	var msg message
+	if err != nil || json.Unmarshal(raw, &msg) != nil || msg.JSONRPC != "2.0" || msg.Method == "" {
+		reply(w, nil, nil, &rpcError{Code: -32600, Message: "not a JSON-RPC 2.0 request"})
+		return
+	}
+	if len(msg.ID) == 0 {
+		// A notification: nothing to answer.
+		w.WriteHeader(http.StatusAccepted)
+		return
+	}
+	switch msg.Method {
+	case "initialize":
+		var params struct {
+			ProtocolVersion string `json:"protocolVersion"`
+		}
+		_ = json.Unmarshal(msg.Params, &params)
+		version := versions[0]
+		if slices.Contains(versions, params.ProtocolVersion) {
+			version = params.ProtocolVersion
+		}
+		reply(w, msg.ID, map[string]any{
+			"protocolVersion": version,
+			"capabilities":    map[string]any{"tools": map[string]any{"listChanged": false}},
+			"serverInfo":      map[string]any{"name": "nia-host", "version": h.Version},
+			"instructions":    "Actions on this machine, from the role's catalogue. Each call runs only once Nia allowed it.",
+		}, nil)
+	case "ping":
+		reply(w, msg.ID, map[string]any{}, nil)
+	case "tools/list":
+		reply(w, msg.ID, map[string]any{"tools": h.list()}, nil)
+	case "tools/call":
+		result, rpcErr := h.call(r.Context(), msg.Params)
+		reply(w, msg.ID, result, rpcErr)
+	default:
+		reply(w, msg.ID, nil, &rpcError{Code: -32601, Message: "method not found"})
+	}
+}
+
+func (h *Handler) list() []map[string]any {
+	catalogue, err := h.Catalogue()
+	if err != nil {
+		return []map[string]any{}
+	}
+	list := []map[string]any{}
+	for _, name := range []string{"service_status", "service_restart", "service_reload", "package_install", "sync"} {
+		t := tools[name]
+		allowed := names(catalogue, t.kind)
+		if len(allowed) == 0 {
+			continue
+		}
+		list = append(list, map[string]any{
+			"name":        name,
+			"description": t.description,
+			"inputSchema": map[string]any{
+				"type":                 "object",
+				"properties":           map[string]any{t.param: map[string]any{"type": "string", "enum": allowed}},
+				"required":             []string{t.param},
+				"additionalProperties": false,
+			},
+		})
+	}
+	return list
+}
+
+func (h *Handler) call(ctx context.Context, params json.RawMessage) (map[string]any, *rpcError) {
+	var p struct {
+		Name      string          `json:"name"`
+		Arguments json.RawMessage `json:"arguments"`
+	}
+	if json.Unmarshal(params, &p) != nil {
+		return nil, &rpcError{Code: -32602, Message: "invalid params"}
+	}
+	t, ok := tools[p.Name]
+	if !ok {
+		return nil, &rpcError{Code: -32602, Message: "unknown tool " + p.Name}
+	}
+	failed := func(text string) (map[string]any, *rpcError) {
+		return map[string]any{"content": []map[string]any{{"type": "text", "text": text}}, "isError": true}, nil
+	}
+	arguments := string(p.Arguments)
+	if arguments == "" || arguments == "null" {
+		arguments = "{}"
+	}
+	var args map[string]any
+	if json.Unmarshal([]byte(arguments), &args) != nil || len(args) != 1 {
+		return failed(fmt.Sprintf("%s takes one argument, %q", p.Name, t.param))
+	}
+	value, ok := args[t.param].(string)
+	if !ok {
+		return failed(fmt.Sprintf("%s takes one argument, %q", p.Name, t.param))
+	}
+	// Only a call the model path released runs, once.
+	if h.Releases == nil || !h.Releases.Take(h.Releases.Prefix+p.Name, arguments, h.now()) {
+		return failed("[Nia agent firewall] This action was not released by Nia: it runs only as the model proposed it and Nia allowed it, once.")
+	}
+	runCtx, cancel := context.WithTimeout(ctx, 35*time.Minute)
+	defer cancel()
+	resp, err := h.Host.Do(runCtx, hostd.Request{Action: t.action, Name: value})
+	if err != nil {
+		return failed("nia-hostd could not be reached, so nothing ran")
+	}
+	text := strings.TrimSpace(resp.Output)
+	if resp.Error != "" {
+		text = strings.TrimSpace(text + "\n" + resp.Error)
+	}
+	if resp.Journal != "" {
+		text = strings.TrimSpace(text + "\n(journal " + resp.Journal + ")")
+	}
+	if text == "" {
+		text = "done"
+	}
+	return map[string]any{"content": []map[string]any{{"type": "text", "text": text}}, "isError": !resp.OK}, nil
+}
+
+type rpcError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+func reply(w http.ResponseWriter, id json.RawMessage, result any, rpcErr *rpcError) {
+	body := map[string]any{"jsonrpc": "2.0", "id": id}
+	if id == nil {
+		body["id"] = nil
+	}
+	if rpcErr != nil {
+		body["error"] = rpcErr
+	} else {
+		body["result"] = result
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(w).Encode(body)
+}

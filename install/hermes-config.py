@@ -14,6 +14,8 @@ Run as the agent, with Hermes' Python, -I, and HERMES_HOME set. One argument:
             variables and its own env, so the agent's proxy does not reach it.
             Prints, one per line, the servers whose command lies outside the
             agent's home and the system's directories
+  host      adds nia-edge's MCP server of host actions, as "host": its
+            tools reach the model as mcp__host__<action>
 
 Hermes' imports may write to stdout: everything but the answer goes to stderr.
 """
@@ -63,9 +65,31 @@ def mcp() -> int:
     return 0
 
 
+HOST = {"url": "http://127.0.0.1:8787/host/mcp", "enabled": True}
+
+
+def host() -> int:
+    from hermes_cli.config import read_raw_config, save_config
+
+    config = read_raw_config()
+    servers = config.get("mcp_servers")
+    if not isinstance(servers, dict):
+        servers = {}
+    current = servers.get("host")
+    # Another server of that name would take the host actions' tool names.
+    if isinstance(current, dict) and current.get("url") != HOST["url"]:
+        return 5
+    servers["host"] = dict(HOST)
+    config["mcp_servers"] = servers
+    save_config(config)
+    return 0
+
+
 def main(mode: str) -> int:
     if mode == "mcp":
         return mcp()
+    if mode == "host":
+        return host()
     home = os.environ["HERMES_HOME"]
     from hermes_cli.env_loader import load_hermes_dotenv
     from hermes_cli.runtime_provider import resolve_runtime_provider

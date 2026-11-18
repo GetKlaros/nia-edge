@@ -52,6 +52,9 @@ type Role struct {
 	RuleOfTwo   string
 	Destructive string
 	Tools       []*Tool
+	// Host is the role's catalogue of host actions, as the server wrote it;
+	// nil when it has none. The hostd package reads it.
+	Host json.RawMessage
 }
 
 // Tool is one tool rule of a role. Name may hold `*`.
@@ -98,11 +101,12 @@ type hostsRule struct {
 
 // The role as the server writes it in a signed policy.
 type roleJSON struct {
-	Name        string  `json:"name"`
-	Description *string `json:"description"`
-	Mode        string  `json:"mode"`
-	RuleOfTwo   string  `json:"rule_of_two"`
-	Destructive string  `json:"destructive"`
+	Name        string          `json:"name"`
+	Description *string         `json:"description"`
+	Mode        string          `json:"mode"`
+	RuleOfTwo   string          `json:"rule_of_two"`
+	Destructive string          `json:"destructive"`
+	Host        json.RawMessage `json:"host"`
 	Tools       []struct {
 		Name          string `json:"name"`
 		WhenUntrusted string `json:"when_untrusted"`
@@ -158,7 +162,7 @@ func ParseRole(raw json.RawMessage) (*Role, error) {
 	if in.Name == "" || !oneOf(in.Mode, "enforce", "observe") || !oneOf(in.RuleOfTwo, Allow, RequireApproval, Deny) || !oneOf(in.Destructive, Allow, RequireApproval, Deny) {
 		return nil, errors.New("engine: the role has a mode or a decision this nia-edge does not know")
 	}
-	role := &Role{Name: in.Name, Observe: in.Mode == "observe", RuleOfTwo: in.RuleOfTwo, Destructive: in.Destructive}
+	role := &Role{Name: in.Name, Observe: in.Mode == "observe", RuleOfTwo: in.RuleOfTwo, Destructive: in.Destructive, Host: in.Host}
 	for _, t := range in.Tools {
 		if t.Name == "" || !utf8.ValidString(t.Name) || !oneOf(t.WhenUntrusted, Allow, RequireApproval, Deny) || !oneOf(t.Output, "untrusted", "trusted") || !oneOf(t.Effect, "none", "external", "destructive") {
 			return nil, fmt.Errorf("engine: the rule of tool %q has a value this nia-edge does not know", t.Name)

@@ -21,6 +21,7 @@ nia-edge calls the model provider from the machine and decides the calls with th
 | Egress proxy: every outbound connection decided by the role | done |
 | Linux installer: systemd service, firewall rule, proof of isolation | done |
 | Hermes installer: its own user, its terminal in a rootless container without network, migration of an existing Hermes | done |
+| Host actions: nia-hostd runs the role's catalogue as root (services, packages, sync), each call released by the model path once | done (Linux) |
 | macOS installer | not yet |
 | Local MCP servers | not yet |
 | Signed policy: fetched, verified against the key learned at enrollment, kept, reported | done |
@@ -186,6 +187,41 @@ network is denied.
 `GET /edge/health` answers `{"edge":"ok","nia":"ready","machine":"active","policy":"…"}`:
 whether Nia is reachable, what the last heartbeat learned, and the signed
 policy in force.
+
+### Host actions: nia-hostd
+
+An agent that runs in a container has no shell on the machine. To manage it,
+its role names a catalogue, signed with the rest of the policy:
+
+```yaml
+host:
+  services: [nginx, postgresql@16-main]     # status, restart, reload
+  packages: [fail2ban]                       # install from the machine's sources
+  sync:
+    - { name: site, source: /srv/www, destination: /backup/www, delete: true }
+```
+
+nia-edge serves these as MCP tools on its own address,
+`http://127.0.0.1:8787/host/mcp` (`service_status`, `service_restart`,
+`service_reload`, `package_install`, `sync`), whose one argument is an entry
+of that catalogue. The Hermes installer adds this server as `host`, so the
+model sees `mcp__host__<action>`, and the role decides each tool like any
+other.
+
+- A tool call runs only against a release of the model path: the same tool
+  and canonical arguments that Nia allowed in a turn, once, within ten
+  minutes. Asked directly, it runs nothing.
+- nia-edge passes it to `nia-edge hostd run`, a systemd service as root whose
+  socket serves the `nia-edge` user only (the kernel's peer credentials).
+- nia-hostd verifies the signed policy itself, against the key pinned at
+  enrollment, and runs the action with a fixed program and fixed arguments,
+  without a shell or an inherited environment: `systemctl restart -- nginx.service`,
+  `apt-get install -y --no-install-recommends -- fail2ban`,
+  `rsync -a --delete -- /srv/www/ /backup/www/`. A name outside the catalogue
+  runs nothing.
+- Every action is written to `/var/lib/nia-hostd/journal.jsonl` (mode 0600).
+  `nia-edge hostd journal` prints it; `nia-edge hostd undo <id>` removes a
+  package the action installed. Restarts and copies cannot be undone.
 
 ### Calling the model provider from the machine
 

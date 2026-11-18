@@ -46,6 +46,12 @@ private code base; this repository is public.
   the loopback, never another user's, and nothing else. The Hermes installer
   never leaves Hermes under a person's account without saying so, and runs
   its terminal in a rootless container without network or host directory.
+- nia-hostd is the only part that runs as root. It serves the nia-edge user
+  alone (peer credentials), verifies the signed policy itself, and runs only
+  the actions of the role's catalogue, by name, with fixed programs and
+  arguments: no shell, no inherited environment, nothing the agent wrote. A
+  host action runs only against an unused release of the model path for the
+  same tool and canonical arguments. Every action is journaled.
 - What the machine reports about itself decides nothing.
 - The egress proxy refuses an internal IP literal before any decision,
   resolves a name only after the connection is allowed, once, and connects to
