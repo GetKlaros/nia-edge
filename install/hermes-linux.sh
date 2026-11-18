@@ -23,7 +23,9 @@
 #   NIA_URL, NIA_ENROLL_TOKEN (or NIA_ENROLL_TOKEN_FILE)  as for install/linux.sh
 #   NIA_EDGE_BINARY            the nia-edge binary (default ./nia-edge)
 #   NIA_PROVIDER_URL           the model provider nia-edge calls itself, so
-#                              prompts do not go through Nia (https://…/v1)
+#                              prompts do not go through Nia (https://…/v1);
+#                              required: an enrolled machine never sends its
+#                              prompts to Nia
 #   NIA_PROVIDER_KEY_FILE      the file holding its key (or NIA_PROVIDER_KEY)
 #   NIA_PROVIDER_FORMAT        openai (default) or anthropic
 #   HERMES_MODEL               the model Hermes asks for
@@ -60,6 +62,14 @@ command -v catatonit >/dev/null || [ -x /usr/libexec/podman/catatonit ] || comma
 [ "$AGENT" != root ] || fail "the agent cannot run as root"
 [ -z "$FROM" ] || [ "$FROM" != "$AGENT" ] || fail "--from names the dedicated user itself"
 [ -z "$FROM" ] || [ "$FRESH" -eq 0 ] || fail "--from and --fresh exclude each other"
+# The provider before anything is changed: without it the agent has no model.
+[ -n "${NIA_PROVIDER_URL:-}" ] || fail "NIA_PROVIDER_URL is required: nia-edge calls the model provider itself"
+case "$NIA_PROVIDER_URL" in https://*|http://127.0.0.1*|http://localhost*) ;; *) fail "NIA_PROVIDER_URL must be https" ;; esac
+if [ -n "${NIA_PROVIDER_KEY_FILE:-}" ]; then
+  [ -r "$NIA_PROVIDER_KEY_FILE" ] || fail "NIA_PROVIDER_KEY_FILE cannot be read"
+  NIA_PROVIDER_KEY=$(cat "$NIA_PROVIDER_KEY_FILE")
+fi
+[ -n "${NIA_PROVIDER_KEY:-}" ] || fail "NIA_PROVIDER_KEY (or NIA_PROVIDER_KEY_FILE) is required"
 umask 077
 
 home_of() { getent passwd "$1" | cut -d: -f6; }
@@ -200,22 +210,17 @@ grep -q 'XDG_RUNTIME_DIR' "$PROFILE" 2>/dev/null || {
 # lets the agent reach its own services there, never another user's.
 sh "$HERE/linux.sh" "$AGENT"
 
-# 8. The provider, when prompts must not go through Nia. Its key on standard
-# input, as the nia-edge user: never on a command line.
-if [ -n "${NIA_PROVIDER_URL:-}" ]; then
-  if [ -n "${NIA_PROVIDER_KEY_FILE:-}" ]; then
-    NIA_PROVIDER_KEY=$(cat "$NIA_PROVIDER_KEY_FILE")
-  fi
-  : "${NIA_PROVIDER_KEY:?NIA_PROVIDER_KEY (or NIA_PROVIDER_KEY_FILE) is required with NIA_PROVIDER_URL}"
-  printf '%s\n' "$NIA_PROVIDER_KEY" |
-    runuser -u nia-edge -- env -i PATH=/usr/bin:/bin /usr/local/bin/nia-edge provider \
-      -state /var/lib/nia-edge/state.json -url "$NIA_PROVIDER_URL" -format "${NIA_PROVIDER_FORMAT:-openai}"
-  systemctl restart nia-edge.service
-  for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
-    /usr/local/bin/nia-edge health >/dev/null 2>&1 && break
-    sleep 1
-  done
-fi
+# 8. The provider: prompts do not go through Nia. Its key on standard input,
+# as the nia-edge user: never on a command line.
+printf '%s\n' "$NIA_PROVIDER_KEY" |
+  runuser -u nia-edge -- env -i PATH=/usr/bin:/bin /usr/local/bin/nia-edge provider \
+    -state /var/lib/nia-edge/state.json -url "$NIA_PROVIDER_URL" -format "${NIA_PROVIDER_FORMAT:-openai}"
+unset NIA_PROVIDER_KEY
+systemctl restart nia-edge.service
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+  /usr/local/bin/nia-edge health >/dev/null 2>&1 && break
+  sleep 1
+done
 
 # 9. The container, once the agent's network is closed: no interface but
 # loopback, and nothing of the agent's home.

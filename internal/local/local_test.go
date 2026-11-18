@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/GetKlaros/nia-edge/canon"
+	"github.com/GetKlaros/nia-edge/internal/engine"
 	"github.com/GetKlaros/nia-edge/internal/turn"
 )
 
@@ -25,6 +27,31 @@ type fakeNia struct {
 	hostedAsked   []string
 	hostedAllowed []string
 	down          bool
+	// hashed are the calls decided on the machine; tainted picks the
+	// decision as Nia's session state would, and wantArguments asks for them.
+	hashed        []Hashed
+	tainted       bool
+	wantArguments bool
+}
+
+func (n *fakeNia) DecideHashed(_ context.Context, _ string, call Hashed) (Verdict, bool, error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.down {
+		return Verdict{}, false, errors.New("down")
+	}
+	n.hashed = append(n.hashed, call)
+	if n.wantArguments {
+		return Verdict{}, true, nil
+	}
+	picked := call.Clean
+	if n.tainted {
+		picked = call.Tainted
+	}
+	if picked.Decision == engine.Allow {
+		return Verdict{Allowed: true}, false, nil
+	}
+	return Verdict{Message: picked.Decision + " " + picked.Reason}, false, nil
 }
 
 func (n *fakeNia) Ingested(_ context.Context, session, tool string) error {
@@ -343,6 +370,10 @@ func TestRemoteSpeaksTheDecisionAPI(t *testing.T) {
 			_, _ = io.WriteString(w, `{"allowed":["hosted:a"],"removed":["hosted:b"],"tainted_by":[]}`)
 		case r.URL.Path == "/v1/tools/result":
 			_, _ = io.WriteString(w, `{"action":"allow","output":"","findings":[],"tainted_by":["read_file"]}`)
+		case strings.Contains(string(raw), `"hashed_held"`):
+			_, _ = io.WriteString(w, `{"decision":"arguments_required","reason":"approval_needs_arguments","message":null}`)
+		case strings.Contains(string(raw), `"arguments_required"`):
+			_, _ = io.WriteString(w, `{"decision":"arguments_required","message":null}`)
 		case strings.Contains(string(raw), `"terminal"`):
 			_, _ = io.WriteString(w, `{"decision":"require_approval","reason":"untrusted_session","message":"held","approval_id":"a1"}`)
 		case strings.Contains(string(raw), `"odd"`):
@@ -366,7 +397,20 @@ func TestRemoteSpeaksTheDecisionAPI(t *testing.T) {
 	if v, err := remote.Decide(ctx, "c-1", "terminal", `{}`); err != nil || v.Allowed || v.Message != "held" {
 		t.Errorf("hold: %+v %v", v, err)
 	}
-	for _, tool := range []string{"odd", "broken"} {
+	// Decided here: the hash and the decisions go, the arguments never.
+	allow := engine.Decision{Decision: engine.Allow, Reason: "allowed"}
+	if v, again, err := remote.DecideHashed(ctx, "c-1", Hashed{Tool: "read_file", Hash: strings.Repeat("a", 64), Digest: "0123456789abcdef", Clean: allow, Tainted: allow, Exposed: allow, Both: allow}); err != nil || again || !v.Allowed {
+		t.Errorf("hashed: %+v %v %v", v, again, err)
+	}
+	last := seen[len(seen)-1]
+	if !strings.Contains(last, `"arguments_hash":"aaaa`) || !strings.Contains(last, `"policy_digest":"0123456789abcdef"`) || strings.Contains(last, `"arguments":`) {
+		t.Errorf("sent %s", last)
+	}
+	if v, again, err := remote.DecideHashed(ctx, "c-1", Hashed{Tool: "hashed_held", Hash: strings.Repeat("a", 64), Digest: "0123456789abcdef", Clean: allow, Tainted: allow, Exposed: allow, Both: allow}); err != nil || !again || v.Allowed {
+		t.Errorf("arguments required: %+v %v %v", v, again, err)
+	}
+	// Asking again for arguments it was sent is no decision.
+	for _, tool := range []string{"odd", "broken", "arguments_required"} {
 		if v, err := remote.Decide(ctx, "c-1", tool, `{}`); err == nil || v.Allowed {
 			t.Errorf("%s: %+v %v", tool, v, err)
 		}
@@ -380,5 +424,102 @@ func TestRemoteSpeaksTheDecisionAPI(t *testing.T) {
 	}
 	if seen[0] != `/v1/tools/result Bearer nia_machine c-1 run-1 {"output":"","tool":"read_file"}` || seen[1] != `/v1/tools/decide Bearer nia_machine c-1 run-1 {"arguments":"{\"path\":\"a\"}","tool":"read_file"}` {
 		t.Errorf("sent: %q", seen[:2])
+	}
+}
+
+// rules is a policy in force: terminal runs ls, and asks a human once the
+// session is tainted; shell is a dispatcher.
+func rules(t *testing.T) func() *Rules {
+	t.Helper()
+	role, err := engine.ParseRole(json.RawMessage(`{"name":"ops","mode":"enforce","rule_of_two":"require_approval","destructive":"require_approval","tools":[` +
+		`{"name":"terminal","when_untrusted":"require_approval","output":"untrusted","sensitive":false,"effect":"none","arguments":[]},` +
+		`{"name":"shell","when_untrusted":"allow","output":"untrusted","sensitive":false,"effect":"none","arguments":[]}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dispatchers, err := engine.ParseDispatchers(json.RawMessage(`[{"tool":"shell","calls":"calls","name":"name","arguments":"arguments"}]`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ready := &Rules{Role: role, Dispatchers: dispatchers, Digest: "0123456789abcdef"}
+	return func() *Rules { return ready }
+}
+
+func TestThePolicyInForceDecidesAndTheArgumentsStayHere(t *testing.T) {
+	h, p, nia := setup(t)
+	h.Rules = rules(t)
+	p.answer = chatCall
+	got := post(h, "/v1/chat/completions", `{"model":"m","messages":[{"role":"user","content":"list files"}]}`)
+	if got.Code != 200 || got.Body.String() != chatCall {
+		t.Fatalf("%d %s", got.Code, got.Body.String())
+	}
+	if len(nia.asked) != 0 || len(nia.hashed) != 1 {
+		t.Fatalf("Nia was asked %v with arguments, %d by hash", nia.asked, len(nia.hashed))
+	}
+	call := nia.hashed[0]
+	hash, _ := canon.ArgumentsHash("terminal", `{"command":"ls"}`)
+	if call.Tool != "terminal" || call.Hash != hash || call.Digest != "0123456789abcdef" {
+		t.Errorf("sent %+v", call)
+	}
+	if call.Clean.Decision != engine.Allow || call.Tainted.Decision != engine.RequireApproval || call.Both.Reason != "untrusted_session" {
+		t.Errorf("decided %+v", call)
+	}
+	// What goes to Nia, as Remote sends it, holds no argument.
+	encoded, _ := json.Marshal(map[string]engine.Decision{"clean": call.Clean, "tainted": call.Tainted, "exposed": call.Exposed, "both": call.Both})
+	if strings.Contains(string(encoded), "ls") {
+		t.Errorf("the decisions carry the arguments: %s", encoded)
+	}
+}
+
+func TestNiaPicksTheDecisionForItsSessionState(t *testing.T) {
+	h, p, nia := setup(t)
+	h.Rules = rules(t)
+	nia.tainted = true
+	p.answer = chatCall
+	got := post(h, "/v1/chat/completions", `{"model":"m","messages":[{"role":"user","content":"list files"}]}`)
+	if got.Code != 200 || got.Body.String() == chatCall || !strings.Contains(got.Body.String(), "require_approval untrusted_session") {
+		t.Fatalf("%d %s", got.Code, got.Body.String())
+	}
+}
+
+func TestTheArgumentsGoToNiaOnlyWhenItAsksOrCannotBeSure(t *testing.T) {
+	h, p, nia := setup(t)
+	h.Rules = rules(t)
+	nia.wantArguments = true
+	p.answer = chatCall
+	if got := post(h, "/v1/chat/completions", `{"model":"m","messages":[{"role":"user","content":"list files"}]}`); got.Code != 200 {
+		t.Fatalf("%d %s", got.Code, got.Body.String())
+	}
+	if len(nia.hashed) != 1 || len(nia.asked) != 1 || nia.asked[0] != `terminal {"command":"ls"}` {
+		t.Fatalf("hashed %d, asked %v", len(nia.hashed), nia.asked)
+	}
+
+	// A dispatcher is decided by Nia from its arguments.
+	h, p, nia = setup(t)
+	h.Rules = rules(t)
+	p.answer = `{"choices":[{"message":{"content":null,"tool_calls":[{"id":"c1","type":"function","function":{"name":"shell","arguments":"{\"calls\":[]}"}}]}}]}`
+	if got := post(h, "/v1/chat/completions", `{"model":"m","messages":[{"role":"user","content":"x"}]}`); got.Code != 200 {
+		t.Fatalf("%d %s", got.Code, got.Body.String())
+	}
+	if len(nia.hashed) != 0 || len(nia.asked) != 1 {
+		t.Fatalf("hashed %d, asked %v", len(nia.hashed), nia.asked)
+	}
+
+	// With no policy in force, Nia decides from the arguments.
+	h, p, nia = setup(t)
+	h.Rules = func() *Rules { return nil }
+	p.answer = chatCall
+	post(h, "/v1/chat/completions", `{"model":"m","messages":[{"role":"user","content":"list files"}]}`)
+	if len(nia.hashed) != 0 || len(nia.asked) != 1 {
+		t.Fatalf("hashed %d, asked %v", len(nia.hashed), nia.asked)
+	}
+
+	// Nia out of reach refuses the turn.
+	h, p, nia = setup(t)
+	h.Rules = rules(t)
+	nia.down = true
+	p.answer = chatCall
+	if got := post(h, "/v1/chat/completions", `{"model":"m","messages":[{"role":"user","content":"list files"}]}`); got.Code != http.StatusServiceUnavailable {
+		t.Fatalf("%d %s", got.Code, got.Body.String())
 	}
 }

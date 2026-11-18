@@ -122,8 +122,13 @@ func TestHeartbeat(t *testing.T) {
 	if _, err := c.Heartbeat(context.Background(), "nia_key", report, "abcdef0123456789"); err != nil {
 		t.Fatal(err)
 	}
-	if sent["policy_digest"] != "abcdef0123456789" {
+	if _, has := sent["model_path"]; sent["policy_digest"] != "abcdef0123456789" || has {
 		t.Errorf("heartbeat body %v", sent)
+	}
+	withPath := report
+	withPath.ModelPath = "provider"
+	if _, err := c.Heartbeat(context.Background(), "nia_key", withPath, ""); err != nil || sent["model_path"] != "provider" {
+		t.Errorf("heartbeat body %v %v", sent, err)
 	}
 }
 

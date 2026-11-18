@@ -37,6 +37,7 @@ import (
 
 	"github.com/GetKlaros/nia-edge/internal/doctor"
 	"github.com/GetKlaros/nia-edge/internal/egress"
+	"github.com/GetKlaros/nia-edge/internal/engine"
 	"github.com/GetKlaros/nia-edge/internal/local"
 	"github.com/GetKlaros/nia-edge/internal/niaclient"
 	"github.com/GetKlaros/nia-edge/internal/policy"
@@ -345,7 +346,28 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 	if err != nil {
 		return err
 	}
+	modelPath := "provider"
+	if saved.Provider == nil {
+		modelPath = "none"
+		if getenv("NIA_RELAY_MODEL_CALLS") == "yes" {
+			modelPath = "relay"
+		}
+	}
 	var handler http.Handler = relay.New(relay.Options{Nia: base, Key: saved.Key, Run: run, Status: status.get, Policy: policies.status, Logger: logger})
+	if saved.Provider == nil && getenv("NIA_RELAY_MODEL_CALLS") != "yes" {
+		// No provider on this machine: its prompts do not leave for Nia.
+		// NIA_RELAY_MODEL_CALLS=yes sends them, for a Nia that relays them.
+		relayed := handler
+		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if format, ok := local.Format(strings.TrimSuffix(r.URL.Path, "/")); ok {
+				local.Refuse(w, format, http.StatusServiceUnavailable, "local_mode_required",
+					"This machine has no model provider: set one with `nia-edge provider`")
+				return
+			}
+			relayed.ServeHTTP(w, r)
+		})
+		fmt.Fprintf(stdout, "nia-edge %s: no model provider on this machine; model calls are refused until one is set\n", version)
+	}
 	if saved.Provider != nil {
 		// Model calls go from this machine to the provider; Nia decides the
 		// tool calls and sees neither the prompts nor the answers.
@@ -359,6 +381,7 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 			Anthropic: saved.Provider.Format == "anthropic",
 			HTTP:      local.NewProviderClient(15 * time.Minute),
 			Nia:       &local.Remote{Base: base, Key: saved.Key, Run: run, HTTP: niaclient.NewHTTPClient(time.Duration(30+wait) * time.Second), Wait: wait},
+			Rules:     policies.rules,
 			Logger:    logger,
 		}
 		relayed := handler
@@ -416,7 +439,7 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 	beats := make(chan struct{})
 	go func() {
 		defer close(beats)
-		heartbeat(ctx, &niaclient.Client{Base: base, HTTP: niaclient.NewHTTPClient(15 * time.Second)}, saved.Key, status, policies, logger)
+		heartbeat(ctx, &niaclient.Client{Base: base, HTTP: niaclient.NewHTTPClient(15 * time.Second)}, saved.Key, modelPath, status, policies, logger)
 	}()
 	go func() { served <- server.Serve(listener) }()
 
@@ -448,6 +471,33 @@ type keeper struct {
 	path      string
 	key       *policy.Key
 	machineID string
+	// ready is the policy in force read by the engine, for its digest.
+	ready *local.Rules
+}
+
+// rules returns the policy in force, ready to decide, or nil when there is
+// none or this nia-edge cannot read its role: then Nia decides from the
+// arguments.
+func (k *keeper) rules() *local.Rules {
+	current := k.valid(time.Now())
+	if current == nil {
+		return nil
+	}
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.ready != nil && k.ready.Digest == current.Digest {
+		return k.ready
+	}
+	role, err := engine.ParseRole(current.Role)
+	if err != nil {
+		return nil
+	}
+	dispatchers, err := engine.ParseDispatchers(current.Dispatchers)
+	if err != nil {
+		return nil
+	}
+	k.ready = &local.Rules{Role: role, Dispatchers: dispatchers, Digest: current.Digest}
+	return k.ready
 }
 
 // valid returns the policy in force at now, or nil.
@@ -652,7 +702,7 @@ func provider(args []string, getenv func(string) string, stdin io.Reader, stdout
 // heartbeat reports to Nia until ctx ends, and keeps the signed policy
 // fresh. A failure is logged and tried again at the next beat: the relay
 // keeps running, and Nia refuses the calls of a key it no longer accepts.
-func heartbeat(ctx context.Context, client *niaclient.Client, key string, status *machineStatus, policies *keeper, logger *slog.Logger) {
+func heartbeat(ctx context.Context, client *niaclient.Client, key, modelPath string, status *machineStatus, policies *keeper, logger *slog.Logger) {
 	interval := 30 * time.Second
 	last := ""
 	for {
@@ -660,7 +710,9 @@ func heartbeat(ctx context.Context, client *niaclient.Client, key string, status
 		if current := policies.valid(time.Now()); current != nil {
 			digest = current.Digest
 		}
-		beat, err := client.Heartbeat(ctx, key, report(), digest)
+		reported := report()
+		reported.ModelPath = modelPath
+		beat, err := client.Heartbeat(ctx, key, reported, digest)
 		now := "active"
 		var refused *niaclient.Refused
 		switch {
