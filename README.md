@@ -251,7 +251,8 @@ container that has:
 - the machine's `/etc` as an overlay: what the script writes goes to a layer
   in memory, bounded to 64 MiB, and the machine's `/etc` is not changed;
 - the rest of the machine's root file system read only, without its other
-  mounts, and `/root`, `/home`, `/var`, `/srv`, `/opt`, `/mnt`, `/media`,
+  mounts (podman prepares the container in a throwaway layer over it, so a
+  machine without `/etc/mtab` works too), and `/root`, `/home`, `/var`, `/srv`, `/opt`, `/mnt`, `/media`,
   `/boot` and `/tmp` empty;
 - no network (only its own loopback), no capability, no new privilege,
   podman's masked `/proc` and read-only `/proc/sys`, a minimal `/dev`, at most

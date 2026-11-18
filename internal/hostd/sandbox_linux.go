@@ -34,27 +34,39 @@ func (p Podman) binary() (string, error) {
 }
 
 // Prepare mounts a bounded tmpfs on scratch, whose atimes are always
-// updated (a read decoy is seen), and the machine's root, read only, in it.
+// updated (a read decoy is seen), and in it the container's root: an overlay
+// whose lower layer is the machine's root, bound read only, and whose upper
+// layer is in the tmpfs. podman prepares the container there (an /etc/mtab it
+// creates when the machine has none, its mount points), never on the
+// machine; inside, the container's root is read only (--read-only).
 func (Podman) Prepare(scratch string) (func(), error) {
 	if err := syscall.Mount("tmpfs", scratch, "tmpfs", syscall.MS_NOSUID|syscall.MS_STRICTATIME, "size="+strconv.Itoa(layerBytes)+",mode=0700"); err != nil {
 		return nil, fmt.Errorf("tmpfs: %w", err)
 	}
-	root := filepath.Join(scratch, "root")
+	lower, root := filepath.Join(scratch, "lower"), filepath.Join(scratch, "root")
 	undo := func() {
 		_ = syscall.Unmount(root, syscall.MNT_DETACH)
+		_ = syscall.Unmount(lower, syscall.MNT_DETACH)
 		_ = syscall.Unmount(scratch, syscall.MNT_DETACH)
 	}
-	if err := os.Mkdir(root, 0o700); err != nil {
-		undo()
-		return nil, err
+	for _, dir := range []string{lower, root, filepath.Join(scratch, "rootup"), filepath.Join(scratch, "rootwork")} {
+		if err := os.Mkdir(dir, 0o700); err != nil {
+			undo()
+			return nil, err
+		}
 	}
-	if err := syscall.Mount("/", root, "", syscall.MS_BIND, ""); err != nil {
+	if err := syscall.Mount("/", lower, "", syscall.MS_BIND, ""); err != nil {
 		undo()
 		return nil, fmt.Errorf("bind /: %w", err)
 	}
-	if err := syscall.Mount("", root, "", syscall.MS_BIND|syscall.MS_REMOUNT|syscall.MS_RDONLY|syscall.MS_NOSUID|syscall.MS_NODEV, ""); err != nil {
+	if err := syscall.Mount("", lower, "", syscall.MS_BIND|syscall.MS_REMOUNT|syscall.MS_RDONLY|syscall.MS_NOSUID|syscall.MS_NODEV, ""); err != nil {
 		undo()
 		return nil, fmt.Errorf("read-only /: %w", err)
+	}
+	options := "lowerdir=" + lower + ",upperdir=" + filepath.Join(scratch, "rootup") + ",workdir=" + filepath.Join(scratch, "rootwork")
+	if err := syscall.Mount("overlay", root, "overlay", syscall.MS_NOSUID|syscall.MS_NODEV, options); err != nil {
+		undo()
+		return nil, fmt.Errorf("the container's root: %w", err)
 	}
 	return undo, nil
 }
