@@ -680,6 +680,10 @@
      ],
      "secrets": [
       "/etc/app/token.conf"
+     ],
+     "permit": [
+      "cron",
+      "logrotate"
      ]
     }
    }

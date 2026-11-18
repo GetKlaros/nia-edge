@@ -127,3 +127,36 @@ func TestPodmanDryRunThenApply(t *testing.T) {
 		t.Error("not undone: /etc/nia-made.d")
 	}
 }
+
+// TestPodmanGuards: the guards read the merged /etc a real overlay leaves.
+func TestPodmanGuards(t *testing.T) {
+	if os.Getenv("NIA_PODMAN_TEST") != "yes" {
+		t.Skip("NIA_PODMAN_TEST=yes runs this, as root, where podman is installed")
+	}
+	s, _, _ := machine(t, `{"name":"vps","mode":"enforce","rule_of_two":"require_approval","destructive":"require_approval","tools":[],"host":{"etc":{}}}`)
+	scratch, _ := os.MkdirTemp("/tmp", "p")
+	defer os.RemoveAll(scratch)
+	s.ScratchRoot = scratch
+	s.Sandbox = Podman{Root: scratch + "/podman", RunRoot: scratch + "/podman-run"}
+	os.MkdirAll("/etc/ssh/sshd_config.d", 0o755)
+	os.WriteFile("/etc/ssh/sshd_config", []byte("Include /etc/ssh/sshd_config.d/*.conf\nPermitRootLogin no\n"), 0o644)
+	os.WriteFile("/etc/ssh/sshd_config.d/00-strict.conf", []byte("PasswordAuthentication no\n"), 0o644)
+	defer os.RemoveAll("/etc/ssh")
+	for script, want := range map[string]string{
+		"rm /etc/ssh/sshd_config.d/00-strict.conf":                                    "passwordauthentication",
+		"rm -r /etc/ssh/sshd_config.d && mkdir /etc/ssh/sshd_config.d":                "passwordauthentication",
+		"echo 'PermitRootLogin yes' > /etc/ssh/sshd_config.d/00-a.conf":               "permitrootlogin",
+		"echo 'toor:x:0:0::/root:/bin/sh' >> /etc/passwd":                             "uid or gid 0",
+		"mkdir -p /etc/cron.d && echo '* * * * * root id' > /etc/cron.d/x":            "cron",
+		"echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config.d/00-strict.conf && true": "permitrootlogin",
+	} {
+		r := report(t, s.Do(context.Background(), Request{Action: DryRunAction, Script: script}))
+		if !strings.Contains(details(r), want) {
+			t.Errorf("%s: want %q, got %q", script, want, details(r))
+		}
+	}
+	r := report(t, s.Do(context.Background(), Request{Action: DryRunAction, Script: "echo 'PermitRootLogin no' > /etc/ssh/sshd_config.d/00-root.conf"}))
+	if len(r.Guards) != 0 {
+		t.Errorf("stricter refused: %q", details(r))
+	}
+}

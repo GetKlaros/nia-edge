@@ -318,6 +318,9 @@ func DescribeReport(raw string) string {
 			fmt.Fprintf(&b, "%s: %s\n", title, strings.Join(paths, ", "))
 		}
 	}
+	for _, f := range r.Guards {
+		fmt.Fprintf(&b, "Refused by the %s guard: %s\n", f.Guard, f.Detail)
+	}
 	list("Protected paths changed", r.Protected)
 	list("Secrets read (the run saw decoys, not the secrets)", r.SecretsRead)
 	list("Secrets changed", r.SecretsChanged)
