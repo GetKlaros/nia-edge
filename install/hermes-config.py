@@ -15,7 +15,8 @@ Run as the agent, with Hermes' Python, -I, and HERMES_HOME set. One argument:
             Prints, one per line, the servers whose command lies outside the
             agent's home and the system's directories
   host      adds nia-edge's MCP server of host actions, as "host": its
-            tools reach the model as mcp__host__<action>
+            tools reach the model as mcp__host__<action>, also on the
+            platforms whose saved toolsets list MCP servers
 
 Hermes' imports may write to stdout: everything but the answer goes to stderr.
 """
@@ -81,6 +82,18 @@ def host() -> int:
         return 5
     servers["host"] = dict(HOST)
     config["mcp_servers"] = servers
+    # A platform whose saved toolsets name MCP servers loads those servers
+    # only (Hermes' _merge_mcp_servers): host joins every such list. An
+    # empty list, or one with no_mcp, stays the user's choice of none.
+    known = {str(name) for name in servers if name != "host"}
+    platforms = config.get("platform_toolsets")
+    if isinstance(platforms, dict):
+        for names in platforms.values():
+            if not isinstance(names, list) or "no_mcp" in names:
+                continue
+            listed = {str(n)[4:] if str(n).startswith("mcp-") else str(n) for n in names}
+            if listed & known and not {"host", "mcp-host"} & {str(n) for n in names}:
+                names.append("host")
     save_config(config)
     return 0
 
