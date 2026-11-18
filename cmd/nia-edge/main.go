@@ -376,13 +376,14 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 			return err
 		}
 		model := &local.Handler{
-			Provider:  providerURL,
-			Key:       saved.Provider.Key,
-			Anthropic: saved.Provider.Format == "anthropic",
-			HTTP:      local.NewProviderClient(15 * time.Minute),
-			Nia:       &local.Remote{Base: base, Key: saved.Key, Run: run, HTTP: niaclient.NewHTTPClient(time.Duration(30+wait) * time.Second), Wait: wait},
-			Rules:     policies.rules,
-			Logger:    logger,
+			Provider:      providerURL,
+			Key:           saved.Provider.Key,
+			Anthropic:     saved.Provider.Format == "anthropic",
+			SessionHeader: providerSessionHeader(saved.Provider, providerURL),
+			HTTP:          local.NewProviderClient(15 * time.Minute),
+			Nia:           &local.Remote{Base: base, Key: saved.Key, Run: run, HTTP: niaclient.NewHTTPClient(time.Duration(30+wait) * time.Second), Wait: wait},
+			Rules:         policies.rules,
+			Logger:        logger,
 		}
 		relayed := handler
 		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -632,6 +633,7 @@ func provider(args []string, getenv func(string) string, stdin io.Reader, stdout
 	base := flags.String("url", "", "base URL of the provider, as its clients use it (https://api.example.com/v1)")
 	format := flags.String("format", "openai", "how the key is sent: openai (Authorization: Bearer) or anthropic (x-api-key)")
 	keyFile := flags.String("key-file", "", "file holding the provider key")
+	sessionHeader := flags.String("session-header", "", "header that carries an id of the conversation, for a provider that routes by it (default x-opencode-session for opencode.ai, none otherwise)")
 	remove := flags.Bool("remove", false, "forget the provider: model calls go through Nia again")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -691,12 +693,50 @@ func provider(args []string, getenv func(string) string, stdin io.Reader, stdout
 	if key == "" || strings.ContainsAny(key, " \t\r\n") {
 		return errors.New("no provider key: set NIA_PROVIDER_KEY, pass -key-file, or write the key on standard input")
 	}
-	saved.Provider = &state.Provider{BaseURL: parsed.String(), Key: key, Format: *format}
+	if *sessionHeader != "" && !validSessionHeader(*sessionHeader) {
+		return errors.New("-session-header is a lower-case header name that carries no credential")
+	}
+	saved.Provider = &state.Provider{BaseURL: parsed.String(), Key: key, Format: *format, SessionHeader: *sessionHeader}
 	if err := state.Save(path, saved); err != nil {
 		return err
 	}
 	fmt.Fprintf(stdout, "provider %s (%s) kept in %s: model calls go from this machine (restart nia-edge)\n", parsed, *format, path)
 	return nil
+}
+
+// validSessionHeader accepts a lower-case header name that is not one nia-edge
+// sets itself or one that carries a credential.
+func validSessionHeader(name string) bool {
+	if len(name) == 0 || len(name) > 64 {
+		return false
+	}
+	for _, r := range name {
+		if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-') {
+			return false
+		}
+	}
+	switch name {
+	case "authorization", "x-api-key", "host", "content-type", "content-length", "cookie", "proxy-authorization", "transfer-encoding", "connection":
+		return false
+	}
+	return true
+}
+
+// providerSessionHeader is the session header the provider gets: the one
+// kept, else x-opencode-session for OpenCode, which refuses requests without
+// it.
+func providerSessionHeader(provider *state.Provider, base *url.URL) string {
+	if provider.SessionHeader != "" {
+		if validSessionHeader(provider.SessionHeader) {
+			return provider.SessionHeader
+		}
+		return ""
+	}
+	host := strings.ToLower(base.Hostname())
+	if host == "opencode.ai" || strings.HasSuffix(host, ".opencode.ai") {
+		return "x-opencode-session"
+	}
+	return ""
 }
 
 // heartbeat reports to Nia until ctx ends, and keeps the signed policy

@@ -523,3 +523,25 @@ func TestTheArgumentsGoToNiaOnlyWhenItAsksOrCannotBeSure(t *testing.T) {
 		t.Fatalf("%d %s", got.Code, got.Body.String())
 	}
 }
+
+func TestTheProviderGetsAStableIDOfTheConversationWhenItRoutesByIt(t *testing.T) {
+	h, p, _ := setup(t)
+	p.answer = `{"choices":[{"message":{"content":"hi"}}]}`
+	seen := func(first string) string {
+		post(h, "/v1/chat/completions", `{"model":"m","messages":[{"role":"user","content":"`+first+`"}]}`)
+		return p.lastHeaders.Get("X-Opencode-Session")
+	}
+	if got := seen("a"); got != "" {
+		t.Fatalf("sent %q without a session header set", got)
+	}
+	h.SessionHeader = "x-opencode-session"
+	one, again, other := seen("a"), seen("a"), seen("b")
+	if !strings.HasPrefix(one, "nia-") || len(one) != 36 || one != again || one == other {
+		t.Errorf("ids %q %q %q", one, again, other)
+	}
+	// Not the id Nia knows the conversation by.
+	first := "a"
+	if strings.Contains(one, strings.TrimPrefix(sessionOf(&first), "c-")) {
+		t.Error("the provider got Nia's session id")
+	}
+}

@@ -201,7 +201,10 @@ sudo systemctl restart nia-edge
 nia-edge provider            # shows it;  nia-edge provider -remove  removes it
 ```
 
-`-format anthropic` sends the key as `x-api-key`. The agent's configuration
+`-format anthropic` sends the key as `x-api-key`. `-session-header <name>`
+sends an opaque, stable id of each conversation in that header, for a
+provider that routes or caches by it; for `opencode.ai` it is
+`x-opencode-session` by default, which OpenCode Go requires. The agent's configuration
 does not change: it still talks to `http://127.0.0.1:8787/v1`, and the key it
 sends is ignored.
 

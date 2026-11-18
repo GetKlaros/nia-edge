@@ -414,3 +414,27 @@ func TestTheProviderKeyIsKeptInTheStateFileAndNeverShown(t *testing.T) {
 		t.Error("the provider key is still in the state, or the machine key is gone")
 	}
 }
+
+func TestTheProviderSessionHeader(t *testing.T) {
+	opencode, _ := url.Parse("https://opencode.ai/zen/go/v1")
+	other, _ := url.Parse("https://api.example.com/v1")
+	for _, c := range []struct {
+		provider state.Provider
+		base     *url.URL
+		want     string
+	}{
+		{state.Provider{}, opencode, "x-opencode-session"},
+		{state.Provider{}, other, ""},
+		{state.Provider{SessionHeader: "x-session-affinity"}, other, "x-session-affinity"},
+		{state.Provider{SessionHeader: "authorization"}, opencode, ""},
+	} {
+		if got := providerSessionHeader(&c.provider, c.base); got != c.want {
+			t.Errorf("%+v %s: %q, want %q", c.provider, c.base, got, c.want)
+		}
+	}
+	for _, name := range []string{"Authorization", "x-api-key", "cookie", "a b", ""} {
+		if validSessionHeader(name) {
+			t.Errorf("%q accepted", name)
+		}
+	}
+}
