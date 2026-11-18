@@ -54,7 +54,7 @@ const (
 )
 
 // Actions lists the actions nia-hostd knows.
-var Actions = []string{ServiceStatus, ServiceRestart, ServiceReload, PackageInstall, Sync, DryRunAction}
+var Actions = []string{ServiceStatus, ServiceRestart, ServiceReload, PackageInstall, Sync, DryRunAction, ApplyAction}
 
 // Runner runs a program. Exec runs it; tests use another.
 type Runner interface {
@@ -106,11 +106,13 @@ type Server struct {
 	Run         Runner
 	// Sandbox runs dry runs; nil runs none.
 	Sandbox Sandbox
-	// EtcRoot and ScratchRoot are /etc and where dry runs keep their layers;
-	// tests set others.
-	EtcRoot, ScratchRoot string
-	Now                  func() time.Time
-	Logger               *slog.Logger
+	// EtcRoot, ScratchRoot and BackupRoot are /etc, where dry runs keep their
+	// layers and where applies save what they replace; tests set others.
+	EtcRoot, ScratchRoot, BackupRoot string
+	// Installed reports whether a check's program is installed; nil looks.
+	Installed func(program string) bool
+	Now       func() time.Time
+	Logger    *slog.Logger
 
 	mu    sync.Mutex
 	plans map[string]*plan
@@ -175,6 +177,12 @@ func (s *Server) Do(ctx context.Context, req Request) Response {
 	}
 	if req.Action == DryRunAction {
 		return s.dryRun(ctx, catalogue, req)
+	}
+	if req.Action == ApplyAction {
+		if catalogue.Etc == nil {
+			return Response{Error: "this role's catalogue allows no dry run, so no apply (no etc)"}
+		}
+		return s.apply(ctx, req)
 	}
 	argvs, undo, refusal := s.plan(ctx, catalogue, req)
 	if refusal != "" {
@@ -275,6 +283,13 @@ func (s *Server) Undo(ctx context.Context, id string) Response {
 	}
 	if target == nil {
 		return Response{Error: "no journal entry " + id}
+	}
+	if target.Undo != nil && target.Undo.Action == RestoreAction {
+		entry := s.restoreEntry(*target)
+		if err := s.write(entry); err != nil {
+			return Response{Error: "restore not written to the journal: " + err.Error()}
+		}
+		return Response{OK: entry.OK, Error: entry.Error, Journal: entry.ID}
 	}
 	if target.Undo == nil || target.Undo.Action != "package_remove" || !packageName.MatchString(target.Undo.Name) {
 		return Response{Error: "this action cannot be undone"}

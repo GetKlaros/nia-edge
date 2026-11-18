@@ -11,6 +11,14 @@ import (
 // changes the script made.
 const DryRunAction = "dry_run"
 
+// ApplyAction writes a dry run's plan to the machine's /etc, exactly as the
+// run left its layer, then checks the configurations it touched and puts the
+// former files back when a check fails.
+const ApplyAction = "apply"
+
+// RestoreAction puts back what an apply changed, from its backup.
+const RestoreAction = "restore"
+
 const (
 	scriptLimit = 32 << 10
 	// The layer of a dry run lives in memory, bounded: a script cannot fill
@@ -103,6 +111,9 @@ func (r *Report) Applicable() (bool, string) {
 	for _, c := range r.Changes {
 		if c.Type == "file" && c.Mode&0o6000 != 0 {
 			return false, c.Path + " would be setuid or setgid"
+		}
+		if c.Replaced {
+			return false, c.Path + " was replaced whole: change its files instead"
 		}
 	}
 	return true, ""

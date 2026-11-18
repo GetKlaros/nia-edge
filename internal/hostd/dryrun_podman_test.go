@@ -81,3 +81,49 @@ func TestPodmanDryRun(t *testing.T) {
 		t.Error("the machine changed: /usr/nia-x")
 	}
 }
+
+// TestPodmanDryRunThenApply applies a real plan to this machine's /etc and
+// undoes it. Same conditions as TestPodmanDryRun.
+func TestPodmanDryRunThenApply(t *testing.T) {
+	if os.Getenv("NIA_PODMAN_TEST") != "yes" {
+		t.Skip("NIA_PODMAN_TEST=yes runs this, as root, where podman is installed")
+	}
+	s, _, _ := machine(t, etcRole)
+	// podman refuses a runroot longer than 50 characters.
+	scratch, _ := os.MkdirTemp("/tmp", "p")
+	defer os.RemoveAll(scratch)
+	s.ScratchRoot, s.BackupRoot = scratch, t.TempDir()
+	s.Sandbox = Podman{Root: scratch + "/podman", RunRoot: scratch + "/podman-run"}
+	s.Run = Exec{}
+	os.WriteFile("/etc/nia-apply.conf", []byte("a=1\n"), 0o644)
+	os.Remove("/etc/nia-made.d/x.conf")
+	os.Remove("/etc/nia-made.d")
+	defer os.Remove("/etc/nia-apply.conf")
+	defer os.RemoveAll("/etc/nia-made.d")
+	r := report(t, s.Do(context.Background(), Request{Action: DryRunAction, Script: "set -e\necho a=2 > /etc/nia-apply.conf\nmkdir -m 750 /etc/nia-made.d\necho x > /etc/nia-made.d/x.conf"}))
+	if ok, why := r.Applicable(); !ok {
+		t.Fatalf("%s: %+v", why, r)
+	}
+	resp := s.Do(context.Background(), Request{Action: ApplyAction, Name: r.Plan})
+	if !resp.OK {
+		t.Fatalf("apply: %+v", resp)
+	}
+	if data, _ := os.ReadFile("/etc/nia-apply.conf"); string(data) != "a=2\n" {
+		t.Errorf("not applied: %q", data)
+	}
+	if info, err := os.Stat("/etc/nia-made.d"); err != nil || info.Mode().Perm() != 0o750 {
+		t.Errorf("dir: %v %v", info, err)
+	}
+	if data, _ := os.ReadFile("/etc/nia-made.d/x.conf"); string(data) != "x\n" {
+		t.Errorf("not applied: %q", data)
+	}
+	if undo := s.Undo(context.Background(), resp.Journal); !undo.OK {
+		t.Fatalf("undo: %+v", undo)
+	}
+	if data, _ := os.ReadFile("/etc/nia-apply.conf"); string(data) != "a=1\n" {
+		t.Errorf("not undone: %q", data)
+	}
+	if _, err := os.Stat("/etc/nia-made.d"); err == nil {
+		t.Error("not undone: /etc/nia-made.d")
+	}
+}
