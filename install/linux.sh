@@ -33,6 +33,7 @@ command -v systemctl >/dev/null || fail "systemd is required"
 command -v runuser >/dev/null || fail "runuser (util-linux) is required"
 [ "$AGENT_USER" != root ] || fail "the agent cannot run as root"
 [ "$AGENT_USER" != nia-edge ] || fail "the agent cannot run as nia-edge: that user holds the key"
+[ "$AGENT_USER" != nia-mcp ] || fail "the agent cannot run as nia-mcp: that user runs the MCP servers"
 
 # 1. The agent's user, without any group that is root in disguise.
 id "$AGENT_USER" >/dev/null 2>&1 || useradd --create-home --shell /bin/bash "$AGENT_USER"
@@ -48,6 +49,21 @@ install -o root -g root -m 0755 "$BINARY" "$BIN"
 install -d -o root -g root -m 0755 "$LIB"
 install -o root -g root -m 0755 "$HERE/firewall-linux.sh" "$LIB/firewall-linux.sh"
 install -d -o nia-edge -g nia-edge -m 0700 "$STATE_DIR"
+
+# nia-mcp: the agent's MCP servers, each in its own rootless container. Its
+# user holds no secret and has no network; its containers have their own
+# range of user ids.
+MCP=0
+if command -v podman >/dev/null && command -v newuidmap >/dev/null; then
+  MCP=1
+  id nia-mcp >/dev/null 2>&1 || useradd --system --home-dir /var/lib/nia-mcp --no-create-home --shell /usr/sbin/nologin nia-mcp
+  if ! grep -q '^nia-mcp:' /etc/subuid || ! grep -q '^nia-mcp:' /etc/subgid; then
+    # After every range already given out, in either file.
+    top=$(cat /etc/subuid /etc/subgid 2>/dev/null | awk -F: '$2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]+$/ { end = $2 + $3; if (end > max) max = end } END { print (max > 100000 ? max : 100000) }')
+    grep -q '^nia-mcp:' /etc/subuid || usermod --add-subuids "$top-$((top + 65535))" nia-mcp
+    grep -q '^nia-mcp:' /etc/subgid || usermod --add-subgids "$top-$((top + 65535))" nia-mcp
+  fi
+fi
 
 # 3. Settings of the service. No secret here: the key is in the state file.
 host=$(hostname | tr -c 'A-Za-z0-9._\n-' '-')
@@ -73,6 +89,9 @@ Restart=always
 RestartSec=2
 StateDirectory=nia-edge
 StateDirectoryMode=0700
+# Its socket for the MCP servers' way out: served to nia-mcp alone.
+RuntimeDirectory=nia-edge
+RuntimeDirectoryMode=0711
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
@@ -116,6 +135,35 @@ PrivateMounts=yes
 WantedBy=multi-user.target
 UNIT
 
+if [ "$MCP" -eq 1 ]; then
+  cat > /etc/systemd/system/nia-mcp.service <<UNIT
+[Unit]
+Description=nia-mcp: the agent's MCP servers, each in its own container, started for nia-edge alone
+After=nia-agent-firewall.service
+
+[Service]
+User=nia-mcp
+Group=nia-mcp
+ExecStart=$BIN mcp serve
+Environment=HOME=/var/lib/nia-mcp XDG_RUNTIME_DIR=/run/nia-mcp
+Restart=always
+RestartSec=2
+StateDirectory=nia-mcp
+StateDirectoryMode=0700
+RuntimeDirectory=nia-mcp
+RuntimeDirectoryMode=0711
+UMask=0077
+# Its containers are its processes: bounded together, stopped together.
+Delegate=yes
+MemoryMax=${NIA_MCP_MEMORY:-2G}
+TasksMax=1024
+KillMode=control-group
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+fi
+
 # 4. The network rule, loaded again at every boot, before the network is up.
 cat > /etc/systemd/system/nia-agent-firewall.service <<UNIT
 [Unit]
@@ -126,7 +174,7 @@ Wants=network-pre.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/bin/sh $LIB/firewall-linux.sh apply $AGENT_USER
+ExecStart=/bin/sh $LIB/firewall-linux.sh apply $AGENT_USER$( [ "$MCP" -eq 1 ] && echo " nia-mcp")
 ExecStop=/bin/sh $LIB/firewall-linux.sh remove
 
 [Install]
@@ -151,6 +199,10 @@ fi
 systemctl daemon-reload
 systemctl enable nia-agent-firewall.service nia-edge.service nia-hostd.service
 systemctl restart nia-agent-firewall.service nia-hostd.service nia-edge.service
+if [ "$MCP" -eq 1 ]; then
+  systemctl enable nia-mcp.service
+  systemctl restart nia-mcp.service
+fi
 
 # 6. The agent's environment: its model and every connection through nia-edge.
 PROFILE=$(getent passwd "$AGENT_USER" | cut -d: -f6)/.profile

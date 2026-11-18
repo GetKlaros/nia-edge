@@ -31,7 +31,10 @@ type Handler struct {
 	// Catalogue is the catalogue of the role in force; an error means none.
 	Catalogue func() (*hostd.Catalogue, error)
 	Releases  *local.Releases
-	Host      Host
+	// Prefix is how the agent names this server's tools; empty is
+	// mcp__host__ (Hermes: mcp__<server>__<tool>).
+	Prefix string
+	Host   Host
 	// Server is the agent's name for this MCP server: tools reach the model
 	// as Releases.Prefix + tool.
 	Version string
@@ -233,7 +236,11 @@ func (h *Handler) call(ctx context.Context, params json.RawMessage) (map[string]
 		return failed(fmt.Sprintf("[Nia agent firewall] %q is not in the role's catalogue. %s accepts: %s.", value, p.Name, strings.Join(allowed, ", ")))
 	}
 	// Only a call the model path released runs, once.
-	if h.Releases == nil || !h.Releases.Take(h.Releases.Prefix+p.Name, arguments, h.now()) {
+	prefix := h.Prefix
+	if prefix == "" {
+		prefix = "mcp__host__"
+	}
+	if h.Releases == nil || !h.Releases.Take(prefix+p.Name, arguments, h.now()) {
 		return failed("[Nia agent firewall] This action was not released by Nia: it runs only as the model proposed it and Nia allowed it, once.")
 	}
 	runCtx, cancel := context.WithTimeout(ctx, 35*time.Minute)

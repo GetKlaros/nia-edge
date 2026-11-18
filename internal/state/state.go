@@ -35,6 +35,20 @@ type State struct {
 	// Provider is the model provider this machine calls itself. When it is
 	// set, prompts and answers do not go through Nia: only the tool calls do.
 	Provider *Provider `json:"provider,omitempty"`
+	// MCP is the agent's MCP servers that run on this machine, each in its
+	// own container, by name: their image, command and variables (their
+	// tokens, which the agent never holds).
+	MCP map[string]*MCPServer `json:"mcp,omitempty"`
+}
+
+// MCPServer is one of the agent's MCP servers that run on this machine.
+type MCPServer struct {
+	// Image is the image's ID, sha256:<64 hex>: it fixes the server's code.
+	Image string `json:"image"`
+	// Ref is where the image came from, for people: it decides nothing.
+	Ref     string            `json:"ref,omitempty"`
+	Command []string          `json:"command"`
+	Env     map[string]string `json:"env,omitempty"`
 }
 
 // ErrNotEnrolled reports that there is no state file yet.

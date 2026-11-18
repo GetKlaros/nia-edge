@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +19,11 @@ func sample() *State {
 		Upstream:     "openai",
 		KeyExpiresAt: time.Date(2027, 2, 13, 10, 0, 0, 0, time.UTC),
 		EnrolledAt:   time.Date(2026, 11, 15, 10, 0, 0, 0, time.UTC),
+		MCP: map[string]*MCPServer{"mail": {
+			Image:   "sha256:" + "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+			Command: []string{"node", "/app/index.js"},
+			Env:     map[string]string{"MAIL_TOKEN": "tok"},
+		}},
 	}
 }
 
@@ -40,7 +46,7 @@ func TestSaveThenLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if *got != *sample() {
+	if !reflect.DeepEqual(got, sample()) {
 		t.Errorf("Load = %+v, want %+v", got, sample())
 	}
 	// Saving again replaces the file and leaves no temporary file behind.

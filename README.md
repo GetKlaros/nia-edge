@@ -23,7 +23,7 @@ nia-edge calls the model provider from the machine and decides the calls with th
 | Hermes installer: its own user, its terminal in a rootless container without network, migration of an existing Hermes | done |
 | Host actions: nia-hostd runs the role's catalogue as root (services, packages, sync), each call released by the model path once | done (Linux) |
 | macOS installer | not yet |
-| Local MCP servers | not yet |
+| The agent's MCP servers, each in its own rootless container (nia-mcp): token kept by nia-edge, way out per server, each call released by the model path once | done (Linux) |
 | Signed policy: fetched, verified against the key learned at enrollment, kept, reported | done |
 | Decision engine: roles, argument rules, site categories, dispatchers, answering as the server on its cases | done: decides the model path's calls |
 | Reading a request and a model's response (Chat Completions, Responses, Anthropic Messages; documents and streams) as the server does | done |
@@ -352,6 +352,56 @@ is what that apply writes; a plan that did not come or does not match is
 shown as not checked. These texts are `/etc` files the dry run could read:
 secrets are decoys there, and a plan that changes one is never applicable.
 
+### The agent's MCP servers: nia-mcp
+
+An MCP server the agent starts itself (`npx some-mcp`) runs as the agent's
+user, on the machine: it reads what the agent reads (its `.env`, its tokens),
+it reaches what the agent reaches, and a new version of its package changes
+it silently. nia-mcp runs each one in its own rootless container instead:
+
+```sh
+# The image, built where its registry is reachable, its dependencies inside.
+docker save acme/mail-mcp:1.4.2 -o mail.tar
+# Its token on standard input, never on a command line.
+printf 'MAIL_TOKEN=...\n' | sudo install/mcp-linux.sh add mail mail.tar -- node /app/index.js
+```
+
+- The agent keeps a URL, `http://127.0.0.1:8787/local/<name>/mcp` (the Hermes
+  installer's helper points the agent's configuration at it); the command and
+  the token are in nia-edge's state file only.
+- nia-mcp, under its own user without secret, privilege or network, starts
+  the server from the image named by its ID: it is never pulled, so its code
+  changes only when you load another image. The container is detached:
+  without network, capability or new privilege, a read-only root, only its
+  own variables, and nothing of the machine but nia-edge's binary and the
+  directory of its two sockets.
+- Its stream and its way out are those two sockets. Its only way out is
+  nia-edge's egress proxy, which knows the server by its socket and sends
+  `server: <name>` with each decision: a role gives each server its hosts.
+- A call runs only when the model path released that exact call (same tool,
+  same canonical arguments, once), as for the host actions. The server gets
+  nothing it asks for itself (sampling, roots).
+- A server starts at its first call and stops after ten minutes without
+  one; its list of tools is kept by image, so listing it starts nothing.
+  Each running server costs nia-mcp's monitor and relay, about 5 MB, on top
+  of the server itself.
+
+The role's egress rules for MCP servers, first in the list:
+
+```yaml
+- name: egress
+  when_untrusted: allow
+  arguments:
+    - { applies: always, decision: allow, match: { server: '^mail$' }, hosts: { path: url, allow: [api.postmarkapp.com] } }
+    - { applies: always, decision: deny, match: { server: '.' } }
+    # ...then the agent's own hosts
+```
+
+What it does not stop: a server that sends its own token, or the data it is
+given, through its own host (a blind copy added to every mail goes to the
+mail API like the mail). Only the image you loaded runs: read what a new
+version changes before you load it.
+
 ### Calling the model provider from the machine
 
 An enrolled machine calls its model provider itself: its prompts never go to
@@ -475,6 +525,16 @@ The egress proxy:
   Plain HTTP also shows the method and the URL. Credentials the agent puts in
   the proxy URL are ignored and never reach the target.
 - Neither the token nor the key is printed or logged.
+
+nia-mcp:
+
+- Only nia-edge's user is served on its socket (the kernel names the peer);
+  a launch names an image by its ID, a command and its variables, nothing
+  else: a proxy variable, `PATH` or `HOME` is refused.
+- A container has no network: going around the proxy reaches nothing. Its
+  user and the range of ids of its containers reach no network either.
+- nia-edge serves the servers' way out to nia-mcp's user alone, and reads the
+  server's name from the line nia-mcp writes first, never from the server.
 
 The firewall rule (`install/firewall-linux.sh`), for the agent's user:
 
