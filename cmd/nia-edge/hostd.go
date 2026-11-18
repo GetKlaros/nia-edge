@@ -35,6 +35,7 @@ func hostdCommand(ctx context.Context, args []string, getenv func(string) string
 	journal := flags.String("journal", defaultHostdJournal, "the journal of the actions")
 	socket := flags.String("socket", defaultHostdSocket, "the socket nia-edge asks on")
 	allowedUser := flags.String("user", "nia-edge", "the only user served on the socket")
+	verify := flags.Bool("verify", false, "journal: check the hash chain and print its head")
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
 	}
@@ -58,6 +59,14 @@ func hostdCommand(ctx context.Context, args []string, getenv func(string) string
 	}
 	switch args[0] {
 	case "journal":
+		if *verify {
+			head, err := server.VerifyJournal()
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(stdout, "the journal's chain holds: %d entries, head %s\n", head.Seq, head.Hash)
+			return nil
+		}
 		entries, err := server.Journal()
 		if err != nil {
 			return err

@@ -32,6 +32,8 @@ type Request struct {
 	Call string `json:"call,omitempty"`
 	// Script is a dry run's.
 	Script string `json:"script,omitempty"`
+	// At is the entry whose hash a journal_head request asks for.
+	At int64 `json:"at,omitempty"`
 }
 
 // Response is what nia-hostd answers.
@@ -120,6 +122,10 @@ type Server struct {
 
 // Entry is one line of the journal.
 type Entry struct {
+	// Seq numbers the entry from 1; Prev is the SHA-256 of the line before
+	// it (see chain.go).
+	Seq    int64     `json:"seq,omitempty"`
+	Prev   string    `json:"prev,omitempty"`
 	ID     string    `json:"id"`
 	At     time.Time `json:"at"`
 	Action string    `json:"action"`
@@ -171,6 +177,14 @@ func (s *Server) Catalogue() (*Catalogue, error) {
 func (s *Server) Do(ctx context.Context, req Request) Response {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if req.Action == HeadAction {
+		text, _ := json.Marshal(s.anchor(req.At))
+		return Response{OK: true, Output: string(text)}
+	}
+	// Nothing runs that could not be written after the last entry.
+	if _, _, err := s.chain(); err != nil {
+		return Response{Error: err.Error()}
+	}
 	catalogue, err := s.Catalogue()
 	if err != nil {
 		return Response{Error: "no catalogue in force: " + err.Error()}
@@ -332,6 +346,11 @@ func (s *Server) Journal() ([]Entry, error) {
 }
 
 func (s *Server) write(entry Entry) error {
+	_, head, err := s.chain()
+	if err != nil {
+		return err
+	}
+	entry.Seq, entry.Prev = head.Seq+1, head.Hash
 	line, err := json.Marshal(entry)
 	if err != nil {
 		return err
