@@ -28,6 +28,12 @@ private code base; this repository is public.
 - The decision engine answers as the server or not at all: what it cannot be
   sure of is `ErrUndecidable`, never a guess, and a role with a field it does
   not know is refused whole.
+- An enrolled machine's prompts stay on it: without a provider, model calls
+  are refused, unless `NIA_RELAY_MODEL_CALLS=yes` says to relay them. A call
+  the signed policy in force can decide goes to Nia as its hash and the
+  decision for each state of the session; its arguments go only when Nia asks
+  for them (a reviewer must see them), for a dispatcher, or when the engine
+  cannot be sure. Nia picks the decision; the machine never picks it alone.
 - With a provider set on the machine, the model path is local: a turn is read
   whole before anything is released; a request or a response that cannot be
   read as the server reads it, a secret in the model's answer, or Nia out of

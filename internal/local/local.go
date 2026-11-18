@@ -3,11 +3,15 @@
 // proposes are sent to Nia to be decided.
 //
 // What Nia receives: the names of the tools whose results the conversation
-// holds (which is what taints a session), and each proposed call with its
-// arguments. What it does not receive: the prompts, the tool results and the
-// model's text.
+// holds (which is what taints a session), and for each proposed call its
+// name, the hash of its arguments and what the signed policy decides for each
+// state of the session. The arguments themselves go to Nia only when a
+// reviewer must see them, when the call goes through a dispatcher, or when
+// this machine cannot be sure of the server's answer. What it never receives:
+// the prompts, the tool results and the model's text.
 //
-// Nia stays the one place that decides, holds approvals and keeps the log.
+// Nia stays the one place that holds the session state and the approvals,
+// picks the decision and keeps the log.
 // Nothing is released on a guess: a request or a response that cannot be read
 // as Nia reads it, a provider that cannot be reached, a decision that cannot
 // be obtained, all refuse the turn.
@@ -32,6 +36,7 @@ import (
 	"time"
 
 	"github.com/GetKlaros/nia-edge/canon"
+	"github.com/GetKlaros/nia-edge/internal/engine"
 	"github.com/GetKlaros/nia-edge/internal/inspect"
 	"github.com/GetKlaros/nia-edge/internal/turn"
 )
@@ -50,8 +55,31 @@ type Authority interface {
 	Ingested(ctx context.Context, session, tool string) error
 	// Hosted says which provider-run tools the role allows in the session.
 	Hosted(ctx context.Context, session string, tools []string) (allowed []string, err error)
-	// Decide answers for one proposed call.
+	// Decide answers for one proposed call, from its arguments.
 	Decide(ctx context.Context, session, tool, arguments string) (Verdict, error)
+	// DecideHashed answers for one proposed call this machine decided: Nia
+	// picks the decision its session state calls for. needsArguments is true
+	// when Nia must see the arguments, and then the verdict is empty.
+	DecideHashed(ctx context.Context, session string, call Hashed) (verdict Verdict, needsArguments bool, err error)
+}
+
+// Hashed is a call decided on this machine, as Nia receives it.
+type Hashed struct {
+	Tool string
+	// Hash is canon.ArgumentsHash of the call.
+	Hash string
+	// Digest names the policy that decided.
+	Digest string
+	// Clean, Tainted, Exposed and Both are the decisions for each state of
+	// the session: neither tainted nor exposed, tainted, exposed, both.
+	Clean, Tainted, Exposed, Both engine.Decision
+}
+
+// Rules is the signed policy in force on this machine, ready to decide.
+type Rules struct {
+	Role        *engine.Role
+	Dispatchers engine.Dispatchers
+	Digest      string
 }
 
 // Handler serves the three model routes.
@@ -65,6 +93,9 @@ type Handler struct {
 	// HTTP reaches the provider. It must not follow redirects.
 	HTTP *http.Client
 	Nia  Authority
+	// Rules returns the policy in force, or nil: then Nia decides from the
+	// arguments.
+	Rules func() *Rules
 	// MaxRequest and MaxResponse bound what is read; zero means 4 MiB and 16 MiB.
 	MaxRequest, MaxResponse int64
 	Logger                  *slog.Logger
@@ -96,8 +127,8 @@ func (h *Handler) limit(value, fallback int64) int64 {
 	return fallback
 }
 
-// refuse answers the agent in the shape its API uses for errors.
-func refuse(w http.ResponseWriter, format turn.Format, status int, code, message string) {
+// Refuse answers the agent in the shape its API uses for errors.
+func Refuse(w http.ResponseWriter, format turn.Format, status int, code, message string) {
 	var body any
 	if format == turn.AnthropicMessages {
 		body = map[string]any{"type": "error", "error": map[string]string{"type": code, "message": message}}
@@ -124,30 +155,30 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	raw, err := io.ReadAll(io.LimitReader(r.Body, h.limit(h.MaxRequest, 4<<20)+1))
 	if err != nil || int64(len(raw)) > h.limit(h.MaxRequest, 4<<20) {
-		refuse(w, format, http.StatusRequestEntityTooLarge, "request_too_large", "The request exceeds the inspection limit")
+		Refuse(w, format, http.StatusRequestEntityTooLarge, "request_too_large", "The request exceeds the inspection limit")
 		return
 	}
 	text, err := turn.Decode(raw)
 	if err != nil {
-		refuse(w, format, http.StatusBadRequest, "invalid_request", "The request is not UTF-8")
+		Refuse(w, format, http.StatusBadRequest, "invalid_request", "The request is not UTF-8")
 		return
 	}
 	body, err := canon.Parse(text)
 	if err != nil || body.Kind() != canon.Object {
-		refuse(w, format, http.StatusBadRequest, "invalid_request", "The request is not a JSON object this machine can read")
+		Refuse(w, format, http.StatusBadRequest, "invalid_request", "The request is not a JSON object this machine can read")
 		return
 	}
 	input, err := turn.ReadInput(format, body)
 	if err != nil {
 		h.log("request refused", "reason", err.Error())
-		refuse(w, format, http.StatusUnprocessableEntity, "unreadable_request", "Nia could not read this request the way it must")
+		Refuse(w, format, http.StatusUnprocessableEntity, "unreadable_request", "Nia could not read this request the way it must")
 		return
 	}
 	session := sessionOf(input.FirstUserText)
 	for _, tool := range input.IngestedTools {
 		if err := h.ingest(r.Context(), session, tool); err != nil {
 			h.log("taint not recorded", "error", err.Error())
-			refuse(w, format, http.StatusServiceUnavailable, "nia_unavailable", "Nia could not be reached, so nothing was sent to the model")
+			Refuse(w, format, http.StatusServiceUnavailable, "nia_unavailable", "Nia could not be reached, so nothing was sent to the model")
 			return
 		}
 	}
@@ -157,19 +188,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	hosted, err := turn.HostedTools(format, body)
 	if err != nil {
 		h.log("request refused", "reason", err.Error())
-		refuse(w, format, http.StatusUnprocessableEntity, "unreadable_request", "Nia could not read the tools of this request the way it must")
+		Refuse(w, format, http.StatusUnprocessableEntity, "unreadable_request", "Nia could not read the tools of this request the way it must")
 		return
 	}
 	if len(hosted) > 0 {
 		allowed, err := h.Nia.Hosted(r.Context(), session, hosted)
 		if err != nil {
 			h.log("no decision", "tools", strings.Join(hosted, ","), "error", err.Error())
-			refuse(w, format, http.StatusServiceUnavailable, "nia_unavailable", "Nia could not be reached, so nothing was sent to the model")
+			Refuse(w, format, http.StatusServiceUnavailable, "nia_unavailable", "Nia could not be reached, so nothing was sent to the model")
 			return
 		}
 		gate, err := turn.GateHosted(format, body, func(name string) bool { return slices.Contains(hosted, name) && slices.Contains(allowed, name) })
 		if err != nil {
-			refuse(w, format, http.StatusUnprocessableEntity, "unreadable_request", "Nia could not read the tools of this request the way it must")
+			Refuse(w, format, http.StatusUnprocessableEntity, "unreadable_request", "Nia could not read the tools of this request the way it must")
 			return
 		}
 		rewritten = len(gate.Removed) > 0
@@ -194,7 +225,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, errTooLarge) {
 			code, message = "response_too_large", "The model response exceeds the inspection limit"
 		}
-		refuse(w, format, http.StatusBadGateway, code, message)
+		Refuse(w, format, http.StatusBadGateway, code, message)
 		return
 	}
 	if status < 200 || status > 299 {
@@ -214,20 +245,20 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			reason = parse.Reason
 		}
 		h.log("model response refused", "reason", err.Error())
-		refuse(w, format, http.StatusBadGateway, "upstream_invalid", "Nia could not verify the model response: "+reason)
+		Refuse(w, format, http.StatusBadGateway, "upstream_invalid", "Nia could not verify the model response: "+reason)
 		return
 	}
 	if found := inspect.Secrets(output.Text); len(found) > 0 {
 		h.log("model response refused", "reason", "it holds a secret", "category", found[0].Category)
-		refuse(w, format, http.StatusBadGateway, "output_blocked", "The model response holds a secret and was not released")
+		Refuse(w, format, http.StatusBadGateway, "output_blocked", "The model response holds a secret and was not released")
 		return
 	}
 	var refusals []string
 	for _, call := range output.ToolCalls {
-		verdict, err := h.Nia.Decide(r.Context(), session, call.Name, call.Arguments)
+		verdict, err := h.decide(r.Context(), session, call.Name, call.Arguments)
 		if err != nil {
 			h.log("no decision", "tool", call.Name, "error", err.Error())
-			refuse(w, format, http.StatusServiceUnavailable, "nia_unavailable", "Nia could not be reached, so the model's actions were not released")
+			Refuse(w, format, http.StatusServiceUnavailable, "nia_unavailable", "Nia could not be reached, so the model's actions were not released")
 			return
 		}
 		if !verdict.Allowed {
@@ -247,6 +278,50 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	streaming, _ := body.Get("stream").Truth()
 	synthetic, syntheticType := syntheticText(format, streaming, model, said)
 	release(w, http.StatusOK, syntheticType, synthetic)
+}
+
+// decide answers for one proposed call: decided here when the policy in force
+// can, so that its arguments stay on this machine, else by Nia.
+func (h *Handler) decide(ctx context.Context, session, tool, arguments string) (Verdict, error) {
+	if h.Rules != nil {
+		if rules := h.Rules(); rules != nil {
+			if call, ok := decideHere(rules, tool, arguments); ok {
+				verdict, needsArguments, err := h.Nia.DecideHashed(ctx, session, call)
+				if err != nil || !needsArguments {
+					return verdict, err
+				}
+			}
+		}
+	}
+	return h.Nia.Decide(ctx, session, tool, arguments)
+}
+
+// decideHere decides a call for each state of the session. It declines,
+// leaving it to Nia, a call through a dispatcher and anything the engine
+// cannot be sure of.
+func decideHere(rules *Rules, tool, arguments string) (Hashed, bool) {
+	if rules.Role == nil || rules.Digest == "" {
+		return Hashed{}, false
+	}
+	if _, dispatcher, err := rules.Dispatchers.Expand(engine.Call{Name: tool, Arguments: arguments}); err != nil || dispatcher {
+		return Hashed{}, false
+	}
+	hash, err := canon.ArgumentsHash(tool, arguments)
+	if err != nil {
+		return Hashed{}, false
+	}
+	call := Hashed{Tool: tool, Hash: hash, Digest: rules.Digest}
+	for _, state := range []struct {
+		into             *engine.Decision
+		tainted, exposed bool
+	}{{&call.Clean, false, false}, {&call.Tainted, true, false}, {&call.Exposed, false, true}, {&call.Both, true, true}} {
+		decided, err := rules.Role.Decide(tool, state.tainted, arguments, state.exposed)
+		if err != nil {
+			return Hashed{}, false
+		}
+		*state.into = decided
+	}
+	return call, true
 }
 
 func release(w http.ResponseWriter, status int, contentType string, body []byte) {
@@ -509,18 +584,43 @@ func (n *Remote) Decide(ctx context.Context, session, tool, arguments string) (V
 	if n.Wait > 0 {
 		body["wait"] = n.Wait
 	}
+	verdict, needsArguments, err := n.decide(ctx, session, body)
+	if err == nil && needsArguments {
+		err = errors.New("Nia asked again for the arguments it was sent")
+	}
+	return verdict, err
+}
+
+// DecideHashed sends a call decided on this machine: its hash, never its
+// arguments.
+func (n *Remote) DecideHashed(ctx context.Context, session string, call Hashed) (Verdict, bool, error) {
+	body := map[string]any{
+		"tool":           call.Tool,
+		"arguments_hash": call.Hash,
+		"policy_digest":  call.Digest,
+		"local":          map[string]engine.Decision{"clean": call.Clean, "tainted": call.Tainted, "exposed": call.Exposed, "both": call.Both},
+	}
+	if n.Wait > 0 {
+		body["wait"] = n.Wait
+	}
+	return n.decide(ctx, session, body)
+}
+
+func (n *Remote) decide(ctx context.Context, session string, body map[string]any) (Verdict, bool, error) {
 	var answer struct {
 		Decision string `json:"decision"`
 		Message  string `json:"message"`
 	}
 	if err := n.post(ctx, "/v1/tools/decide", session, body, 15*time.Second+time.Duration(n.Wait)*time.Second, &answer); err != nil {
-		return Verdict{}, err
+		return Verdict{}, false, err
 	}
 	switch answer.Decision {
 	case "allow":
-		return Verdict{Allowed: true}, nil
+		return Verdict{Allowed: true}, false, nil
 	case "require_approval", "deny":
-		return Verdict{Message: answer.Message}, nil
+		return Verdict{Message: answer.Message}, false, nil
+	case "arguments_required":
+		return Verdict{}, true, nil
 	}
-	return Verdict{}, errors.New("Nia's answer holds no decision")
+	return Verdict{}, false, errors.New("Nia's answer holds no decision")
 }

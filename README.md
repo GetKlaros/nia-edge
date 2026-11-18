@@ -10,12 +10,12 @@ your machine. It is one binary, written in Go with the standard library only.
 
 ## Status
 
-nia-edge relays today; Nia decides every call.
+nia-edge calls the model provider from the machine and decides the calls with the signed policy; Nia holds the session state, the approvals and the log.
 
 | Part | State |
 | --- | --- |
 | Enrollment with a one-time token, key kept in a private file | done |
-| Relay of the agent's model and MCP calls (`/v1/`, `/mcp/`) | done |
+| Relay of the agent's MCP calls (`/mcp/`); model calls only with `NIA_RELAY_MODEL_CALLS=yes` | done |
 | Heartbeat and health route | done |
 | Hash of a call's arguments, identical to the server's (`canon`) | done |
 | Egress proxy: every outbound connection decided by the role | done |
@@ -24,9 +24,9 @@ nia-edge relays today; Nia decides every call.
 | macOS installer | not yet |
 | Local MCP servers | not yet |
 | Signed policy: fetched, verified against the key learned at enrollment, kept, reported | done |
-| Decision engine: roles, argument rules, dispatchers, answering as the server on its cases | done, not used yet |
-| Reading a request and a model's response (Chat Completions, Responses, Anthropic Messages; documents and streams) as the server does | done, not used yet |
-| Secret detection and redaction (keys, tokens, labelled credentials) as the server does | done, not used yet |
+| Decision engine: roles, argument rules, dispatchers, answering as the server on its cases | done: decides the model path's calls |
+| Reading a request and a model's response (Chat Completions, Responses, Anthropic Messages; documents and streams) as the server does | done |
+| Secret detection and redaction (keys, tokens, labelled credentials) as the server does | done |
 | Model calls sent from the machine to the provider; Nia decides the tool calls and sees no prompt | done |
 | Decisions made on the machine, from that policy | not yet |
 
@@ -176,14 +176,16 @@ policy in force.
 
 ### Calling the model provider from the machine
 
-By default the agent's model calls are relayed to Nia, which calls the
-provider. With a provider set on the machine, nia-edge calls it itself:
+An enrolled machine calls its model provider itself: its prompts never go to
+Nia, and until a provider is set nia-edge refuses the agent's model calls
+(`NIA_RELAY_MODEL_CALLS=yes` relays them instead, for a Nia whose policy lets
+machines do so). Set the provider:
 
 ```bash
 # The key comes from NIA_PROVIDER_KEY, -key-file or standard input, never from the command line.
 sudo -u nia-edge nia-edge provider -url https://api.example.com/v1 < provider.key
 sudo systemctl restart nia-edge
-nia-edge provider            # shows it;  nia-edge provider -remove  goes back to the relay
+nia-edge provider            # shows it;  nia-edge provider -remove  removes it
 ```
 
 `-format anthropic` sends the key as `x-api-key`. The agent's configuration
@@ -192,10 +194,15 @@ sends is ignored.
 
 What then goes to Nia, for each turn: the names of the tools whose results the
 conversation holds (that is what taints a session), the names of the
-provider-run tools the request declares, and each call the model
-proposes, with its arguments, to be decided. What does not: the prompts, the
-tool results and the model's text. Nia still decides, holds approvals and
-keeps the log.
+provider-run tools the request declares, and for each call the model
+proposes, its name, the hash of its arguments and what the signed policy in
+force decides for each state of the session (clean, tainted, exposed, both).
+Nia picks the decision its session state calls for, applies the approvals and
+keeps the log. The arguments go to Nia only when a reviewer must see them
+(a held call nobody has been asked about yet), for a call through a
+dispatcher, when the machine applies another policy than the active one, or
+when the engine cannot be sure of the server's answer. What never goes: the
+prompts, the tool results and the model's text.
 
 Every turn is read whole before anything is released:
 

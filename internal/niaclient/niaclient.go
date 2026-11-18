@@ -27,6 +27,9 @@ type Report struct {
 	OS       string `json:"os"`
 	Arch     string `json:"arch"`
 	Version  string `json:"version"`
+	// ModelPath says where the agent's model calls go: provider, none or
+	// relay. Heartbeats only; Nia shows it and decides nothing on it.
+	ModelPath string `json:"model_path,omitempty"`
 }
 
 // Enrollment is Nia's answer to a successful enrollment.
