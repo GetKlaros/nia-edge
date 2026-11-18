@@ -244,6 +244,18 @@ case "$(get_hermes terminal.docker_network)" in
 esac
 IMAGE=$(get_hermes terminal.docker_image)
 [ -n "$IMAGE" ] || fail "Hermes names no image for its terminal"
+# Podman resolves a short name only through the registries the machine lists
+# (registries.conf), and asks or fails otherwise. Hermes names its image as
+# Docker does: say where it is, for Podman and for Hermes alike.
+case "$IMAGE" in
+  */*)
+    case "${IMAGE%%/*}" in
+      *.* | *:* | localhost) ;;
+      *) IMAGE="docker.io/$IMAGE" ;;
+    esac ;;
+  *) IMAGE="docker.io/library/$IMAGE" ;;
+esac
+[ "$IMAGE" = "$(get_hermes terminal.docker_image)" ] || set_hermes terminal.docker_image "$IMAGE"
 
 # 6. The image, while the agent can still download it, and a first container.
 if ! as_agent "podman image exists '$IMAGE'"; then
