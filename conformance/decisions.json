@@ -656,7 +656,24 @@
      "effect": "none",
      "arguments": []
     }
-   ]
+   ],
+   "host": {
+    "services": [
+     "nginx",
+     "postgresql@16-main"
+    ],
+    "packages": [
+     "fail2ban"
+    ],
+    "sync": [
+     {
+      "name": "site",
+      "source": "/srv/www",
+      "destination": "/backup/www",
+      "delete": true
+     }
+    ]
+   }
   }
  ],
  "cases": [

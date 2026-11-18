@@ -545,3 +545,30 @@ func TestTheProviderGetsAStableIDOfTheConversationWhenItRoutesByIt(t *testing.T)
 		t.Error("the provider got Nia's session id")
 	}
 }
+
+func TestAReleasedHostActionCanRunOnceAndARefusedOneCannot(t *testing.T) {
+	h, p, nia := setup(t)
+	h.Releases = &Releases{Prefix: "mcp__host__"}
+	call := func(name, args string) string {
+		encoded, _ := json.Marshal(args)
+		return `{"choices":[{"message":{"content":null,"tool_calls":[{"id":"c1","type":"function","function":{"name":"` + name + `","arguments":` + string(encoded) + `}}]}}]}`
+	}
+	p.answer = call("mcp__host__service_restart", `{"service":"nginx"}`)
+	post(h, "/v1/chat/completions", `{"model":"m","messages":[{"role":"user","content":"restart nginx"}]}`)
+	if !h.Releases.Take("mcp__host__service_restart", `{"service":"nginx"}`, time.Now()) || h.Releases.Take("mcp__host__service_restart", `{"service":"nginx"}`, time.Now()) {
+		t.Fatal("not released exactly once")
+	}
+	nia.verdicts["mcp__host__package_install"] = Verdict{Message: "held"}
+	p.answer = call("mcp__host__package_install", `{"package":"fail2ban"}`)
+	post(h, "/v1/chat/completions", `{"model":"m","messages":[{"role":"user","content":"install it"}]}`)
+	if h.Releases.Take("mcp__host__package_install", `{"package":"fail2ban"}`, time.Now()) {
+		t.Error("a call Nia did not allow was released")
+	}
+	// Through a dispatcher, the inner call is what runs.
+	h.Rules = rules(t)
+	p.answer = call("shell", `{"calls":[{"name":"mcp__host__service_reload","arguments":{"service":"nginx"}}]}`)
+	post(h, "/v1/chat/completions", `{"model":"m","messages":[{"role":"user","content":"reload"}]}`)
+	if !h.Releases.Take("mcp__host__service_reload", `{"service":"nginx"}`, time.Now()) {
+		t.Error("the inner call of a dispatcher was not released")
+	}
+}

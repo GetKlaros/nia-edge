@@ -99,6 +99,9 @@ type Handler struct {
 	// Rules returns the policy in force, or nil: then Nia decides from the
 	// arguments.
 	Rules func() *Rules
+	// Releases keeps the released calls of the tools that run on this
+	// machine; nil keeps none.
+	Releases *Releases
 	// MaxRequest and MaxResponse bound what is read; zero means 4 MiB and 16 MiB.
 	MaxRequest, MaxResponse int64
 	Logger                  *slog.Logger
@@ -273,6 +276,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if len(refusals) == 0 {
+		if h.Releases != nil {
+			var calls []released
+			for _, call := range output.ToolCalls {
+				calls = append(calls, released{call.Name, call.Arguments})
+			}
+			var dispatchers engine.Dispatchers
+			if h.Rules != nil {
+				if rules := h.Rules(); rules != nil {
+					dispatchers = rules.Dispatchers
+				}
+			}
+			h.Releases.record(calls, dispatchers, time.Now())
+		}
 		release(w, status, contentType, answer)
 		return
 	}

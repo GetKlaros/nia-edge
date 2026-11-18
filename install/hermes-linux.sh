@@ -235,6 +235,9 @@ set_hermes model.api_mode chat_completions
 # The MCP servers Hermes starts get only a few variables and their own env:
 # without the proxy in it, their network is closed.
 elsewhere=$(hermes_provider mcp 2>/dev/null) || fail "cannot give $AGENT's MCP servers the proxy of nia-edge"
+# The host actions of the role's catalogue, through nia-edge: mcp__host__*.
+hermes_provider host >/dev/null 2>&1 ||
+  fail "$AGENT's Hermes already has an MCP server named host: rename it, the host actions take that name"
 rm -rf "$helper_dir"
 if [ -n "$elsewhere" ]; then
   say "these MCP servers of $AGENT run a command $AGENT may not reach; copy it under $AGENT_HOME or /opt and point the server at it:"

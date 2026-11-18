@@ -38,6 +38,8 @@ import (
 	"github.com/GetKlaros/nia-edge/internal/doctor"
 	"github.com/GetKlaros/nia-edge/internal/egress"
 	"github.com/GetKlaros/nia-edge/internal/engine"
+	"github.com/GetKlaros/nia-edge/internal/hostd"
+	"github.com/GetKlaros/nia-edge/internal/hostmcp"
 	"github.com/GetKlaros/nia-edge/internal/local"
 	"github.com/GetKlaros/nia-edge/internal/niaclient"
 	"github.com/GetKlaros/nia-edge/internal/policy"
@@ -58,7 +60,7 @@ func main() {
 
 func run(ctx context.Context, args []string, getenv func(string) string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: nia-edge enroll|provider|run|doctor|health|version")
+		fmt.Fprintln(stderr, "usage: nia-edge enroll|provider|run|hostd|doctor|health|version")
 		return 2
 	}
 	var err error
@@ -69,6 +71,8 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdin i
 		err = serve(ctx, args[1:], getenv, stdout, stderr)
 	case "provider":
 		err = provider(args[1:], getenv, stdin, stdout, stderr)
+	case "hostd":
+		err = hostdCommand(ctx, args[1:], getenv, stdout, stderr)
 	case "doctor":
 		return check(ctx, args[1:], getenv, stdout, stderr)
 	case "health":
@@ -77,7 +81,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdin i
 		fmt.Fprintln(stdout, version)
 		return 0
 	default:
-		fmt.Fprintf(stderr, "nia-edge: unknown command %q (enroll, provider, run, doctor, health, version)\n", args[0])
+		fmt.Fprintf(stderr, "nia-edge: unknown command %q (enroll, provider, run, hostd, doctor, health, version)\n", args[0])
 		return 2
 	}
 	if errors.Is(err, flag.ErrHelp) {
@@ -346,6 +350,24 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 	if err != nil {
 		return err
 	}
+	// The host actions: calls released by the model path, run by nia-hostd.
+	releases := &local.Releases{Prefix: "mcp__host__"}
+	hostSocket := getenv("NIA_HOSTD_SOCKET")
+	if hostSocket == "" {
+		hostSocket = defaultHostdSocket
+	}
+	host := &hostmcp.Handler{
+		Catalogue: func() (*hostd.Catalogue, error) {
+			rules := policies.rules()
+			if rules == nil {
+				return nil, errors.New("no policy in force")
+			}
+			return hostd.ParseCatalogue(rules.Role.Host)
+		},
+		Releases: releases,
+		Host:     &hostd.Client{Socket: hostSocket},
+		Version:  version,
+	}
 	modelPath := "provider"
 	if saved.Provider == nil {
 		modelPath = "none"
@@ -383,6 +405,7 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 			HTTP:          local.NewProviderClient(15 * time.Minute),
 			Nia:           &local.Remote{Base: base, Key: saved.Key, Run: run, HTTP: niaclient.NewHTTPClient(time.Duration(30+wait) * time.Second), Wait: wait},
 			Rules:         policies.rules,
+			Releases:      releases,
 			Logger:        logger,
 		}
 		relayed := handler
@@ -395,6 +418,15 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 		})
 		fmt.Fprintf(stdout, "nia-edge %s: model calls go from this machine to %s; Nia decides the tool calls\n", version, providerURL.Host)
 	}
+	// The agent's MCP server of host actions, on nia-edge's own address.
+	agentRoutes := handler
+	handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/host/mcp" && r.URL.RawPath == "" {
+			host.ServeHTTP(w, r)
+			return
+		}
+		agentRoutes.ServeHTTP(w, r)
+	})
 	server := &http.Server{
 		Handler: handler,
 		// Headers must arrive promptly. Bodies and answers have no time

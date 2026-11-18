@@ -91,6 +91,28 @@ SystemCallArchitectures=native
 WantedBy=multi-user.target
 UNIT
 
+# nia-hostd: the host actions of the role's catalogue, as root, asked by
+# nia-edge only (its socket is served to the nia-edge user alone), each
+# checked again against the signed policy.
+cat > /etc/systemd/system/nia-hostd.service <<UNIT
+[Unit]
+Description=nia-hostd: the host actions of the agent's role, checked against the signed policy
+After=network-online.target
+
+[Service]
+ExecStart=$BIN hostd run -state $STATE
+Restart=always
+RestartSec=2
+RuntimeDirectory=nia-hostd
+RuntimeDirectoryMode=0750
+StateDirectory=nia-hostd
+StateDirectoryMode=0700
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
 # 4. The network rule, loaded again at every boot, before the network is up.
 cat > /etc/systemd/system/nia-agent-firewall.service <<UNIT
 [Unit]
@@ -124,8 +146,8 @@ else
 fi
 
 systemctl daemon-reload
-systemctl enable nia-agent-firewall.service nia-edge.service
-systemctl restart nia-agent-firewall.service nia-edge.service
+systemctl enable nia-agent-firewall.service nia-edge.service nia-hostd.service
+systemctl restart nia-agent-firewall.service nia-hostd.service nia-edge.service
 
 # 6. The agent's environment: its model and every connection through nia-edge.
 PROFILE=$(getent passwd "$AGENT_USER" | cut -d: -f6)/.profile
