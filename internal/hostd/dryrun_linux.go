@@ -14,6 +14,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -222,7 +223,7 @@ func (s *Server) copyDirs(root, upper, rel string) error {
 // readLayer turns the overlay's upper layer into the run's report.
 func (s *Server) readLayer(c *Catalogue, upper string, decoys []decoy, output string) (Report, error) {
 	root := s.etcRoot()
-	report := Report{Changes: []Change{}, Protected: []string{}, SecretsRead: []string{}, SecretsChanged: []string{}, SecretsCopied: []string{}}
+	report := Report{Changes: []Change{}, Guards: []Finding{}, Protected: []string{}, SecretsRead: []string{}, SecretsChanged: []string{}, SecretsCopied: []string{}}
 	byRel := map[string]*decoy{}
 	for i := range decoys {
 		byRel[decoys[i].rel] = &decoys[i]
@@ -352,6 +353,9 @@ func (s *Server) readLayer(c *Catalogue, upper string, decoys []decoy, output st
 			}
 		}
 	}
+	if c.Etc != nil {
+		report.Guards = judge(c.Etc.Permit, report.Changes, lowerView{root}, mergedView{lower: lowerView{root}, upper: upper})
+	}
 	report.Output = tail(output)
 	return report, nil
 }
@@ -447,4 +451,122 @@ func randomHex(n int) string {
 	b := make([]byte, n)
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// lowerView reads /etc as the machine holds it.
+type lowerView struct{ root string }
+
+func (v lowerView) path(p string) (string, bool) {
+	if p != "/etc" && !strings.HasPrefix(p, "/etc/") {
+		return "", false
+	}
+	return filepath.Join(v.root, strings.TrimPrefix(p, "/etc")), true
+}
+
+func (v lowerView) read(p string) ([]byte, bool) {
+	real, ok := v.path(p)
+	if !ok {
+		return nil, false
+	}
+	info, err := os.Stat(real)
+	if err != nil || !info.Mode().IsRegular() || info.Size() > 1<<20 {
+		return nil, false
+	}
+	data, err := os.ReadFile(real)
+	return data, err == nil
+}
+
+func (v lowerView) list(dir string) []string {
+	real, ok := v.path(dir)
+	if !ok {
+		return nil
+	}
+	entries, _ := os.ReadDir(real)
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	return names
+}
+
+// mergedView reads /etc as it would be once the plan is applied: the upper
+// layer over the machine's, whiteouts and opaque directories included.
+type mergedView struct {
+	lower lowerView
+	upper string
+}
+
+// state says what the layer holds at p: "absent" (a whiteout, or under a
+// deleted or opaque directory without an entry of its own), "upper" or
+// "lower".
+func (v mergedView) state(p string) string {
+	rel := strings.TrimPrefix(strings.TrimPrefix(p, "/etc"), "/")
+	parts := strings.Split(rel, "/")
+	for i := range parts {
+		prefix := filepath.Join(append([]string{v.upper}, parts[:i+1]...)...)
+		info, err := os.Lstat(prefix)
+		if err != nil {
+			if i < len(parts)-1 {
+				continue
+			}
+			return "lower"
+		}
+		st := info.Sys().(*syscall.Stat_t)
+		if info.Mode()&fs.ModeCharDevice != 0 && st.Rdev == 0 {
+			return "absent"
+		}
+		if i == len(parts)-1 {
+			return "upper"
+		}
+		opaque := make([]byte, 1)
+		if n, err := syscall.Getxattr(prefix, "trusted.overlay.opaque", opaque); err == nil && n == 1 && opaque[0] == 'y' {
+			// Below an opaque directory, only the upper layer counts.
+			if _, err := os.Lstat(filepath.Join(append([]string{v.upper}, parts...)...)); err != nil {
+				return "absent"
+			}
+			return "upper"
+		}
+	}
+	return "lower"
+}
+
+func (v mergedView) read(p string) ([]byte, bool) {
+	if p != "/etc" && !strings.HasPrefix(p, "/etc/") {
+		return nil, false
+	}
+	switch v.state(p) {
+	case "absent":
+		return nil, false
+	case "upper":
+		real := filepath.Join(v.upper, strings.TrimPrefix(p, "/etc"))
+		info, err := os.Stat(real)
+		if err != nil || !info.Mode().IsRegular() || info.Size() > 1<<20 {
+			return nil, false
+		}
+		data, err := os.ReadFile(real)
+		return data, err == nil
+	}
+	return v.lower.read(p)
+}
+
+func (v mergedView) list(dir string) []string {
+	if v.state(dir) == "absent" {
+		return nil
+	}
+	seen := map[string]bool{}
+	for _, name := range v.lower.list(dir) {
+		seen[name] = true
+	}
+	entries, _ := os.ReadDir(filepath.Join(v.upper, strings.TrimPrefix(dir, "/etc")))
+	for _, e := range entries {
+		seen[e.Name()] = true
+	}
+	var names []string
+	for name := range seen {
+		if v.state(path.Join(dir, name)) != "absent" {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
 }

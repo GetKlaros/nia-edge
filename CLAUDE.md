@@ -60,7 +60,10 @@ private code base; this repository is public.
   `/etc` its other users cannot read, and each secret of the catalogue, is a
   decoy there. What leaves the container is the list of its changes, and a
   plan that changes a protected path or a secret, lets a decoy out, makes a
-  setuid file or failed is never applicable.
+  setuid file or failed is never applicable. Guards judge the state a plan
+  leaves against the machine as it is (sshd not weaker, no new root or
+  privileged member, no change where root runs something); only the
+  catalogue's `etc.permit` lifts one, by name.
 - An apply writes a plan exactly as its layer holds it, once, and only where
   the machine still holds what the dry run saw. It never leaves `/etc` (no
   symbolic link out is followed), saves what it replaces first, checks the

@@ -84,6 +84,8 @@ type Report struct {
 	// Protected lists the protected paths the run changed: none, or the
 	// plan cannot be applied.
 	Protected []string `json:"protected_changed"`
+	// Guards are what the guards refuse in the state the plan leaves.
+	Guards []Finding `json:"guards"`
 	// SecretsRead are the decoys the script opened; SecretsChanged those it
 	// changed; SecretsCopied those whose decoy text came out.
 	SecretsRead    []string `json:"secrets_read"`
@@ -101,6 +103,8 @@ func (r *Report) Applicable() (bool, string) {
 		return false, "the script failed"
 	case len(r.Protected) > 0:
 		return false, "it changes protected paths"
+	case len(r.Guards) > 0:
+		return false, "a guard refuses it: " + r.Guards[0].Detail
 	case len(r.SecretsChanged) > 0:
 		return false, "it changes secrets, which a dry run only sees as decoys"
 	case len(r.SecretsCopied) > 0:

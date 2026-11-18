@@ -262,11 +262,30 @@ container that has:
   secret, and nia-hostd sees which decoys it opened (their access time, on a
   tmpfs mounted `strictatime`) and where a token came out.
 
+Guards then judge the state the plan would leave, against `/etc` as it is
+now: each plan is compared with the machine, so a series of plans cannot
+weaken it a step at a time. All are on unless the catalogue names them in
+`etc.permit`:
+
+- `ssh`: sshd's `PermitRootLogin`, `PasswordAuthentication` and
+  `PermitEmptyPasswords` may not get weaker, read as sshd reads them (the first
+  value obtained, `Include`s where they stand, `Match` blocks counted at their
+  weakest, OpenSSH's defaults), and `AuthorizedKeysFile` may not change;
+- `accounts`: no new user with uid or gid 0, no new member of `root`, `sudo`,
+  `wheel`, `admin`, `adm`, `docker`, `lxd`, `incus-admin`, `libvirt`, `disk`,
+  `shadow`, `kmem` or `systemd-journal`;
+- places where a file makes root run something, or decides who is root: no
+  change at all to `sudoers`, `pam`, `cron`, `systemd` (and `init.d`,
+  `rc.local`), `preload` (`ld.so`), `shell_startup` (`profile`, `bash.bashrc`,
+  `environment`), `package_sources` (`/etc/apt`, `/etc/dpkg`, `yum`, `dnf`),
+  `kernel_modules` (`modprobe.d`, `sysctl`), `udev`, `logrotate`, `polkit`
+  (and `dbus-1`), `network_hooks` (dispatcher and if-up scripts).
+
 The answer is the run's plan: the files it created, changed or deleted, those
 whose owner or mode alone changed, the protected paths it changed, and the
-secrets it read, changed or copied. A plan cannot be applied when the script
-failed, a protected path or a secret changed, a decoy came out, or a file
-would be setuid or setgid. nia-hostd keeps the last three applicable plans
+secrets it read, changed or copied, and what the guards refuse. A plan cannot
+be applied when the script failed, a guard refuses it, a protected path or a
+secret changed, a decoy came out, or a file would be setuid or setgid. nia-hostd keeps the last three applicable plans
 for half an hour, in their layers. Every dry run is journaled with its plan.
 Dry runs need podman on the machine; nia-hostd's mounts stay in its own
 namespace (`PrivateMounts=yes`).

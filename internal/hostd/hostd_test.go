@@ -221,7 +221,7 @@ func TestItReadsTheCatalogueAsTheServerWritesIt(t *testing.T) {
 		}
 		found++
 		if !c.HasService("postgresql@16-main") || !c.HasPackage("fail2ban") || c.SyncPair("site") == nil || !c.SyncPair("site").Delete ||
-			c.Etc == nil || len(c.Etc.Protected) != 2 || c.Etc.Secrets[0] != "/etc/app/token.conf" {
+			c.Etc == nil || len(c.Etc.Protected) != 2 || c.Etc.Secrets[0] != "/etc/app/token.conf" || len(c.Etc.Permit) != 2 {
 			t.Errorf("%s: %+v", role.Name, c)
 		}
 	}

@@ -41,6 +41,9 @@ type EtcRules struct {
 	// Secrets are files a dry run sees only as decoys, besides every file of
 	// /etc that its other users cannot read.
 	Secrets []string `json:"secrets"`
+	// Permit names the guards a plan may pass (guards.go): every other one
+	// refuses what it sees.
+	Permit []string `json:"permit"`
 }
 
 // SyncPair copies Source into Destination (rsync -a), deleting what Source
@@ -105,6 +108,11 @@ func ParseCatalogue(raw json.RawMessage) (*Catalogue, error) {
 				if !underEtc(p) {
 					return nil, fmt.Errorf("hostd: %q is not a clean path under /etc", p)
 				}
+			}
+		}
+		for _, guard := range c.Etc.Permit {
+			if !slices.Contains(Guards, guard) {
+				return nil, fmt.Errorf("hostd: %q is not a guard this nia-edge knows", guard)
 			}
 		}
 	}

@@ -13,7 +13,7 @@ import (
 )
 
 const etcRole = `{"name":"vps","mode":"enforce","rule_of_two":"require_approval","destructive":"require_approval","tools":[],` +
-	`"host":{"services":["nginx"],"etc":{"protected":["/etc/ssh/sshd_config","/etc/sudoers.d"],"secrets":["/etc/app/token.conf"]}}}`
+	`"host":{"services":["nginx"],"etc":{"protected":["/etc/ssh/sshd_config","/etc/sudoers.d"],"secrets":["/etc/app/token.conf"],"permit":["cron"]}}}`
 
 // layer stands for podman: it runs a Go function against the upper layer as
 // overlayfs would write it (copy-up, whiteouts), with the lower /etc beside.

@@ -151,11 +151,12 @@ func TestDescribeReport(t *testing.T) {
 			{Path: "/etc/motd", Kind: "modified", Type: "file", Mode: 0o644, Size: 2},
 			{Path: "/etc/old", Kind: "deleted"},
 		},
+		Guards:      []hostd.Finding{{Guard: "cron", Detail: "created /etc/cron.d/x: this runs commands"}},
 		SecretsRead: []string{"/etc/shadow"}, Protected: []string{}, SecretsChanged: []string{}, SecretsCopied: []string{"/etc/shadow"},
 		Output: "hi\n",
 	})
 	text := DescribeReport(string(report))
-	for _, want := range []string{"plan p1", "was not changed", "not changed.", "- modified /etc/motd (file, 2 bytes, 0644 0:0)", "- deleted /etc/old", "Secrets read (the run saw decoys, not the secrets): /etc/shadow", "cannot be applied", "Output:\nhi"} {
+	for _, want := range []string{"plan p1", "was not changed", "not changed.", "- modified /etc/motd (file, 2 bytes, 0644 0:0)", "- deleted /etc/old", "Refused by the cron guard: created /etc/cron.d/x", "Secrets read (the run saw decoys, not the secrets): /etc/shadow", "cannot be applied", "Output:\nhi"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("lacks %q:\n%s", want, text)
 		}
