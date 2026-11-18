@@ -31,6 +31,10 @@ func show(d Decision) string {
 // The calls of the conformance file this engine declines to decide, and why.
 // Everything else it must decide as the server did.
 func expectedUndecided(role, tool, arguments string, tainted bool) bool {
+	if role == "network" {
+		// A punycode host, read by the category rule that applies in any session.
+		return tool == "egress" && strings.Contains(arguments, "xn--")
+	}
 	if role != "edges" {
 		return false
 	}
@@ -173,6 +177,9 @@ func TestARoleThisEngineDoesNotKnowIsRefusedWhole(t *testing.T) {
 		"text after the role":          `{"name":"r",` + base + `,"tools":[]} {}`,
 		"not a role":                   `[]`,
 		"an output that is not known":  `{"name":"r",` + base + `,"tools":[{"name":"a","when_untrusted":"allow","output":"signed","sensitive":false,"effect":"none","arguments":[]}]}`,
+		"a category that would allow":  `{"name":"r",` + base + `,"tools":[{"name":"a","when_untrusted":"allow","output":"trusted","sensitive":false,"effect":"none","arguments":[],"categories":[{"applies":"always","decision":"allow","path":"url","in":[],"hosts":["x.example"]}]}]}`,
+		"a category with no host":      `{"name":"r",` + base + `,"tools":[{"name":"a","when_untrusted":"allow","output":"trusted","sensitive":false,"effect":"none","arguments":[],"categories":[{"applies":"always","decision":"deny","path":"url","in":["paste"],"hosts":[]}]}]}`,
+		"an unknown category field":    `{"name":"r",` + base + `,"tools":[{"name":"a","when_untrusted":"allow","output":"trusted","sensitive":false,"effect":"none","arguments":[],"categories":[{"applies":"always","decision":"deny","path":"url","in":[],"hosts":["x.example"],"ports":[1]}]}]}`,
 		"a tool rule without its name": `{"name":"r",` + base + `,"tools":[{"when_untrusted":"allow","output":"trusted","sensitive":false,"effect":"none","arguments":[]}]}`,
 	} {
 		if _, err := ParseRole(json.RawMessage(text)); err == nil {

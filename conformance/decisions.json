@@ -312,6 +312,349 @@
      "sensitive": false,
      "effect": "destructive",
      "arguments": []
+    },
+    {
+     "name": "egress",
+     "when_untrusted": "allow",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": [],
+     "categories": [
+      {
+       "applies": "always",
+       "decision": "deny",
+       "path": "url",
+       "in": [
+        "tunnel"
+       ],
+       "hosts": [
+        "ngrok.io",
+        "*.ngrok.io",
+        "ngrok.app",
+        "*.ngrok.app",
+        "ngrok.dev",
+        "*.ngrok.dev",
+        "ngrok-free.app",
+        "*.ngrok-free.app",
+        "ngrok-free.dev",
+        "*.ngrok-free.dev",
+        "trycloudflare.com",
+        "*.trycloudflare.com",
+        "loca.lt",
+        "*.loca.lt",
+        "localtunnel.me",
+        "*.localtunnel.me",
+        "serveo.net",
+        "*.serveo.net",
+        "serveousercontent.com",
+        "*.serveousercontent.com",
+        "localhost.run",
+        "*.localhost.run",
+        "lhr.life",
+        "*.lhr.life",
+        "pinggy.io",
+        "*.pinggy.io",
+        "pinggy.link",
+        "*.pinggy.link",
+        "bore.pub",
+        "*.bore.pub",
+        "telebit.cloud",
+        "*.telebit.cloud",
+        "playit.gg",
+        "*.playit.gg",
+        "tunnelmole.net",
+        "*.tunnelmole.net"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "network",
+   "mode": "enforce",
+   "rule_of_two": "deny",
+   "destructive": "require_approval",
+   "tools": [
+    {
+     "name": "egress",
+     "when_untrusted": "require_approval",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "external",
+     "arguments": [
+      {
+       "applies": "always",
+       "decision": "allow",
+       "hosts": {
+        "path": "url",
+        "allow": [
+         "*.context7.com",
+         "docs.example.org",
+         "webhook.site"
+        ]
+       }
+      }
+     ],
+     "categories": [
+      {
+       "applies": "always",
+       "decision": "deny",
+       "path": "url",
+       "in": [
+        "request_catcher"
+       ],
+       "hosts": [
+        "webhook.site",
+        "*.webhook.site",
+        "requestbin.com",
+        "*.requestbin.com",
+        "requestbin.net",
+        "*.requestbin.net",
+        "pipedream.net",
+        "*.pipedream.net",
+        "requestcatcher.com",
+        "*.requestcatcher.com",
+        "beeceptor.com",
+        "*.beeceptor.com",
+        "hookbin.com",
+        "*.hookbin.com",
+        "mockbin.org",
+        "*.mockbin.org",
+        "mockbin.io",
+        "*.mockbin.io",
+        "ptsv2.com",
+        "*.ptsv2.com",
+        "ptsv3.com",
+        "*.ptsv3.com",
+        "requestrepo.com",
+        "*.requestrepo.com",
+        "interact.sh",
+        "*.interact.sh",
+        "oast.fun",
+        "*.oast.fun",
+        "oast.live",
+        "*.oast.live",
+        "oast.me",
+        "*.oast.me",
+        "oast.online",
+        "*.oast.online",
+        "oast.pro",
+        "*.oast.pro",
+        "oast.site",
+        "*.oast.site",
+        "oastify.com",
+        "*.oastify.com",
+        "burpcollaborator.net",
+        "*.burpcollaborator.net",
+        "dnslog.cn",
+        "*.dnslog.cn",
+        "ceye.io",
+        "*.ceye.io",
+        "canarytokens.com",
+        "*.canarytokens.com"
+       ]
+      },
+      {
+       "applies": "untrusted",
+       "decision": "deny",
+       "path": "url",
+       "in": [
+        "paste",
+        "file_sharing",
+        "tunnel"
+       ],
+       "hosts": [
+        "pastebin.com",
+        "*.pastebin.com",
+        "paste.ee",
+        "*.paste.ee",
+        "hastebin.com",
+        "*.hastebin.com",
+        "hastebin.skyra.pw",
+        "*.hastebin.skyra.pw",
+        "dpaste.org",
+        "*.dpaste.org",
+        "dpaste.com",
+        "*.dpaste.com",
+        "rentry.co",
+        "*.rentry.co",
+        "rentry.org",
+        "*.rentry.org",
+        "termbin.com",
+        "*.termbin.com",
+        "ix.io",
+        "*.ix.io",
+        "sprunge.us",
+        "*.sprunge.us",
+        "paste.rs",
+        "*.paste.rs",
+        "privatebin.net",
+        "*.privatebin.net",
+        "controlc.com",
+        "*.controlc.com",
+        "justpaste.it",
+        "*.justpaste.it",
+        "pastes.dev",
+        "*.pastes.dev",
+        "paste.mozilla.org",
+        "*.paste.mozilla.org",
+        "transfer.sh",
+        "*.transfer.sh",
+        "file.io",
+        "*.file.io",
+        "0x0.st",
+        "*.0x0.st",
+        "catbox.moe",
+        "*.catbox.moe",
+        "gofile.io",
+        "*.gofile.io",
+        "tmpfiles.org",
+        "*.tmpfiles.org",
+        "bashupload.com",
+        "*.bashupload.com",
+        "oshi.at",
+        "*.oshi.at",
+        "temp.sh",
+        "*.temp.sh",
+        "uguu.se",
+        "*.uguu.se",
+        "pixeldrain.com",
+        "*.pixeldrain.com",
+        "filebin.net",
+        "*.filebin.net",
+        "keep.sh",
+        "*.keep.sh",
+        "wetransfer.com",
+        "*.wetransfer.com",
+        "we.tl",
+        "*.we.tl",
+        "sendspace.com",
+        "*.sendspace.com",
+        "mediafire.com",
+        "*.mediafire.com",
+        "mega.nz",
+        "*.mega.nz",
+        "anonfiles.com",
+        "*.anonfiles.com",
+        "file.coffee",
+        "*.file.coffee",
+        "ngrok.io",
+        "*.ngrok.io",
+        "ngrok.app",
+        "*.ngrok.app",
+        "ngrok.dev",
+        "*.ngrok.dev",
+        "ngrok-free.app",
+        "*.ngrok-free.app",
+        "ngrok-free.dev",
+        "*.ngrok-free.dev",
+        "trycloudflare.com",
+        "*.trycloudflare.com",
+        "loca.lt",
+        "*.loca.lt",
+        "localtunnel.me",
+        "*.localtunnel.me",
+        "serveo.net",
+        "*.serveo.net",
+        "serveousercontent.com",
+        "*.serveousercontent.com",
+        "localhost.run",
+        "*.localhost.run",
+        "lhr.life",
+        "*.lhr.life",
+        "pinggy.io",
+        "*.pinggy.io",
+        "pinggy.link",
+        "*.pinggy.link",
+        "bore.pub",
+        "*.bore.pub",
+        "telebit.cloud",
+        "*.telebit.cloud",
+        "playit.gg",
+        "*.playit.gg",
+        "tunnelmole.net",
+        "*.tunnelmole.net",
+        "exfil.example",
+        "*.exfil.example"
+       ]
+      },
+      {
+       "applies": "always",
+       "decision": "require_approval",
+       "path": "target",
+       "in": [],
+       "hosts": [
+        "watch.example",
+        "*.watch.example",
+        "kelvin.example",
+        "*.kelvin.example"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "fetch",
+     "when_untrusted": "allow",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": [],
+     "categories": [
+      {
+       "applies": "untrusted",
+       "decision": "require_approval",
+       "path": "url",
+       "in": [
+        "paste"
+       ],
+       "hosts": [
+        "pastebin.com",
+        "*.pastebin.com",
+        "paste.ee",
+        "*.paste.ee",
+        "hastebin.com",
+        "*.hastebin.com",
+        "hastebin.skyra.pw",
+        "*.hastebin.skyra.pw",
+        "dpaste.org",
+        "*.dpaste.org",
+        "dpaste.com",
+        "*.dpaste.com",
+        "rentry.co",
+        "*.rentry.co",
+        "rentry.org",
+        "*.rentry.org",
+        "termbin.com",
+        "*.termbin.com",
+        "ix.io",
+        "*.ix.io",
+        "sprunge.us",
+        "*.sprunge.us",
+        "paste.rs",
+        "*.paste.rs",
+        "privatebin.net",
+        "*.privatebin.net",
+        "controlc.com",
+        "*.controlc.com",
+        "justpaste.it",
+        "*.justpaste.it",
+        "pastes.dev",
+        "*.pastes.dev",
+        "paste.mozilla.org",
+        "*.paste.mozilla.org"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "crm_read",
+     "when_untrusted": "allow",
+     "output": "untrusted",
+     "sensitive": true,
+     "effect": "none",
+     "arguments": []
     }
    ]
   }
@@ -9574,6 +9917,126 @@
    }
   },
   {
+   "name": "observed: egress {\"url\":\"https://abc.ngrok.io/\"}",
+   "role": "observed",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://abc.ngrok.io/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "egress@0",
+    "would": {
+     "decision": "deny",
+     "reason": "category"
+    }
+   }
+  },
+  {
+   "name": "observed: egress {\"url\":\"https://abc.ngrok.io/\"}, exposed",
+   "role": "observed",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://abc.ngrok.io/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "egress@0",
+    "would": {
+     "decision": "deny",
+     "reason": "category"
+    }
+   }
+  },
+  {
+   "name": "observed: egress {\"url\":\"https://abc.ngrok.io/\"}, tainted",
+   "role": "observed",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://abc.ngrok.io/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "egress@0",
+    "would": {
+     "decision": "deny",
+     "reason": "category"
+    }
+   }
+  },
+  {
+   "name": "observed: egress {\"url\":\"https://abc.ngrok.io/\"}, tainted, exposed",
+   "role": "observed",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://abc.ngrok.io/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "egress@0",
+    "would": {
+     "decision": "deny",
+     "reason": "category"
+    }
+   }
+  },
+  {
+   "name": "observed: egress {\"url\":\"https://example.com/\"}",
+   "role": "observed",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "observed: egress {\"url\":\"https://example.com/\"}, exposed",
+   "role": "observed",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "observed: egress {\"url\":\"https://example.com/\"}, tainted",
+   "role": "observed",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "observed: egress {\"url\":\"https://example.com/\"}, tainted, exposed",
+   "role": "observed",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
    "name": "observed: terminal {\"command\":\"ls\"}",
    "role": "observed",
    "tool": "terminal",
@@ -9871,6 +10334,1618 @@
     "decision": "deny",
     "reason": "ambiguous_arguments",
     "rule": null
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://webhook.site/abc\"}",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://webhook.site/abc\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@0"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://webhook.site/abc\"}, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://webhook.site/abc\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@0"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://webhook.site/abc\"}, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://webhook.site/abc\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@0"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://webhook.site/abc\"}, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://webhook.site/abc\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://sub.webhook.site/x\"}",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://sub.webhook.site/x\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@0"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://sub.webhook.site/x\"}, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://sub.webhook.site/x\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@0"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://sub.webhook.site/x\"}, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://sub.webhook.site/x\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@0"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://sub.webhook.site/x\"}, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://sub.webhook.site/x\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://notwebhook.site/\"}",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://notwebhook.site/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://notwebhook.site/\"}, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://notwebhook.site/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://notwebhook.site/\"}, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://notwebhook.site/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://notwebhook.site/\"}, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://notwebhook.site/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://webhook.site.evil.example/\"}",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://webhook.site.evil.example/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://webhook.site.evil.example/\"}, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://webhook.site.evil.example/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://webhook.site.evil.example/\"}, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://webhook.site.evil.example/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://webhook.site.evil.example/\"}, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://webhook.site.evil.example/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://pastebin.com/raw/x\"}",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://pastebin.com/raw/x\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://pastebin.com/raw/x\"}, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://pastebin.com/raw/x\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://pastebin.com/raw/x\"}, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://pastebin.com/raw/x\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@1"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://pastebin.com/raw/x\"}, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://pastebin.com/raw/x\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://PASTEBIN.COM/\"}",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://PASTEBIN.COM/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://PASTEBIN.COM/\"}, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://PASTEBIN.COM/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://PASTEBIN.COM/\"}, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://PASTEBIN.COM/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@1"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://PASTEBIN.COM/\"}, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://PASTEBIN.COM/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://exfil.example:8443/\"}",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://exfil.example:8443/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://exfil.example:8443/\"}, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://exfil.example:8443/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://exfil.example:8443/\"}, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://exfil.example:8443/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@1"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://exfil.example:8443/\"}, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://exfil.example:8443/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://a.b.exfil.example/\"}",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://a.b.exfil.example/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://a.b.exfil.example/\"}, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://a.b.exfil.example/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://a.b.exfil.example/\"}, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://a.b.exfil.example/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@1"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://a.b.exfil.example/\"}, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://a.b.exfil.example/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://mcp.context7.com/mcp\"}",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://mcp.context7.com/mcp\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "egress#0"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://mcp.context7.com/mcp\"}, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://mcp.context7.com/mcp\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "egress#0"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://mcp.context7.com/mcp\"}, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://mcp.context7.com/mcp\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "egress#0"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://mcp.context7.com/mcp\"}, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://mcp.context7.com/mcp\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://docs.example.org/\"}",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "egress#0"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://docs.example.org/\"}, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "egress#0"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://docs.example.org/\"}, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://docs.example.org/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "egress#0"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://docs.example.org/\"}, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://docs.example.org/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://elsewhere.example/\"}",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://elsewhere.example/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://elsewhere.example/\"}, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://elsewhere.example/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://elsewhere.example/\"}, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://elsewhere.example/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://elsewhere.example/\"}, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://elsewhere.example/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"not a url\"}",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"not a url\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@0"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"not a url\"}, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"not a url\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@0"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"not a url\"}, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"not a url\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@0"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"not a url\"}, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"not a url\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://user@pastebin.example/\"}",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://user@pastebin.example/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@0"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://user@pastebin.example/\"}, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://user@pastebin.example/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@0"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://user@pastebin.example/\"}, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://user@pastebin.example/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@0"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://user@pastebin.example/\"}, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://user@pastebin.example/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://%70astebin.com/\"}",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://%70astebin.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@0"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://%70astebin.com/\"}, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://%70astebin.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@0"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://%70astebin.com/\"}, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://%70astebin.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@0"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://%70astebin.com/\"}, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://%70astebin.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {}",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {}, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {}, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {}, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":42}",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":42}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":42}, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":42}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":42}, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":42}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":42}, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":42}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress not json",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "not json",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@0"
+   }
+  },
+  {
+   "name": "network: egress not json, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "not json",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@0"
+   }
+  },
+  {
+   "name": "network: egress not json, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "not json",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@0"
+   }
+  },
+  {
+   "name": "network: egress not json, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "not json",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress (no arguments)",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress (no arguments), exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress (no arguments), tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress (no arguments), tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://xn--80ak6aa92e.com/\"}",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://xn--80ak6aa92e.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://xn--80ak6aa92e.com/\"}, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://xn--80ak6aa92e.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://xn--80ak6aa92e.com/\"}, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://xn--80ak6aa92e.com/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://xn--80ak6aa92e.com/\"}, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://xn--80ak6aa92e.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://1.2.3.4/\"}",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://1.2.3.4/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://1.2.3.4/\"}, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://1.2.3.4/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://1.2.3.4/\"}, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://1.2.3.4/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://1.2.3.4/\"}, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://1.2.3.4/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://ngrok-free.app.example/\"}",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://ngrok-free.app.example/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://ngrok-free.app.example/\"}, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://ngrok-free.app.example/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://ngrok-free.app.example/\"}, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://ngrok-free.app.example/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://ngrok-free.app.example/\"}, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://ngrok-free.app.example/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://x.trycloudflare.com/\"}",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://x.trycloudflare.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://x.trycloudflare.com/\"}, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://x.trycloudflare.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://x.trycloudflare.com/\"}, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://x.trycloudflare.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@1"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://x.trycloudflare.com/\"}, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://x.trycloudflare.com/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://ok.example/ https://transfer.sh/x\"}",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://ok.example/ https://transfer.sh/x\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://ok.example/ https://transfer.sh/x\"}, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://ok.example/ https://transfer.sh/x\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://ok.example/ https://transfer.sh/x\"}, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://ok.example/ https://transfer.sh/x\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@1"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://ok.example/ https://transfer.sh/x\"}, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://ok.example/ https://transfer.sh/x\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://ok.example/?next=https://0x0.st/\"}",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://ok.example/?next=https://0x0.st/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@0"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://ok.example/?next=https://0x0.st/\"}, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://ok.example/?next=https://0x0.st/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@0"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://ok.example/?next=https://0x0.st/\"}, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://ok.example/?next=https://0x0.st/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "category",
+    "rule": "egress@0"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://ok.example/?next=https://0x0.st/\"}, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://ok.example/?next=https://0x0.st/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://a.watch.example/\",\"target\":\"https://a.watch.example/\"}",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://a.watch.example/\",\"target\":\"https://a.watch.example/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "category",
+    "rule": "egress@2"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://a.watch.example/\",\"target\":\"https://a.watch.example/\"}, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://a.watch.example/\",\"target\":\"https://a.watch.example/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "category",
+    "rule": "egress@2"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://a.watch.example/\",\"target\":\"https://a.watch.example/\"}, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://a.watch.example/\",\"target\":\"https://a.watch.example/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://a.watch.example/\",\"target\":\"https://a.watch.example/\"}, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://a.watch.example/\",\"target\":\"https://a.watch.example/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"target\":\"https://kelvin.example/\"}",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"target\":\"https://kelvin.example/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "category",
+    "rule": "egress@2"
+   }
+  },
+  {
+   "name": "network: egress {\"target\":\"https://kelvin.example/\"}, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"target\":\"https://kelvin.example/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "category",
+    "rule": "egress@2"
+   }
+  },
+  {
+   "name": "network: egress {\"target\":\"https://kelvin.example/\"}, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"target\":\"https://kelvin.example/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"target\":\"https://kelvin.example/\"}, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"target\":\"https://kelvin.example/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"target\":\"https://watch.example/\"}",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"target\":\"https://watch.example/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "category",
+    "rule": "egress@2"
+   }
+  },
+  {
+   "name": "network: egress {\"target\":\"https://watch.example/\"}, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"target\":\"https://watch.example/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "category",
+    "rule": "egress@2"
+   }
+  },
+  {
+   "name": "network: egress {\"target\":\"https://watch.example/\"}, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"target\":\"https://watch.example/\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"target\":\"https://watch.example/\"}, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"target\":\"https://watch.example/\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "rule_of_two",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://a.example\",\"url\":\"https://webhook.site\"}",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://a.example\",\"url\":\"https://webhook.site\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://a.example\",\"url\":\"https://webhook.site\"}, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://a.example\",\"url\":\"https://webhook.site\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://a.example\",\"url\":\"https://webhook.site\"}, tainted",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://a.example\",\"url\":\"https://webhook.site\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: egress {\"url\":\"https://a.example\",\"url\":\"https://webhook.site\"}, tainted, exposed",
+   "role": "network",
+   "tool": "egress",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://a.example\",\"url\":\"https://webhook.site\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "egress"
+   }
+  },
+  {
+   "name": "network: fetch {\"url\":\"https://paste.ee/x\"}",
+   "role": "network",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://paste.ee/x\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "network: fetch {\"url\":\"https://paste.ee/x\"}, exposed",
+   "role": "network",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://paste.ee/x\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "network: fetch {\"url\":\"https://paste.ee/x\"}, tainted",
+   "role": "network",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://paste.ee/x\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "category",
+    "rule": "fetch@0"
+   }
+  },
+  {
+   "name": "network: fetch {\"url\":\"https://paste.ee/x\"}, tainted, exposed",
+   "role": "network",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://paste.ee/x\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "category",
+    "rule": "fetch@0"
+   }
+  },
+  {
+   "name": "network: fetch {\"url\":\"https://example.com/\"}",
+   "role": "network",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "network: fetch {\"url\":\"https://example.com/\"}, exposed",
+   "role": "network",
+   "tool": "fetch",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "network: fetch {\"url\":\"https://example.com/\"}, tainted",
+   "role": "network",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "network: fetch {\"url\":\"https://example.com/\"}, tainted, exposed",
+   "role": "network",
+   "tool": "fetch",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://example.com/\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "fetch"
+   }
+  },
+  {
+   "name": "network: crm_read {\"id\":1}",
+   "role": "network",
+   "tool": "crm_read",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"id\":1}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "crm_read"
+   }
+  },
+  {
+   "name": "network: crm_read {\"id\":1}, exposed",
+   "role": "network",
+   "tool": "crm_read",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"id\":1}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "crm_read"
+   }
+  },
+  {
+   "name": "network: crm_read {\"id\":1}, tainted",
+   "role": "network",
+   "tool": "crm_read",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"id\":1}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "crm_read"
+   }
+  },
+  {
+   "name": "network: crm_read {\"id\":1}, tainted, exposed",
+   "role": "network",
+   "tool": "crm_read",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"id\":1}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "crm_read"
    }
   }
  ]
