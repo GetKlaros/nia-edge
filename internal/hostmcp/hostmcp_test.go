@@ -123,3 +123,36 @@ func TestACallRunsOnlyAgainstItsReleaseOnce(t *testing.T) {
 		t.Errorf("%s", text)
 	}
 }
+
+func TestADryRunTakesAScriptOnlyWithEtcInTheCatalogue(t *testing.T) {
+	h, host, releases := setup()
+	call := `{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"dry_run","arguments":{"script":"echo x > /etc/motd"}}}`
+	releases.Release("mcp__host__dry_run", `{"script":"echo x > /etc/motd"}`, now)
+	_, answer := rpc(t, h, call)
+	if text, _ := json.Marshal(answer); answer["result"].(map[string]any)["isError"] != true || len(host.asked) != 0 || !strings.Contains(string(text), "no dry run") {
+		t.Errorf("without etc: %s", text)
+	}
+	h.Catalogue = func() (*hostd.Catalogue, error) { return &hostd.Catalogue{Etc: &hostd.EtcRules{}}, nil }
+	_, answer = rpc(t, h, call)
+	if answer["result"].(map[string]any)["isError"] != false || len(host.asked) != 1 || host.asked[0] != (hostd.Request{Action: hostd.DryRunAction, Script: "echo x > /etc/motd"}) {
+		t.Errorf("%v %+v", answer, host.asked)
+	}
+}
+
+func TestDescribeReport(t *testing.T) {
+	report, _ := json.Marshal(hostd.Report{
+		Plan: "p1",
+		Changes: []hostd.Change{
+			{Path: "/etc/motd", Kind: "modified", Type: "file", Mode: 0o644, Size: 2},
+			{Path: "/etc/old", Kind: "deleted"},
+		},
+		SecretsRead: []string{"/etc/shadow"}, Protected: []string{}, SecretsChanged: []string{}, SecretsCopied: []string{"/etc/shadow"},
+		Output: "hi\n",
+	})
+	text := DescribeReport(string(report))
+	for _, want := range []string{"plan p1", "was not changed", "- modified /etc/motd (file, 2 bytes, 0644 0:0)", "- deleted /etc/old", "Secrets read (the run saw decoys, not the secrets): /etc/shadow", "cannot be applied", "Output:\nhi"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("lacks %q:\n%s", want, text)
+		}
+	}
+}

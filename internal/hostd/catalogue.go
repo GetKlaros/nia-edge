@@ -1,10 +1,12 @@
 // Package hostd is nia-hostd: the only part of nia-edge that runs as root,
 // and the only way an agent acts on its machine outside its container.
 //
-// It does not run what an agent writes. It runs a few actions with fixed
-// programs and fixed arguments, whose parameters are names taken from the
-// role's catalogue: a service from a list, a package from a list, a sync pair
-// by its name. What it runs is decided by the signed policy, which nia-hostd
+// It does not run what an agent writes on the machine. It runs a few actions
+// with fixed programs and fixed arguments, whose parameters are names taken
+// from the role's catalogue: a service from a list, a package from a list, a
+// sync pair by its name. The one script an agent writes, a dry run, runs in a
+// container where /etc is a layer over the machine's and nothing else can be
+// written: what comes back is the list of its changes, never the script. What it runs is decided by the signed policy, which nia-hostd
 // verifies itself against the key pinned at enrollment: nia-edge, which
 // passes the requests, cannot widen it.
 package hostd
@@ -27,6 +29,18 @@ type Catalogue struct {
 	Packages []string `json:"packages"`
 	// Sync names copies from one directory to another.
 	Sync []SyncPair `json:"sync"`
+	// Etc allows dry runs of scripts against /etc; nil allows none.
+	Etc *EtcRules `json:"etc"`
+}
+
+// EtcRules are the rules of the dry runs.
+type EtcRules struct {
+	// Protected paths must come out of a dry run unchanged, with what they
+	// hold when they are directories.
+	Protected []string `json:"protected"`
+	// Secrets are files a dry run sees only as decoys, besides every file of
+	// /etc that its other users cannot read.
+	Secrets []string `json:"secrets"`
 }
 
 // SyncPair copies Source into Destination (rsync -a), deleting what Source
@@ -85,7 +99,21 @@ func ParseCatalogue(raw json.RawMessage) (*Catalogue, error) {
 			return nil, fmt.Errorf("hostd: sync pair %q needs two distinct absolute directories", pair.Name)
 		}
 	}
+	if c.Etc != nil {
+		for _, list := range [][]string{c.Etc.Protected, c.Etc.Secrets} {
+			for _, p := range list {
+				if !underEtc(p) {
+					return nil, fmt.Errorf("hostd: %q is not a clean path under /etc", p)
+				}
+			}
+		}
+	}
 	return &c, nil
+}
+
+// underEtc reports whether p is /etc or a clean absolute path under it.
+func underEtc(p string) bool {
+	return (p == "/etc" || cleanDir(p) && len(p) > 5 && p[:5] == "/etc/") && !bytes.ContainsAny([]byte(p), "\x00\n\r")
 }
 
 // HasService reports whether name is one of the catalogue's services.

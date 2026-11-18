@@ -49,7 +49,7 @@ type tool struct {
 	readOnly, destructive bool
 }
 
-var order = []string{"service_status", "service_restart", "service_reload", "package_install", "sync"}
+var order = []string{"service_status", "service_restart", "service_reload", "package_install", "sync", "dry_run"}
 
 var tools = map[string]tool{
 	"service_status":  {hostd.ServiceStatus, "service", "services", "Show the state of a service of the machine and its last log lines.", true, false},
@@ -57,10 +57,15 @@ var tools = map[string]tool{
 	"service_reload":  {hostd.ServiceReload, "service", "services", "Reload the configuration of a service of the machine.", false, false},
 	"package_install": {hostd.PackageInstall, "package", "packages", "Install a package from the machine's package sources.", false, false},
 	"sync":            {hostd.Sync, "pair", "sync", "Copy a source directory into its destination, as the pair defines them.", false, true},
+	"dry_run": {hostd.DryRunAction, "script", "etc", "Run a shell script against a copy of the machine's /etc, in a container without network or privilege, " +
+		"and get the list of the files it would create, change or delete. The machine is not changed. Files the agent may not read are decoys there. " +
+		"Everything outside /etc is read only, and /root, /home, /var, /tmp are empty.", true, false},
 }
 
 func names(c *hostd.Catalogue, kind string) []string {
 	switch kind {
+	case "etc":
+		return nil
 	case "services":
 		return c.Services
 	case "packages":
@@ -150,6 +155,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func describe(t tool) string {
+	if t.kind == "etc" {
+		return t.description + " The role's catalogue must allow dry runs."
+	}
+	return t.description + " Only a " + t.param + " of the role's catalogue: another one is refused with the list of those allowed."
+}
+
 // list is the same whatever the catalogue: Hermes and other agents keep the
 // list they read at connection, so a list that followed the catalogue would
 // hide a newly published one until the agent restarts.
@@ -159,7 +171,7 @@ func list() []map[string]any {
 		t := tools[name]
 		list = append(list, map[string]any{
 			"name":        name,
-			"description": t.description + " Only a " + t.param + " of the role's catalogue: another one is refused with the list of those allowed.",
+			"description": describe(t),
 			"inputSchema": map[string]any{
 				"type":                 "object",
 				"properties":           map[string]any{t.param: map[string]any{"type": "string"}},
@@ -207,7 +219,11 @@ func (h *Handler) call(ctx context.Context, params json.RawMessage) (map[string]
 	if err != nil {
 		return failed("[Nia agent firewall] The role in force has no host catalogue: no host action runs.")
 	}
-	if allowed := names(catalogue, t.kind); !slices.Contains(allowed, value) {
+	if t.kind == "etc" {
+		if catalogue.Etc == nil {
+			return failed("[Nia agent firewall] The role's catalogue allows no dry run.")
+		}
+	} else if allowed := names(catalogue, t.kind); !slices.Contains(allowed, value) {
 		if len(allowed) == 0 {
 			return failed(fmt.Sprintf("[Nia agent firewall] The role's catalogue allows no %s for %s.", t.param, p.Name))
 		}
@@ -219,9 +235,16 @@ func (h *Handler) call(ctx context.Context, params json.RawMessage) (map[string]
 	}
 	runCtx, cancel := context.WithTimeout(ctx, 35*time.Minute)
 	defer cancel()
-	resp, err := h.Host.Do(runCtx, hostd.Request{Action: t.action, Name: value})
+	req := hostd.Request{Action: t.action, Name: value}
+	if t.kind == "etc" {
+		req = hostd.Request{Action: t.action, Script: value}
+	}
+	resp, err := h.Host.Do(runCtx, req)
 	if err != nil {
 		return failed("nia-hostd could not be reached, so nothing ran")
+	}
+	if t.kind == "etc" && resp.OK {
+		return map[string]any{"content": []map[string]any{{"type": "text", "text": DescribeReport(resp.Output)}}, "isError": false}, nil
 	}
 	text := strings.TrimSpace(resp.Output)
 	if resp.Error != "" {
@@ -254,4 +277,56 @@ func reply(w http.ResponseWriter, id json.RawMessage, result any, rpcErr *rpcErr
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	_ = json.NewEncoder(w).Encode(body)
+}
+
+// DescribeReport writes a dry run's report for the model.
+func DescribeReport(raw string) string {
+	var r hostd.Report
+	if json.Unmarshal([]byte(raw), &r) != nil {
+		return "The dry run's report cannot be read."
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "Dry run, plan %s. The machine was not changed.\n", r.Plan)
+	if len(r.Changes) == 0 {
+		b.WriteString("No change to /etc.\n")
+	}
+	for _, c := range r.Changes {
+		switch c.Kind {
+		case "deleted":
+			fmt.Fprintf(&b, "- deleted %s\n", c.Path)
+		case "metadata":
+			fmt.Fprintf(&b, "- mode or owner of %s: %04o %d:%d\n", c.Path, c.Mode, c.UID, c.GID)
+		default:
+			what := c.Type
+			if c.Type == "file" {
+				what = fmt.Sprintf("file, %d bytes", c.Size)
+			} else if c.Type == "symlink" {
+				what = "symlink to " + c.Target
+			}
+			replaced := ""
+			if c.Replaced {
+				replaced = ", its former entries removed"
+			}
+			fmt.Fprintf(&b, "- %s %s (%s, %04o %d:%d%s)\n", c.Kind, c.Path, what, c.Mode, c.UID, c.GID, replaced)
+		}
+	}
+	list := func(title string, paths []string) {
+		if len(paths) > 0 {
+			fmt.Fprintf(&b, "%s: %s\n", title, strings.Join(paths, ", "))
+		}
+	}
+	list("Protected paths changed", r.Protected)
+	list("Secrets read (the run saw decoys, not the secrets)", r.SecretsRead)
+	list("Secrets changed", r.SecretsChanged)
+	list("Secrets' decoys that came out of the run", r.SecretsCopied)
+	if r.Failed != "" {
+		fmt.Fprintf(&b, "The script failed: %s\n", r.Failed)
+	}
+	if ok, why := r.Applicable(); !ok {
+		fmt.Fprintf(&b, "This plan cannot be applied: %s.\n", why)
+	}
+	if r.Output != "" {
+		fmt.Fprintf(&b, "Output:\n%s", r.Output)
+	}
+	return strings.TrimSpace(b.String())
 }

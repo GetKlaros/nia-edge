@@ -672,7 +672,16 @@
       "destination": "/backup/www",
       "delete": true
      }
-    ]
+    ],
+    "etc": {
+     "protected": [
+      "/etc/ssh/sshd_config",
+      "/etc/sudoers.d"
+     ],
+     "secrets": [
+      "/etc/app/token.conf"
+     ]
+    }
    }
   }
  ],
