@@ -181,6 +181,9 @@ func (s *Server) Do(ctx context.Context, req Request) Response {
 		text, _ := json.Marshal(s.anchor(req.At))
 		return Response{OK: true, Output: string(text)}
 	}
+	if req.Action == PlanReviewAction {
+		return s.planReview(req.Name)
+	}
 	// Nothing runs that could not be written after the last entry.
 	if _, _, err := s.chain(); err != nil {
 		return Response{Error: err.Error()}
@@ -447,7 +450,7 @@ func (c *Client) Do(ctx context.Context, req Request) (Response, error) {
 		return Response{}, err
 	}
 	var resp Response
-	if err := json.NewDecoder(io.LimitReader(conn, 1<<20)).Decode(&resp); err != nil {
+	if err := json.NewDecoder(io.LimitReader(conn, 4<<20)).Decode(&resp); err != nil {
 		return Response{}, fmt.Errorf("nia-hostd gave no answer: %w", err)
 	}
 	return resp, nil

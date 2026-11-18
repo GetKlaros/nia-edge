@@ -310,6 +310,16 @@ its layer, without running the script again:
 - a plan is applied once; `nia-edge hostd undo <id>` puts back what an apply
   changed, if the machine still holds what it wrote.
 
+When Nia holds an apply for a reviewer, nia-edge sends the plan with it:
+nia-hostd's `plan_review` gives the plan's changes exactly as their SHA-256
+makes the plan id, and the text before and after of each file it writes
+(UTF-8 text of at most 64 KiB each, 512 KiB in all). Nia checks the changes
+against the plan id and each text against its hash in the changes, then shows
+the reviewer every change and the diff of each file. What the reviewer reads
+is what that apply writes; a plan that did not come or does not match is
+shown as not checked. These texts are `/etc` files the dry run could read:
+secrets are decoys there, and a plan that changes one is never applicable.
+
 ### Calling the model provider from the machine
 
 An enrolled machine calls its model provider itself: its prompts never go to

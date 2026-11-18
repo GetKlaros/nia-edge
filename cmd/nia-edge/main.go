@@ -407,6 +407,7 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 			Nia:           &local.Remote{Base: base, Key: saved.Key, Run: run, HTTP: niaclient.NewHTTPClient(time.Duration(30+wait) * time.Second), Wait: wait},
 			Rules:         policies.rules,
 			Releases:      releases,
+			Review:        planReview(&hostd.Client{Socket: hostSocket}),
 			Logger:        logger,
 		}
 		relayed := handler
@@ -770,6 +771,20 @@ func providerSessionHeader(provider *state.Provider, base *url.URL) string {
 		return "x-opencode-session"
 	}
 	return ""
+}
+
+// planReview asks nia-hostd what a reviewer must see of a plan; nil when it
+// does not answer: Nia then tells the reviewer it could not check the plan.
+func planReview(host *hostd.Client) func(context.Context, string) json.RawMessage {
+	return func(ctx context.Context, plan string) json.RawMessage {
+		askCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		resp, err := host.Do(askCtx, hostd.Request{Action: hostd.PlanReviewAction, Name: plan})
+		if err != nil || !resp.OK || !json.Valid([]byte(resp.Output)) {
+			return nil
+		}
+		return json.RawMessage(resp.Output)
+	}
 }
 
 // journalAnchor asks nia-hostd for the head of its journal and the hash of

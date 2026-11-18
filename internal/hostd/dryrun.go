@@ -16,6 +16,11 @@ const DryRunAction = "dry_run"
 // former files back when a check fails.
 const ApplyAction = "apply"
 
+// PlanReviewAction answers what a reviewer must see of a kept plan: its
+// changes exactly as their hash makes the plan id, and the texts before and
+// after of the files it writes. It runs nothing and is not journaled.
+const PlanReviewAction = "plan_review"
+
 // RestoreAction puts back what an apply changed, from its backup.
 const RestoreAction = "restore"
 
