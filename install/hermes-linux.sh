@@ -79,10 +79,10 @@ if [ -n "${NIA_PROVIDER_URL:-}" ]; then
   [ -n "${NIA_PROVIDER_KEY:-}" ] || fail "NIA_PROVIDER_KEY (or NIA_PROVIDER_KEY_FILE) is required"
 elif [ -n "$FROM" ]; then
   TAKE_OVER=1
-  [ -f "$HERE/hermes-provider.py" ] || fail "hermes-provider.py must be next to this script"
 else
   fail "NIA_PROVIDER_URL is required with --fresh: nia-edge calls the model provider itself (with --from, the provider of that Hermes is taken over)"
 fi
+[ -f "$HERE/hermes-config.py" ] || fail "hermes-config.py must be next to this script"
 umask 077
 
 home_of() { getent passwd "$1" | cut -d: -f6; }
@@ -178,25 +178,28 @@ fi
 # Hermes refuses a home others can write to.
 chmod -R go-w "$AGENT_HOME/.hermes"
 
+# Hermes' own code reads and changes its configuration: hermes-config.py, run
+# as the agent with Hermes' Python.
+helper_dir=$(mktemp -d)
+chmod 0755 "$helper_dir"
+cp "$HERE/hermes-config.py" "$helper_dir/"
+chmod 0644 "$helper_dir/hermes-config.py"
+HERMES_PY=
+for candidate in $(find "$AGENT_HOME/.hermes" "$AGENT_HOME/.local" -maxdepth 8 \( -name python -o -name python3 \) -path '*/bin/*' 2>/dev/null); do
+  if as_agent "'$candidate' -I -c 'import hermes_cli.runtime_provider'" >/dev/null 2>&1; then
+    HERMES_PY=$candidate
+    break
+  fi
+done
+[ -n "$HERMES_PY" ] || fail "cannot find Hermes' Python for $AGENT"
+hermes_provider() {
+  as_agent "HERMES_HOME=\"\$HOME/.hermes\" '$HERMES_PY' -I '$helper_dir/hermes-config.py' $1"
+}
+
 # The provider that Hermes used, read by Hermes' own code, before this script
 # points it at nia-edge. Its key goes from the agent's files to this shell,
 # and from here to nia-edge only (step 8); it is never printed.
 if [ "$TAKE_OVER" -eq 1 ]; then
-  helper_dir=$(mktemp -d)
-  chmod 0755 "$helper_dir"
-  cp "$HERE/hermes-provider.py" "$helper_dir/"
-  chmod 0644 "$helper_dir/hermes-provider.py"
-  HERMES_PY=
-  for candidate in $(find "$AGENT_HOME/.hermes" "$AGENT_HOME/.local" -maxdepth 8 \( -name python -o -name python3 \) -path '*/bin/*' 2>/dev/null); do
-    if as_agent "'$candidate' -I -c 'import hermes_cli.runtime_provider'" >/dev/null 2>&1; then
-      HERMES_PY=$candidate
-      break
-    fi
-  done
-  [ -n "$HERMES_PY" ] || fail "cannot find Hermes' Python for $AGENT to read the provider of $FROM's Hermes: set NIA_PROVIDER_URL"
-  hermes_provider() {
-    as_agent "HERMES_HOME=\"\$HOME/.hermes\" '$HERMES_PY' -I '$helper_dir/hermes-provider.py' $1"
-  }
   described=$(hermes_provider describe 2>/dev/null) || fail "Hermes cannot say which provider $FROM's Hermes uses: set NIA_PROVIDER_URL"
   field() { printf '%s\n' "$described" | sed -n "s/^$1=//p"; }
   provider_name=$(field provider)
@@ -213,7 +216,6 @@ if [ "$TAKE_OVER" -eq 1 ]; then
   [ -n "$NIA_PROVIDER_KEY" ] || fail "the key of $FROM's Hermes provider is empty"
   # The agent keeps no copy: a fooled agent cannot leak what it cannot read.
   hermes_provider scrub >/dev/null 2>&1 || fail "cannot remove the provider key from $AGENT's Hermes files"
-  rm -rf "$helper_dir"
   say "took over the provider of $FROM's Hermes ($provider_name, $NIA_PROVIDER_URL): its key is nia-edge's now, $AGENT's files no longer hold it ($FROM's own copy is left as it is)"
 fi
 if [ -n "$FROM" ]; then
@@ -230,6 +232,14 @@ set_hermes model.provider custom
 set_hermes model.base_url http://127.0.0.1:8787/v1
 set_hermes model.api_key provided-by-nia-edge
 set_hermes model.api_mode chat_completions
+# The MCP servers Hermes starts get only a few variables and their own env:
+# without the proxy in it, their network is closed.
+elsewhere=$(hermes_provider mcp 2>/dev/null) || fail "cannot give $AGENT's MCP servers the proxy of nia-edge"
+rm -rf "$helper_dir"
+if [ -n "$elsewhere" ]; then
+  say "these MCP servers of $AGENT run a command $AGENT may not reach; copy it under $AGENT_HOME or /opt and point the server at it:"
+  printf '%s\n' "$elsewhere" | sed 's/^/install:   /'
+fi
 [ -z "${HERMES_MODEL:-}" ] || set_hermes model.default "$HERMES_MODEL"
 set_hermes terminal.backend docker
 set_hermes terminal.docker_network false

@@ -1,7 +1,7 @@
-"""The model provider a Hermes agent uses, read by Hermes' own code.
+"""What install/hermes-linux.sh reads and changes in a Hermes configuration,
+with Hermes' own code.
 
-Run by install/hermes-linux.sh as the agent, with Hermes' Python, -I, and
-HERMES_HOME set. One argument:
+Run as the agent, with Hermes' Python, -I, and HERMES_HOME set. One argument:
 
   describe  prints provider=, api_mode=, base_url=, static= and has_key=
             lines; never the key
@@ -9,6 +9,11 @@ HERMES_HOME set. One argument:
             or config.yaml (not an OAuth token Hermes renews itself)
   scrub     removes that key from the agent's .env and config.yaml, and fails
             if it is still there
+  mcp       sends the network of every MCP server Hermes starts itself
+            through nia-edge's proxy: Hermes gives such a server only a few
+            variables and its own env, so the agent's proxy does not reach it.
+            Prints, one per line, the servers whose command lies outside the
+            agent's home and the system's directories
 
 Hermes' imports may write to stdout: everything but the answer goes to stderr.
 """
@@ -20,7 +25,47 @@ out = sys.stdout
 sys.stdout = sys.stderr
 
 
+PROXY = "http://127.0.0.1:3128"
+# Node reads the proxy variables only when told to (NODE_USE_ENV_PROXY).
+PROXY_ENV = {
+    "HTTPS_PROXY": PROXY, "HTTP_PROXY": PROXY, "https_proxy": PROXY, "http_proxy": PROXY,
+    "NO_PROXY": "127.0.0.1,localhost", "no_proxy": "127.0.0.1,localhost", "NODE_USE_ENV_PROXY": "1",
+}
+
+
+def mcp() -> int:
+    from hermes_cli.config import read_raw_config, save_config
+
+    config = read_raw_config()
+    servers = config.get("mcp_servers")
+    if not isinstance(servers, dict) or not servers:
+        return 0
+    agent_home = os.path.realpath(os.path.expanduser("~"))
+    elsewhere = []
+    for name, server in servers.items():
+        if not isinstance(server, dict) or not server.get("command"):
+            continue
+        env = server.get("env") if isinstance(server.get("env"), dict) else {}
+        env.update(PROXY_ENV)
+        server["env"] = env
+        command = str(server["command"])
+        if os.path.isabs(command):
+            real = os.path.realpath(command)
+            mine = real.startswith(agent_home + os.sep)
+            system = real.startswith(("/usr/", "/bin/", "/sbin/", "/opt/"))
+            if not (mine or system) or not os.access(real, os.X_OK):
+                elsewhere.append(f"{name}={command}")
+    save_config(config)
+    for line in elsewhere:
+        if "\n" in line:
+            return 2
+        out.write(line + "\n")
+    return 0
+
+
 def main(mode: str) -> int:
+    if mode == "mcp":
+        return mcp()
     home = os.environ["HERMES_HOME"]
     from hermes_cli.env_loader import load_hermes_dotenv
     from hermes_cli.runtime_provider import resolve_runtime_provider
