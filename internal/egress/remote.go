@@ -68,15 +68,17 @@ func (r *Remote) post(ctx context.Context, path string, request Request, body an
 
 // Decide asks Nia about one connection. Only the answer "allow" allows it.
 func (r *Remote) Decide(ctx context.Context, request Request) (Verdict, error) {
-	body := map[string]any{
-		"tool": "egress",
-		"arguments": map[string]any{
-			"url":    request.URL,
-			"host":   request.Host,
-			"port":   request.Port,
-			"method": request.Method,
-		},
+	arguments := map[string]any{
+		"url":    request.URL,
+		"host":   request.Host,
+		"port":   request.Port,
+		"method": request.Method,
 	}
+	if request.Server != "" {
+		// A role's rules can match it: each MCP server, its own hosts.
+		arguments["server"] = request.Server
+	}
+	body := map[string]any{"tool": "egress", "arguments": arguments}
 	if r.Wait > 0 {
 		body["wait"] = r.Wait
 	}
@@ -103,7 +105,11 @@ func (r *Remote) Decide(ctx context.Context, request Request) (Verdict, error) {
 // that Nia hardens the session. If Nia cannot record it, the connection is
 // refused.
 func (r *Remote) Connected(ctx context.Context, request Request) error {
-	body := map[string]any{"tool": "egress", "output": "connection to " + request.Host + ":" + strconv.Itoa(request.Port)}
+	output := "connection to " + request.Host + ":" + strconv.Itoa(request.Port)
+	if request.Server != "" {
+		output += " (MCP server " + request.Server + ")"
+	}
+	body := map[string]any{"tool": "egress", "output": output}
 	var answer struct {
 		Action string `json:"action"`
 	}
@@ -113,6 +119,6 @@ func (r *Remote) Connected(ctx context.Context, request Request) error {
 // Refused logs an address refused without a decision.
 func (r *Remote) Refused(request Request, problem string) {
 	if r.Logger != nil {
-		r.Logger.Warn("egress refused", "method", request.Method, "host", request.Host, "port", request.Port, "problem", problem)
+		r.Logger.Warn("egress refused", "method", request.Method, "host", request.Host, "port", request.Port, "server", request.Server, "problem", problem)
 	}
 }

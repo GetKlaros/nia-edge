@@ -74,6 +74,15 @@ private code base; this repository is public.
   symbolic link out is followed), saves what it replaces first, checks the
   configurations it touched with fixed programs, and puts the former files
   back when a write or a check fails.
+- The agent's MCP servers that run on the machine run in nia-mcp's rootless
+  containers: one per server, from an image named by its ID and never
+  pulled, without network, capability or new privilege, a read-only root,
+  nothing of the machine but nia-edge's binary and its two sockets. nia-mcp
+  serves the nia-edge user alone and has no secret, privilege or network.
+  The server's token is in nia-edge's state file, never with the agent. Its
+  only way out is nia-edge's egress proxy, under the name nia-mcp writes,
+  never the server. A tool call runs only against an unused release of the
+  model path for the same tool and canonical arguments.
 - What the machine reports about itself decides nothing.
 - The egress proxy refuses an internal IP literal before any decision,
   resolves a name only after the connection is allowed, once, and connects to

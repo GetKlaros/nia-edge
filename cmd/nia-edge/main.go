@@ -6,6 +6,7 @@
 //	nia-edge run                               relay the agent's calls and report to Nia
 //	nia-edge doctor                            from the agent's user: is nia-edge its only way out?
 //	nia-edge health                            is nia-edge running, and does it reach Nia?
+//	nia-edge mcp add|remove|list|serve|relay   the agent's MCP servers, each in a container
 //	nia-edge version
 //
 // The enrollment token is read from NIA_ENROLL_TOKEN, from -token-file, or
@@ -42,6 +43,8 @@ import (
 	"github.com/GetKlaros/nia-edge/internal/hostd"
 	"github.com/GetKlaros/nia-edge/internal/hostmcp"
 	"github.com/GetKlaros/nia-edge/internal/local"
+	"github.com/GetKlaros/nia-edge/internal/localmcp"
+	"github.com/GetKlaros/nia-edge/internal/mcpd"
 	"github.com/GetKlaros/nia-edge/internal/niaclient"
 	"github.com/GetKlaros/nia-edge/internal/policy"
 	"github.com/GetKlaros/nia-edge/internal/relay"
@@ -61,7 +64,7 @@ func main() {
 
 func run(ctx context.Context, args []string, getenv func(string) string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: nia-edge enroll|provider|run|hostd|doctor|health|version")
+		fmt.Fprintln(stderr, "usage: nia-edge enroll|provider|run|hostd|mcp|doctor|health|version")
 		return 2
 	}
 	var err error
@@ -74,6 +77,8 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdin i
 		err = provider(args[1:], getenv, stdin, stdout, stderr)
 	case "hostd":
 		err = hostdCommand(ctx, args[1:], getenv, stdout, stderr)
+	case "mcp":
+		err = mcpCommand(ctx, args[1:], getenv, stdin, stdout, stderr)
 	case "doctor":
 		return check(ctx, args[1:], getenv, stdout, stderr)
 	case "health":
@@ -82,7 +87,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdin i
 		fmt.Fprintln(stdout, version)
 		return 0
 	default:
-		fmt.Fprintf(stderr, "nia-edge: unknown command %q (enroll, provider, run, hostd, doctor, health, version)\n", args[0])
+		fmt.Fprintf(stderr, "nia-edge: unknown command %q (enroll, provider, run, hostd, mcp, doctor, health, version)\n", args[0])
 		return 2
 	}
 	if errors.Is(err, flag.ErrHelp) {
@@ -351,8 +356,9 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 	if err != nil {
 		return err
 	}
-	// The host actions: calls released by the model path, run by nia-hostd.
-	releases := &local.Releases{Prefix: "mcp__host__"}
+	// Tools of MCP servers that run here (host actions, and the agent's
+	// servers in containers): calls released by the model path.
+	releases := &local.Releases{Prefix: "mcp__"}
 	hostSocket := getenv("NIA_HOSTD_SOCKET")
 	if hostSocket == "" {
 		hostSocket = defaultHostdSocket
@@ -366,8 +372,33 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 			return hostd.ParseCatalogue(rules.Role.Host)
 		},
 		Releases: releases,
+		Prefix:   "mcp__host__",
 		Host:     &hostd.Client{Socket: hostSocket},
 		Version:  version,
+	}
+	// The agent's MCP servers that run here, each in a container of nia-mcp.
+	servers := &localmcp.Handler{Servers: map[string]*localmcp.Server{}, Releases: releases, Version: version}
+	if len(saved.MCP) > 0 {
+		mcpSocket := getenv("NIA_MCPD_SOCKET")
+		if mcpSocket == "" {
+			mcpSocket = defaultMCPSocket
+		}
+		cache := filepath.Join(filepath.Dir(statePath(*stateFile, getenv)), "mcp-tools")
+		if err := os.MkdirAll(cache, 0o700); err != nil {
+			return err
+		}
+		for name, entry := range saved.MCP {
+			servers.Servers[name] = &localmcp.Server{
+				Launch:   mcpd.Launch{Name: name, Image: entry.Image, Command: entry.Command, Env: entry.Env},
+				Launcher: &mcpd.Client{Socket: mcpSocket},
+				Cache:    cache,
+			}
+		}
+		defer func() {
+			for _, server := range servers.Servers {
+				server.Close()
+			}
+		}()
 	}
 	modelPath := "provider"
 	if saved.Provider == nil {
@@ -427,6 +458,10 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 			host.ServeHTTP(w, r)
 			return
 		}
+		if localmcp.Route(r.URL.Path) != "" {
+			servers.ServeHTTP(w, r)
+			return
+		}
 		agentRoutes.ServeHTTP(w, r)
 	})
 	server := &http.Server{
@@ -440,7 +475,42 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 	fmt.Fprintf(stdout, "nia-edge %s: listening on %s, Nia at %s, machine %s, role %s\n", version, listener.Addr(), base, saved.MachineID, saved.Role)
 
 	var proxy *http.Server
-	served := make(chan error, 2)
+	served := make(chan error, 3)
+	authority := &egress.Remote{
+		Base: base,
+		Key:  saved.Key,
+		// No time limit on the client: each call sets its own, which
+		// covers the wait for a reviewer.
+		HTTP:   niaclient.NewHTTPClient(0),
+		Wait:   wait,
+		Logger: logger,
+	}
+	if len(saved.MCP) > 0 {
+		// The MCP servers' only way out: nia-mcp hands each of their
+		// connections over this socket, under the server's name.
+		mcpUser := getenv("NIA_MCP_USER")
+		if mcpUser == "" {
+			mcpUser = "nia-mcp"
+		}
+		egressSocket := getenv("EDGE_MCP_EGRESS_SOCKET")
+		if egressSocket == "" {
+			egressSocket = defaultMCPEgress
+		}
+		if uid, err := lookupUID(mcpUser); err != nil {
+			logger.Error("the MCP servers have no way out: their user is unknown", "user", mcpUser, "error", err.Error())
+		} else if listener, err := listenServers(egressSocket); err != nil {
+			logger.Error("the MCP servers have no way out", "socket", egressSocket, "error", err.Error())
+		} else {
+			proxies := map[string]http.Handler{}
+			for name := range saved.MCP {
+				proxies[name] = egress.New(egress.Options{Authority: authority, Session: session, Run: run, Server: name, AllowPrivate: allowPrivate, Logger: logger})
+			}
+			fmt.Fprintf(stdout, "nia-edge %s: %d MCP servers in containers, their way out on %s\n", version, len(proxies), egressSocket)
+			go func() {
+				served <- egress.ServeServers(ctx, listener, func(peer uint32) bool { return peer == uid }, func(name string) http.Handler { return proxies[name] }, logger)
+			}()
+		}
+	}
 	if *proxyListen != "off" {
 		proxyListener, err := net.Listen("tcp", *proxyListen)
 		if err != nil {
@@ -449,15 +519,7 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 		}
 		proxy = &http.Server{
 			Handler: egress.New(egress.Options{
-				Authority: &egress.Remote{
-					Base: base,
-					Key:  saved.Key,
-					// No time limit on the client: each call sets its own, which
-					// covers the wait for a reviewer.
-					HTTP:   niaclient.NewHTTPClient(0),
-					Wait:   wait,
-					Logger: logger,
-				},
+				Authority:    authority,
 				Session:      session,
 				Run:          run,
 				AllowPrivate: allowPrivate,
@@ -495,6 +557,24 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 	}
 	<-beats
 	return nil
+}
+
+// listenServers opens the socket of the MCP servers' way out: anyone may
+// connect, only nia-mcp's user is served.
+func listenServers(path string) (*net.UnixListener, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o711); err != nil {
+		return nil, err
+	}
+	_ = os.Remove(path)
+	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
+	if err != nil {
+		return nil, err
+	}
+	if err := os.Chmod(path, 0o666); err != nil {
+		listener.Close()
+		return nil, err
+	}
+	return listener, nil
 }
 
 // keeper holds the signed policy of this machine: read from disk at start,

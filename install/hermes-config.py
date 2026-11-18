@@ -1,7 +1,8 @@
 """What install/hermes-linux.sh reads and changes in a Hermes configuration,
 with Hermes' own code.
 
-Run as the agent, with Hermes' Python, -I, and HERMES_HOME set. One argument:
+Run as the agent, with Hermes' Python, -I, and HERMES_HOME set. One argument
+(two for local):
 
   describe  prints provider=, api_mode=, base_url=, static= and has_key=
             lines; never the key
@@ -17,6 +18,10 @@ Run as the agent, with Hermes' Python, -I, and HERMES_HOME set. One argument:
   host      adds nia-edge's MCP server of host actions, as "host": its
             tools reach the model as mcp__host__<action>, also on the
             platforms whose saved toolsets list MCP servers
+  local <name>
+            points the agent's MCP server <name> at the one nia-edge runs in
+            a container (install/mcp-linux.sh): its command and its
+            variables leave the agent's configuration, which keeps a URL
 
 Hermes' imports may write to stdout: everything but the answer goes to stderr.
 """
@@ -98,7 +103,38 @@ def host() -> int:
     return 0
 
 
-def main(mode: str) -> int:
+def local(name: str) -> int:
+    import re
+    from hermes_cli.config import read_raw_config, save_config
+
+    if not re.fullmatch(r"[a-z][a-z0-9_]{0,31}", name) or name == "host" or "__" in name:
+        return 2
+    config = read_raw_config()
+    servers = config.get("mcp_servers")
+    if not isinstance(servers, dict):
+        servers = {}
+    # Its token and its command are nia-edge's now: nothing of the former
+    # entry stays with the agent.
+    servers[name] = {"url": f"http://127.0.0.1:8787/local/{name}/mcp", "enabled": True}
+    config["mcp_servers"] = servers
+    known = {str(other) for other in servers if other != name}
+    platforms = config.get("platform_toolsets")
+    if isinstance(platforms, dict):
+        for names in platforms.values():
+            if not isinstance(names, list) or "no_mcp" in names:
+                continue
+            listed = {str(n)[4:] if str(n).startswith("mcp-") else str(n) for n in names}
+            if listed & known and not {name, "mcp-" + name} & {str(n) for n in names}:
+                names.append(name)
+    save_config(config)
+    return 0
+
+
+def main(mode: str, *rest: str) -> int:
+    if mode == "local" and len(rest) == 1:
+        return local(rest[0])
+    if rest:
+        return 2
     if mode == "mcp":
         return mcp()
     if mode == "host":
@@ -163,4 +199,4 @@ def main(mode: str) -> int:
     return 2
 
 
-sys.exit(main(sys.argv[1] if len(sys.argv) == 2 else ""))
+sys.exit(main(*sys.argv[1:]) if 2 <= len(sys.argv) <= 3 else 2)

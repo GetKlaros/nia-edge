@@ -438,3 +438,62 @@ func TestTheProviderSessionHeader(t *testing.T) {
 		}
 	}
 }
+
+func TestMCPServersAreKeptWithTheirTokensNeverShown(t *testing.T) {
+	nia := newFakeNia(t)
+	defer nia.Close()
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	if code, _, stderr := command(t, context.Background(), map[string]string{"NIA_ENROLL_TOKEN": "nen_token"}, "", "enroll", "-url", nia.URL, "-state", statePath); code != 0 {
+		t.Fatal(stderr)
+	}
+	image := "sha256:" + strings.Repeat("ab", 32)
+	for name, args := range map[string][]string{
+		"an image by tag":  {"-name", "mail", "-image", "docker.io/mcp/mail:latest", "--", "node", "x"},
+		"no command":       {"-name", "mail", "-image", image},
+		"the host's name":  {"-name", "host", "-image", image, "--", "node", "x"},
+		"a name with dash": {"-name", "my-mail", "-image", image, "--", "node", "x"},
+		"no name":          {"-image", image, "--", "node", "x"},
+		"a proxy variable": {"-name", "mail", "-image", image, "-env-file", "-", "--", "node", "x"},
+		"not NAME=value":   {"-name", "mail", "-image", image, "-env-file", "-", "--", "node", "x"},
+	} {
+		stdin := ""
+		switch name {
+		case "a proxy variable":
+			stdin = "HTTPS_PROXY=http://evil.example:1\n"
+		case "not NAME=value":
+			stdin = "tok-secret-value\n"
+		}
+		code, out, stderr := command(t, context.Background(), nil, stdin, append([]string{"mcp", "add", "-state", statePath}, args...)...)
+		if code == 0 || strings.Contains(out+stderr, "tok-secret-value") {
+			t.Errorf("%s: %d %s %s", name, code, out, stderr)
+		}
+	}
+	code, out, stderr := command(t, context.Background(), nil, "# its token\nMAIL_TOKEN=tok-secret-value\n", "mcp", "add", "-state", statePath, "-name", "mail", "-image", image, "-ref", "docker.io/acme/mail:1.2", "-env-file", "-", "--", "node", "/app/index.js")
+	if code != 0 || strings.Contains(out+stderr, "tok-secret-value") || !strings.Contains(out, "/local/mail/mcp") {
+		t.Fatalf("%d %s %s", code, out, stderr)
+	}
+	raw, _ := os.ReadFile(statePath)
+	if !strings.Contains(string(raw), `"MAIL_TOKEN": "tok-secret-value"`) || !strings.Contains(string(raw), `"nia_key1"`) {
+		t.Fatal("the state lost something")
+	}
+	code, out, _ = command(t, context.Background(), nil, "", "mcp", "list", "-state", statePath)
+	if code != 0 || !strings.Contains(out, "mail: image "+image+" (docker.io/acme/mail:1.2)") || !strings.Contains(out, "MAIL_TOKEN") || strings.Contains(out, "tok-secret-value") {
+		t.Fatalf("%s", out)
+	}
+	if code, _, _ := command(t, context.Background(), nil, "", "mcp", "remove", "-state", statePath, "-name", "mail"); code != 0 {
+		t.Fatal("remove")
+	}
+	raw, _ = os.ReadFile(statePath)
+	if strings.Contains(string(raw), "tok-secret-value") {
+		t.Fatal("the token is still kept")
+	}
+}
+
+func TestMCPServeIsNotRoot(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("checks the refusal as root")
+	}
+	if code, _, stderr := command(t, context.Background(), map[string]string{"HOME": "/tmp", "XDG_RUNTIME_DIR": "/tmp"}, "", "mcp", "serve"); code == 0 || !strings.Contains(stderr, "not run as root") {
+		t.Fatalf("%d %s", code, stderr)
+	}
+}

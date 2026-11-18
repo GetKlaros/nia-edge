@@ -32,6 +32,9 @@ type Request struct {
 	Method string
 	// URL is the full URL for plain HTTP, https://host:port/ for a tunnel.
 	URL string
+	// Server is the MCP server this connection comes from, as nia-edge
+	// knows it from the socket it came in on; empty for the agent's own.
+	Server string
 }
 
 // Verdict is Nia's answer for a connection.
@@ -60,6 +63,9 @@ type Options struct {
 	Authority Authority
 	Session   string
 	Run       string
+	// Server names the MCP server whose connections this proxy serves:
+	// each decision carries it.
+	Server string
 	// AllowPrivate lists the hosts allowed on internal addresses: exact
 	// names or addresses, or "*.suffix".
 	AllowPrivate []string
@@ -223,7 +229,7 @@ func New(options Options) http.Handler {
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		request := Request{Session: options.Session, Run: options.Run, Method: r.Method}
+		request := Request{Session: options.Session, Run: options.Run, Server: options.Server, Method: r.Method}
 		if r.Method == http.MethodConnect {
 			match := connectTarget.FindStringSubmatch(r.RequestURI)
 			if match == nil {
