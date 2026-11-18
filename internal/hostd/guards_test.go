@@ -22,7 +22,7 @@ func guardMachine(t *testing.T, files map[string]string) (*Server, *layer) {
 		os.WriteFile(filepath.Join(etc, rel), []byte(body), 0o644)
 	}
 	sandbox := &layer{}
-	s.EtcRoot, s.ScratchRoot, s.Sandbox = etc, t.TempDir(), sandbox
+	s.EtcRoot, s.ScratchRoot, s.Sandbox = etc, layerDir(t), sandbox
 	return s, sandbox
 }
 
@@ -157,7 +157,7 @@ func TestRootHooksAreRefusedUnlessPermitted(t *testing.T) {
 		t.Errorf("nginx: %q", details(r))
 	}
 	permitted, _, _ := machine(t, `{"name":"vps","mode":"enforce","rule_of_two":"require_approval","destructive":"require_approval","tools":[],"host":{"etc":{"permit":["cron"]}}}`)
-	permitted.EtcRoot, permitted.ScratchRoot = s.EtcRoot, t.TempDir()
+	permitted.EtcRoot, permitted.ScratchRoot = s.EtcRoot, layerDir(t)
 	permitted.Sandbox = &layer{script: func(lower, upper string) error { put(t, upper, "cron.d/backup", "x\n"); return nil }}
 	if r := guarded(t, permitted); len(r.Guards) != 0 {
 		t.Errorf("permitted cron: %q", details(r))

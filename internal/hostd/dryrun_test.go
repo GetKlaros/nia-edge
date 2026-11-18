@@ -68,8 +68,20 @@ func etcMachine(t *testing.T, sandbox *layer) (*Server, string) {
 		}
 		os.Chmod(filepath.Join(etc, rel), f.mode)
 	}
-	s.EtcRoot, s.ScratchRoot, s.Sandbox = etc, t.TempDir(), sandbox
+	s.EtcRoot, s.ScratchRoot, s.Sandbox = etc, layerDir(t), sandbox
 	return s, etc
+}
+
+// layerDir is where a test's fake layer lives: on tmpfs when it can, as
+// nia-hostd's is. On an overlay /tmp (a Fly machine's), the whiteouts the
+// tests make with mknod would be taken by that overlay as deletions.
+func layerDir(t *testing.T) string {
+	t.Helper()
+	if dir, err := os.MkdirTemp("/dev/shm", "nia-layer-"); err == nil {
+		t.Cleanup(func() { os.RemoveAll(dir) })
+		return dir
+	}
+	return t.TempDir()
 }
 
 func report(t *testing.T, resp Response) Report {
