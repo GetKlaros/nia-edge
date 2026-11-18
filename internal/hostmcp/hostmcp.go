@@ -1,8 +1,9 @@
 // Package hostmcp is the agent's way to the host actions: a small MCP server
-// on nia-edge's own address, whose tools are the actions of the role's
-// catalogue. A tool runs a call only when the model path released that exact
-// call (same tool, same canonical arguments, once), and only through
-// nia-hostd, which checks the catalogue again itself.
+// on nia-edge's own address. Its tools are the five actions, always: an agent
+// that listed them once keeps them when a new catalogue is published. Each
+// call is checked against the role's catalogue in force, runs only when the
+// model path released that exact call (same tool, same canonical arguments,
+// once), and only through nia-hostd, which checks the catalogue again itself.
 package hostmcp
 
 import (
@@ -44,14 +45,18 @@ type tool struct {
 	action string
 	// param is the one argument, and kind what it names in the catalogue.
 	param, kind, description string
+	// readOnly and destructive are the MCP tool annotations.
+	readOnly, destructive bool
 }
 
+var order = []string{"service_status", "service_restart", "service_reload", "package_install", "sync"}
+
 var tools = map[string]tool{
-	"service_status":  {hostd.ServiceStatus, "service", "services", "Show the state of a service of the machine and its last log lines."},
-	"service_restart": {hostd.ServiceRestart, "service", "services", "Restart a service of the machine."},
-	"service_reload":  {hostd.ServiceReload, "service", "services", "Reload the configuration of a service of the machine."},
-	"package_install": {hostd.PackageInstall, "package", "packages", "Install a package from the machine's package sources."},
-	"sync":            {hostd.Sync, "pair", "sync", "Copy a source directory into its destination, as the pair defines them."},
+	"service_status":  {hostd.ServiceStatus, "service", "services", "Show the state of a service of the machine and its last log lines.", true, false},
+	"service_restart": {hostd.ServiceRestart, "service", "services", "Restart a service of the machine.", false, true},
+	"service_reload":  {hostd.ServiceReload, "service", "services", "Reload the configuration of a service of the machine.", false, false},
+	"package_install": {hostd.PackageInstall, "package", "packages", "Install a package from the machine's package sources.", false, false},
+	"sync":            {hostd.Sync, "pair", "sync", "Copy a source directory into its destination, as the pair defines them.", false, true},
 }
 
 func names(c *hostd.Catalogue, kind string) []string {
@@ -136,7 +141,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "ping":
 		reply(w, msg.ID, map[string]any{}, nil)
 	case "tools/list":
-		reply(w, msg.ID, map[string]any{"tools": h.list()}, nil)
+		reply(w, msg.ID, map[string]any{"tools": list()}, nil)
 	case "tools/call":
 		result, rpcErr := h.call(r.Context(), msg.Params)
 		reply(w, msg.ID, result, rpcErr)
@@ -145,26 +150,26 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) list() []map[string]any {
-	catalogue, err := h.Catalogue()
-	if err != nil {
-		return []map[string]any{}
-	}
+// list is the same whatever the catalogue: Hermes and other agents keep the
+// list they read at connection, so a list that followed the catalogue would
+// hide a newly published one until the agent restarts.
+func list() []map[string]any {
 	list := []map[string]any{}
-	for _, name := range []string{"service_status", "service_restart", "service_reload", "package_install", "sync"} {
+	for _, name := range order {
 		t := tools[name]
-		allowed := names(catalogue, t.kind)
-		if len(allowed) == 0 {
-			continue
-		}
 		list = append(list, map[string]any{
 			"name":        name,
-			"description": t.description,
+			"description": t.description + " Only a " + t.param + " of the role's catalogue: another one is refused with the list of those allowed.",
 			"inputSchema": map[string]any{
 				"type":                 "object",
-				"properties":           map[string]any{t.param: map[string]any{"type": "string", "enum": allowed}},
+				"properties":           map[string]any{t.param: map[string]any{"type": "string"}},
 				"required":             []string{t.param},
 				"additionalProperties": false,
+			},
+			"annotations": map[string]any{
+				"readOnlyHint":    t.readOnly,
+				"destructiveHint": t.destructive,
+				"openWorldHint":   false,
 			},
 		})
 	}
@@ -197,6 +202,16 @@ func (h *Handler) call(ctx context.Context, params json.RawMessage) (map[string]
 	value, ok := args[t.param].(string)
 	if !ok {
 		return failed(fmt.Sprintf("%s takes one argument, %q", p.Name, t.param))
+	}
+	catalogue, err := h.Catalogue()
+	if err != nil {
+		return failed("[Nia agent firewall] The role in force has no host catalogue: no host action runs.")
+	}
+	if allowed := names(catalogue, t.kind); !slices.Contains(allowed, value) {
+		if len(allowed) == 0 {
+			return failed(fmt.Sprintf("[Nia agent firewall] The role's catalogue allows no %s for %s.", t.param, p.Name))
+		}
+		return failed(fmt.Sprintf("[Nia agent firewall] %q is not in the role's catalogue. %s accepts: %s.", value, p.Name, strings.Join(allowed, ", ")))
 	}
 	// Only a call the model path released runs, once.
 	if h.Releases == nil || !h.Releases.Take(h.Releases.Prefix+p.Name, arguments, h.now()) {
