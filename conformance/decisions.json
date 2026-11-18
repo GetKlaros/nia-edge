@@ -367,7 +367,13 @@
         "*.tunnelmole.net"
        ]
       }
-     ]
+     ],
+     "trusted_sources": {
+      "path": "url",
+      "hosts": [
+       "registry.npmjs.org"
+      ]
+     }
     }
    ]
   },

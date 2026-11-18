@@ -134,6 +134,12 @@ type roleJSON struct {
 			In          []string `json:"in"`
 			Hosts       []string `json:"hosts"`
 		} `json:"categories"`
+		// TrustedSources decides nothing here: Nia reads it when a result
+		// is reported with its call's arguments (the egress proxy does).
+		TrustedSources *struct {
+			Path  string   `json:"path"`
+			Hosts []string `json:"hosts"`
+		} `json:"trusted_sources"`
 	} `json:"tools"`
 }
 
@@ -198,6 +204,9 @@ func ParseRole(raw json.RawMessage) (*Role, error) {
 				return nil, fmt.Errorf("engine: category rule %s@%d has a value this nia-edge does not know", t.Name, index)
 			}
 			tool.categories = append(tool.categories, &categoryRule{always: c.Applies == "always", decision: c.Decision, path: c.Path, hosts: c.Hosts})
+		}
+		if ts := t.TrustedSources; ts != nil && (ts.Path == "" || len(ts.Hosts) == 0) {
+			return nil, fmt.Errorf("engine: the trusted sources of tool %q have a value this nia-edge does not know", t.Name)
 		}
 		role.Tools = append(role.Tools, tool)
 	}

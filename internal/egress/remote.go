@@ -66,9 +66,9 @@ func (r *Remote) post(ctx context.Context, path string, request Request, body an
 	return nil
 }
 
-// Decide asks Nia about one connection. Only the answer "allow" allows it.
-func (r *Remote) Decide(ctx context.Context, request Request) (Verdict, error) {
-	arguments := map[string]any{
+// arguments are the egress tool's arguments for a connection.
+func arguments(request Request) map[string]any {
+	out := map[string]any{
 		"url":    request.URL,
 		"host":   request.Host,
 		"port":   request.Port,
@@ -76,9 +76,14 @@ func (r *Remote) Decide(ctx context.Context, request Request) (Verdict, error) {
 	}
 	if request.Server != "" {
 		// A role's rules can match it: each MCP server, its own hosts.
-		arguments["server"] = request.Server
+		out["server"] = request.Server
 	}
-	body := map[string]any{"tool": "egress", "arguments": arguments}
+	return out
+}
+
+// Decide asks Nia about one connection. Only the answer "allow" allows it.
+func (r *Remote) Decide(ctx context.Context, request Request) (Verdict, error) {
+	body := map[string]any{"tool": "egress", "arguments": arguments(request)}
 	if r.Wait > 0 {
 		body["wait"] = r.Wait
 	}
@@ -109,7 +114,9 @@ func (r *Remote) Connected(ctx context.Context, request Request) error {
 	if request.Server != "" {
 		output += " (MCP server " + request.Server + ")"
 	}
-	body := map[string]any{"tool": "egress", "output": output}
+	// The target goes with it: a source the role trusts (a package
+	// registry, the agent's messaging) leaves the session as it is.
+	body := map[string]any{"tool": "egress", "output": output, "arguments": arguments(request)}
 	var answer struct {
 		Action string `json:"action"`
 	}
