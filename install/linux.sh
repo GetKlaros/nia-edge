@@ -108,6 +108,9 @@ RuntimeDirectoryMode=0750
 StateDirectory=nia-hostd
 StateDirectoryMode=0700
 UMask=0077
+# Its dry runs mount a layer and the machine's root read only: those mounts
+# stay in its own namespace.
+PrivateMounts=yes
 
 [Install]
 WantedBy=multi-user.target

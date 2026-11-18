@@ -30,6 +30,8 @@ type Request struct {
 	// Call is the hash of the tool call the model path released, for the
 	// journal.
 	Call string `json:"call,omitempty"`
+	// Script is a dry run's.
+	Script string `json:"script,omitempty"`
 }
 
 // Response is what nia-hostd answers.
@@ -52,7 +54,7 @@ const (
 )
 
 // Actions lists the actions nia-hostd knows.
-var Actions = []string{ServiceStatus, ServiceRestart, ServiceReload, PackageInstall, Sync}
+var Actions = []string{ServiceStatus, ServiceRestart, ServiceReload, PackageInstall, Sync, DryRunAction}
 
 // Runner runs a program. Exec runs it; tests use another.
 type Runner interface {
@@ -102,10 +104,16 @@ type Server struct {
 	// JournalPath is where every action is written, one JSON line each.
 	JournalPath string
 	Run         Runner
-	Now         func() time.Time
-	Logger      *slog.Logger
+	// Sandbox runs dry runs; nil runs none.
+	Sandbox Sandbox
+	// EtcRoot and ScratchRoot are /etc and where dry runs keep their layers;
+	// tests set others.
+	EtcRoot, ScratchRoot string
+	Now                  func() time.Time
+	Logger               *slog.Logger
 
-	mu sync.Mutex
+	mu    sync.Mutex
+	plans map[string]*plan
 }
 
 // Entry is one line of the journal.
@@ -164,6 +172,9 @@ func (s *Server) Do(ctx context.Context, req Request) Response {
 	catalogue, err := s.Catalogue()
 	if err != nil {
 		return Response{Error: "no catalogue in force: " + err.Error()}
+	}
+	if req.Action == DryRunAction {
+		return s.dryRun(ctx, catalogue, req)
 	}
 	argvs, undo, refusal := s.plan(ctx, catalogue, req)
 	if refusal != "" {
@@ -373,7 +384,7 @@ func (s *Server) serveConn(ctx context.Context, conn *net.UnixConn, allowed func
 	}
 	_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 	var req Request
-	if err := json.NewDecoder(io.LimitReader(conn, 64<<10)).Decode(&req); err != nil {
+	if err := json.NewDecoder(io.LimitReader(conn, 128<<10)).Decode(&req); err != nil {
 		_ = json.NewEncoder(conn).Encode(Response{Error: "not a request"})
 		return
 	}

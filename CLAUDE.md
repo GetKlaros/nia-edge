@@ -52,6 +52,13 @@ private code base; this repository is public.
   arguments: no shell, no inherited environment, nothing the agent wrote. A
   host action runs only against an unused release of the model path for the
   same tool and canonical arguments. Every action is journaled.
+- The one script an agent writes, a dry run, runs only in a container: the
+  machine's `/etc` as an overlay whose layer is in a bounded tmpfs, the rest
+  read only, homes and state empty, no network, no capability. Every file of
+  `/etc` its other users cannot read, and each secret of the catalogue, is a
+  decoy there. What leaves the container is the list of its changes, and a
+  plan that changes a protected path or a secret, lets a decoy out, makes a
+  setuid file or failed is never applicable.
 - What the machine reports about itself decides nothing.
 - The egress proxy refuses an internal IP literal before any decision,
   resolves a name only after the connection is allowed, once, and connects to

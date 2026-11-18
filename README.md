@@ -225,6 +225,44 @@ decides each tool like any other.
   `nia-edge hostd journal` prints it; `nia-edge hostd undo <id>` removes a
   package the action installed. Restarts and copies cannot be undone.
 
+#### Dry runs against /etc
+
+A role whose catalogue has `etc` lets its agent try a shell script against
+the machine's configuration without changing it:
+
+```yaml
+host:
+  etc:
+    protected: [/etc/ssh/sshd_config, /etc/sudoers.d]   # must come out unchanged
+    secrets: [/etc/app/token.conf]                       # seen only as decoys
+```
+
+`dry_run` takes the script. nia-hostd runs it with podman, as root inside a
+container that has:
+
+- the machine's `/etc` as an overlay: what the script writes goes to a layer
+  in memory, bounded to 64 MiB, and the machine's `/etc` is not changed;
+- the rest of the machine's root file system read only, without its other
+  mounts, and `/root`, `/home`, `/var`, `/srv`, `/opt`, `/mnt`, `/media`,
+  `/boot` and `/tmp` empty;
+- no network (only its own loopback), no capability, no new privilege,
+  podman's masked `/proc` and read-only `/proc/sys`, a minimal `/dev`, at most
+  256 processes, 512 MiB of memory and two minutes;
+- a decoy in place of every file of `/etc` that the machine's other users
+  cannot read (`/etc/shadow`, private keys, `sudoers`...) and of each secret
+  of the catalogue. A decoy holds a random token: the run cannot read a
+  secret, and nia-hostd sees which decoys it opened (their access time, on a
+  tmpfs mounted `strictatime`) and where a token came out.
+
+The answer is the run's plan: the files it created, changed or deleted, those
+whose owner or mode alone changed, the protected paths it changed, and the
+secrets it read, changed or copied. A plan cannot be applied when the script
+failed, a protected path or a secret changed, a decoy came out, or a file
+would be setuid or setgid. nia-hostd keeps the last three applicable plans
+for half an hour, in their layers. Every dry run is journaled with its plan.
+Dry runs need podman on the machine; nia-hostd's mounts stay in its own
+namespace (`PrivateMounts=yes`).
+
 ### Calling the model provider from the machine
 
 An enrolled machine calls its model provider itself: its prompts never go to

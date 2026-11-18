@@ -52,6 +52,10 @@ func hostdCommand(ctx context.Context, args []string, getenv func(string) string
 	}
 	logger := slog.New(slog.NewTextHandler(stderr, nil))
 	server := &hostd.Server{StatePath: statePathValue, PolicyPath: *policyFile, JournalPath: *journal, Run: runner, Logger: logger}
+	if !dry {
+		// Dry runs: the agent's script in a container over a copy of /etc.
+		server.Sandbox = hostd.DefaultSandbox()
+	}
 	switch args[0] {
 	case "journal":
 		entries, err := server.Journal()
