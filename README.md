@@ -224,6 +224,14 @@ decides each tool like any other.
 - Every action is written to `/var/lib/nia-hostd/journal.jsonl` (mode 0600).
   `nia-edge hostd journal` prints it; `nia-edge hostd undo <id>` removes a
   package the action installed. Restarts and copies cannot be undone.
+- The journal is a hash chain: each entry carries its number (`seq`) and the
+  SHA-256 of the line before it (`prev`). `nia-edge hostd journal -verify`
+  checks it; nia-hostd runs nothing while it does not verify. At each
+  heartbeat nia-edge sends Nia the head of the chain and the hash of the entry
+  Nia last saw as its head: Nia keeps that head, and shows the journal as
+  rewritten when the chain no longer holds it, or broken when it does not
+  verify. Root on the machine can still rewrite the file; it cannot make Nia
+  forget a head it saw.
 
 #### Dry runs against /etc
 

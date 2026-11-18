@@ -51,7 +51,9 @@ private code base; this repository is public.
   the actions of the role's catalogue, by name, with fixed programs and
   arguments: no shell, no inherited environment, nothing the agent wrote. A
   host action runs only against an unused release of the model path for the
-  same tool and canonical arguments. Every action is journaled.
+  same tool and canonical arguments. Every action is journaled, in a hash
+  chain that must verify before anything runs; its head goes to Nia with
+  each heartbeat, as a report that decides nothing.
 - The one script an agent writes, a dry run, runs only in a container: the
   machine's `/etc` as an overlay whose layer is in a bounded tmpfs, the rest
   read only, homes and state empty, no network, no capability. Every file of

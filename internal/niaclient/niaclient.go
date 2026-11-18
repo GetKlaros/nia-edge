@@ -30,6 +30,18 @@ type Report struct {
 	// ModelPath says where the agent's model calls go: provider, none or
 	// relay. Heartbeats only; Nia shows it and decides nothing on it.
 	ModelPath string `json:"model_path,omitempty"`
+	// Journal is the head of nia-hostd's journal, and the hash of the entry
+	// Nia last saw as its head. Heartbeats only, when nia-hostd answers.
+	Journal *Journal `json:"journal,omitempty"`
+}
+
+// Journal anchors nia-hostd's hash chain in Nia (hostd.Anchor).
+type Journal struct {
+	Seq    int64  `json:"seq"`
+	Hash   string `json:"hash,omitempty"`
+	At     int64  `json:"at,omitempty"`
+	AtHash string `json:"at_hash,omitempty"`
+	Broken string `json:"broken,omitempty"`
 }
 
 // Enrollment is Nia's answer to a successful enrollment.
@@ -62,6 +74,9 @@ type Beat struct {
 	// PolicyKeyID is the key the server signs with now; empty when it signs nothing.
 	PolicyKeyID string    `json:"policy_key_id"`
 	ServerTime  time.Time `json:"server_time"`
+	// JournalSeq is the number of the head Nia last saw of nia-hostd's
+	// journal; the next heartbeat shows the hash of that entry.
+	JournalSeq int64 `json:"journal_seq"`
 }
 
 // Refused is an answer from Nia other than success. The message is Nia's;

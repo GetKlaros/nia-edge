@@ -16,6 +16,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -472,7 +473,7 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 	beats := make(chan struct{})
 	go func() {
 		defer close(beats)
-		heartbeat(ctx, &niaclient.Client{Base: base, HTTP: niaclient.NewHTTPClient(15 * time.Second)}, saved.Key, modelPath, status, policies, logger)
+		heartbeat(ctx, &niaclient.Client{Base: base, HTTP: niaclient.NewHTTPClient(15 * time.Second)}, saved.Key, modelPath, status, policies, journalAnchor(&hostd.Client{Socket: hostSocket}), logger)
 	}()
 	go func() { served <- server.Serve(listener) }()
 
@@ -771,12 +772,31 @@ func providerSessionHeader(provider *state.Provider, base *url.URL) string {
 	return ""
 }
 
+// journalAnchor asks nia-hostd for the head of its journal and the hash of
+// entry at; nil when nia-hostd does not answer (it may not be installed).
+func journalAnchor(host *hostd.Client) func(context.Context, int64) *niaclient.Journal {
+	return func(ctx context.Context, at int64) *niaclient.Journal {
+		askCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+		resp, err := host.Do(askCtx, hostd.Request{Action: hostd.HeadAction, At: at})
+		if err != nil || !resp.OK {
+			return nil
+		}
+		var anchor niaclient.Journal
+		if json.Unmarshal([]byte(resp.Output), &anchor) != nil {
+			return nil
+		}
+		return &anchor
+	}
+}
+
 // heartbeat reports to Nia until ctx ends, and keeps the signed policy
 // fresh. A failure is logged and tried again at the next beat: the relay
 // keeps running, and Nia refuses the calls of a key it no longer accepts.
-func heartbeat(ctx context.Context, client *niaclient.Client, key, modelPath string, status *machineStatus, policies *keeper, logger *slog.Logger) {
+func heartbeat(ctx context.Context, client *niaclient.Client, key, modelPath string, status *machineStatus, policies *keeper, journal func(context.Context, int64) *niaclient.Journal, logger *slog.Logger) {
 	interval := 30 * time.Second
 	last := ""
+	var anchorAt int64
 	for {
 		digest := ""
 		if current := policies.valid(time.Now()); current != nil {
@@ -784,7 +804,13 @@ func heartbeat(ctx context.Context, client *niaclient.Client, key, modelPath str
 		}
 		reported := report()
 		reported.ModelPath = modelPath
+		if journal != nil {
+			reported.Journal = journal(ctx, anchorAt)
+		}
 		beat, err := client.Heartbeat(ctx, key, reported, digest)
+		if err == nil {
+			anchorAt = beat.JournalSeq
+		}
 		now := "active"
 		var refused *niaclient.Refused
 		switch {
