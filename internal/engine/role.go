@@ -61,8 +61,18 @@ type Tool struct {
 	Trusted       bool
 	Sensitive     bool
 	// Effect is "none", "external" or "destructive".
-	Effect    string
-	arguments []*argumentRule
+	Effect     string
+	arguments  []*argumentRule
+	categories []*categoryRule
+}
+
+// categoryRule refuses, or holds, a call that points to one of its hosts. It
+// only ever makes a decision stricter.
+type categoryRule struct {
+	always   bool
+	decision string
+	path     string
+	hosts    []string
 }
 
 type argumentRule struct {
@@ -112,6 +122,14 @@ type roleJSON struct {
 				Path string `json:"path"`
 			} `json:"shell_safe"`
 		} `json:"arguments"`
+		Categories []struct {
+			Description *string  `json:"description"`
+			Applies     string   `json:"applies"`
+			Decision    string   `json:"decision"`
+			Path        string   `json:"path"`
+			In          []string `json:"in"`
+			Hosts       []string `json:"hosts"`
+		} `json:"categories"`
 	} `json:"tools"`
 }
 
@@ -168,6 +186,14 @@ func ParseRole(raw json.RawMessage) (*Role, error) {
 				rule.shell = a.ShellSafe.Path
 			}
 			tool.arguments = append(tool.arguments, rule)
+		}
+		for index, c := range t.Categories {
+			// The server lists the hosts of each category it names: those are
+			// what this engine reads.
+			if !oneOf(c.Applies, "always", "untrusted") || !oneOf(c.Decision, RequireApproval, Deny) || c.Path == "" || len(c.Hosts) == 0 {
+				return nil, fmt.Errorf("engine: category rule %s@%d has a value this nia-edge does not know", t.Name, index)
+			}
+			tool.categories = append(tool.categories, &categoryRule{always: c.Applies == "always", decision: c.Decision, path: c.Path, hosts: c.Hosts})
 		}
 		role.Tools = append(role.Tools, tool)
 	}
@@ -241,6 +267,9 @@ func (r *Role) Decide(tool string, tainted bool, rawArguments string, exposed bo
 		return Decision{}, err
 	}
 	decided = r.stricter(rule, tainted, exposed, decided)
+	if decided, err = categorized(rule, tainted, rawArguments, decided); err != nil {
+		return Decision{}, err
+	}
 	if !r.Observe || decided.Decision == Allow {
 		return decided, nil
 	}
@@ -306,6 +335,47 @@ func (r *Role) stricter(rule *Tool, tainted, exposed bool, base Decision) Decisi
 		decided = Decision{Decision: r.RuleOfTwo, Reason: "rule_of_two", Rule: named(rule.Name)}
 	}
 	return decided
+}
+
+// categorized applies the tool's category rules after everything else: a
+// call that points to one of their hosts takes their decision when it is
+// stricter. Arguments that are not JSON, or a value at the path that is not a
+// URL read alike by every client, count as such a host.
+func categorized(rule *Tool, tainted bool, rawArguments string, base Decision) (Decision, error) {
+	if rule == nil || len(rule.categories) == 0 || base.Reason == "ambiguous_arguments" {
+		return base, nil
+	}
+	decided := base
+	var args any
+	parsed, readable := false, false
+	for index, category := range rule.categories {
+		if !category.always && !tainted {
+			continue
+		}
+		if strictness[category.decision] <= strictness[decided.Decision] {
+			continue
+		}
+		if !parsed {
+			var err error
+			if args, readable, err = parseArguments(rawArguments); err != nil {
+				return Decision{}, err
+			}
+			parsed = true
+		}
+		hit := !readable
+		if readable {
+			if value, ok := valueAt(args, category.path); ok {
+				var err error
+				if hit, err = categoryHit(value, category.hosts); err != nil {
+					return Decision{}, err
+				}
+			}
+		}
+		if hit {
+			decided = Decision{Decision: category.decision, Reason: "category", Rule: named(rule.Name + "@" + strconv.Itoa(index))}
+		}
+	}
+	return decided, nil
 }
 
 // parseArguments is the server's JSON.parse(raw || '{}'). readable is false

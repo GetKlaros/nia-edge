@@ -74,27 +74,29 @@ func urlCandidates(value string) []string {
 	return found
 }
 
-// hostsAllowed reports whether every URL of value points to an allowed host.
-func hostsAllowed(value string, allow []string) (bool, error) {
+// urlHosts returns the hosts of the URLs in value, as an HTTP client reads
+// them. ok is false when a URL is not one every client reads alike, or there
+// is none. A host this engine cannot name as the server does (a punycode
+// label) is left out, and makes undecided not nil.
+func urlHosts(value string) (hosts []string, ok bool, undecided error) {
 	candidates := urlCandidates(value)
 	// Any mention of a scheme that does not start a parsed URL fails closed.
 	if len(candidates) == 0 || strings.Count(value, "://") != len(candidates) {
-		return false, nil
+		return nil, false, nil
 	}
-	var undecided error
 	for _, candidate := range candidates {
 		authority := candidate
 		if cut := strings.IndexAny(candidate, "/?#"); cut >= 0 {
 			authority = candidate[:cut]
 		}
 		if !plainAuthority.MatchString(authority) {
-			return false, nil
+			return nil, false, nil
 		}
 		host := authority
 		if colon := strings.IndexByte(authority, ':'); colon >= 0 {
 			host = authority[:colon]
 			if port, err := strconv.Atoi(authority[colon+1:]); err != nil || port > 65535 {
-				return false, nil
+				return nil, false, nil
 			}
 		}
 		host = strings.ToLower(host)
@@ -108,12 +110,24 @@ func hostsAllowed(value string, allow []string) (bool, error) {
 			continue
 		}
 		if endsInNumber(labels[len(labels)-1]) {
-			address, ok := parseIPv4(labels)
-			if !ok {
-				return false, nil
+			address, parsed := parseIPv4(labels)
+			if !parsed {
+				return nil, false, nil
 			}
 			host = address
 		}
+		hosts = append(hosts, host)
+	}
+	return hosts, true, undecided
+}
+
+// hostsAllowed reports whether every URL of value points to an allowed host.
+func hostsAllowed(value string, allow []string) (bool, error) {
+	hosts, ok, undecided := urlHosts(value)
+	if !ok {
+		return false, nil
+	}
+	for _, host := range hosts {
 		allowed, err := hostAllowed(host, allow)
 		if err != nil {
 			undecided = err
@@ -125,6 +139,25 @@ func hostsAllowed(value string, allow []string) (bool, error) {
 		return false, undecided
 	}
 	return true, nil
+}
+
+// categoryHit reports whether a URL of value points to one of hosts, or value
+// holds a URL that is not read alike by every client.
+func categoryHit(value string, hosts []string) (bool, error) {
+	found, ok, undecided := urlHosts(value)
+	if !ok {
+		return true, nil
+	}
+	for _, host := range found {
+		matched, err := hostAllowed(host, hosts)
+		if err == nil && matched {
+			return true, nil
+		}
+		if err != nil {
+			undecided = err
+		}
+	}
+	return false, undecided
 }
 
 // hostAllowed compares a lower-case ASCII host with the allowed entries,

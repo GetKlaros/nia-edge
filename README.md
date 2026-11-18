@@ -24,7 +24,7 @@ nia-edge calls the model provider from the machine and decides the calls with th
 | macOS installer | not yet |
 | Local MCP servers | not yet |
 | Signed policy: fetched, verified against the key learned at enrollment, kept, reported | done |
-| Decision engine: roles, argument rules, dispatchers, answering as the server on its cases | done: decides the model path's calls |
+| Decision engine: roles, argument rules, site categories, dispatchers, answering as the server on its cases | done: decides the model path's calls |
 | Reading a request and a model's response (Chat Completions, Responses, Anthropic Messages; documents and streams) as the server does | done |
 | Secret detection and redaction (keys, tokens, labelled credentials) as the server does | done |
 | Model calls sent from the machine to the provider; Nia decides the tool calls and sees no prompt | done |
