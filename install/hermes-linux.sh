@@ -23,9 +23,10 @@
 #   NIA_URL, NIA_ENROLL_TOKEN (or NIA_ENROLL_TOKEN_FILE)  as for install/linux.sh
 #   NIA_EDGE_BINARY            the nia-edge binary (default ./nia-edge)
 #   NIA_PROVIDER_URL           the model provider nia-edge calls itself, so
-#                              prompts do not go through Nia (https://…/v1);
-#                              required: an enrolled machine never sends its
-#                              prompts to Nia
+#                              prompts do not go through Nia (https://…/v1).
+#                              With --from and no NIA_PROVIDER_URL, the
+#                              provider that Hermes uses is taken over: its
+#                              key leaves the agent's files for nia-edge's
 #   NIA_PROVIDER_KEY_FILE      the file holding its key (or NIA_PROVIDER_KEY)
 #   NIA_PROVIDER_FORMAT        openai (default) or anthropic
 #   HERMES_MODEL               the model Hermes asks for
@@ -63,13 +64,25 @@ command -v catatonit >/dev/null || [ -x /usr/libexec/podman/catatonit ] || comma
 [ -z "$FROM" ] || [ "$FROM" != "$AGENT" ] || fail "--from names the dedicated user itself"
 [ -z "$FROM" ] || [ "$FRESH" -eq 0 ] || fail "--from and --fresh exclude each other"
 # The provider before anything is changed: without it the agent has no model.
-[ -n "${NIA_PROVIDER_URL:-}" ] || fail "NIA_PROVIDER_URL is required: nia-edge calls the model provider itself"
-case "$NIA_PROVIDER_URL" in https://*|http://127.0.0.1*|http://localhost*) ;; *) fail "NIA_PROVIDER_URL must be https" ;; esac
-if [ -n "${NIA_PROVIDER_KEY_FILE:-}" ]; then
-  [ -r "$NIA_PROVIDER_KEY_FILE" ] || fail "NIA_PROVIDER_KEY_FILE cannot be read"
-  NIA_PROVIDER_KEY=$(cat "$NIA_PROVIDER_KEY_FILE")
+# With --from, the one the existing Hermes uses can be taken over (step 4).
+provider_url_ok() {
+  case "$1" in https://?*|http://127.0.0.1[:/]*|http://localhost[:/]*) return 0 ;; esac
+  return 1
+}
+TAKE_OVER=0
+if [ -n "${NIA_PROVIDER_URL:-}" ]; then
+  provider_url_ok "$NIA_PROVIDER_URL" || fail "NIA_PROVIDER_URL must be https"
+  if [ -n "${NIA_PROVIDER_KEY_FILE:-}" ]; then
+    [ -r "$NIA_PROVIDER_KEY_FILE" ] || fail "NIA_PROVIDER_KEY_FILE cannot be read"
+    NIA_PROVIDER_KEY=$(cat "$NIA_PROVIDER_KEY_FILE")
+  fi
+  [ -n "${NIA_PROVIDER_KEY:-}" ] || fail "NIA_PROVIDER_KEY (or NIA_PROVIDER_KEY_FILE) is required"
+elif [ -n "$FROM" ]; then
+  TAKE_OVER=1
+  [ -f "$HERE/hermes-provider.py" ] || fail "hermes-provider.py must be next to this script"
+else
+  fail "NIA_PROVIDER_URL is required with --fresh: nia-edge calls the model provider itself (with --from, the provider of that Hermes is taken over)"
 fi
-[ -n "${NIA_PROVIDER_KEY:-}" ] || fail "NIA_PROVIDER_KEY (or NIA_PROVIDER_KEY_FILE) is required"
 umask 077
 
 home_of() { getent passwd "$1" | cut -d: -f6; }
@@ -161,11 +174,52 @@ if [ -n "$FROM" ]; then
   done
   chown -R "$AGENT:$AGENT" "$AGENT_HOME/.hermes"
   say "copied $FROM's Hermes configuration, memories and skills to $AGENT"
-  keys=$(grep -E '^[A-Z0-9_]*(API_KEY|_TOKEN|_SECRET)=' "$AGENT_HOME/.hermes/.env" 2>/dev/null | cut -d= -f1 | tr '\n' ' ' || true)
-  [ -z "$keys" ] || say "$AGENT's .env holds: $keys- a model key there is not needed any more: nia-edge holds the provider's"
 fi
 # Hermes refuses a home others can write to.
 chmod -R go-w "$AGENT_HOME/.hermes"
+
+# The provider that Hermes used, read by Hermes' own code, before this script
+# points it at nia-edge. Its key goes from the agent's files to this shell,
+# and from here to nia-edge only (step 8); it is never printed.
+if [ "$TAKE_OVER" -eq 1 ]; then
+  helper_dir=$(mktemp -d)
+  chmod 0755 "$helper_dir"
+  cp "$HERE/hermes-provider.py" "$helper_dir/"
+  chmod 0644 "$helper_dir/hermes-provider.py"
+  HERMES_PY=
+  for candidate in $(find "$AGENT_HOME/.hermes" "$AGENT_HOME/.local" -maxdepth 8 \( -name python -o -name python3 \) -path '*/bin/*' 2>/dev/null); do
+    if as_agent "'$candidate' -I -c 'import hermes_cli.runtime_provider'" >/dev/null 2>&1; then
+      HERMES_PY=$candidate
+      break
+    fi
+  done
+  [ -n "$HERMES_PY" ] || fail "cannot find Hermes' Python for $AGENT to read the provider of $FROM's Hermes: set NIA_PROVIDER_URL"
+  hermes_provider() {
+    as_agent "HERMES_HOME=\"\$HOME/.hermes\" '$HERMES_PY' -I '$helper_dir/hermes-provider.py' $1"
+  }
+  described=$(hermes_provider describe 2>/dev/null) || fail "Hermes cannot say which provider $FROM's Hermes uses: set NIA_PROVIDER_URL"
+  field() { printf '%s\n' "$described" | sed -n "s/^$1=//p"; }
+  provider_name=$(field provider)
+  provider_mode=$(field api_mode)
+  NIA_PROVIDER_URL=$(field base_url)
+  [ "$(field has_key)" = 1 ] ||
+    fail "$FROM's Hermes has no key it would send to its provider ($provider_name, $NIA_PROVIDER_URL): set NIA_PROVIDER_URL and NIA_PROVIDER_KEY_FILE" 6
+  [ "$(field static)" = 1 ] ||
+    fail "the provider of $FROM's Hermes ($provider_name) signs in by itself (OAuth): it cannot be handed to nia-edge; set NIA_PROVIDER_URL and NIA_PROVIDER_KEY_FILE" 6
+  [ "$provider_mode" = chat_completions ] ||
+    fail "the provider of $FROM's Hermes ($provider_name) speaks $provider_mode, not chat completions: set NIA_PROVIDER_URL and NIA_PROVIDER_FORMAT" 6
+  provider_url_ok "$NIA_PROVIDER_URL" || fail "the provider of $FROM's Hermes is at $NIA_PROVIDER_URL, not https: set NIA_PROVIDER_URL" 6
+  NIA_PROVIDER_KEY=$(hermes_provider key 2>/dev/null) || fail "cannot read the key of $FROM's Hermes provider"
+  [ -n "$NIA_PROVIDER_KEY" ] || fail "the key of $FROM's Hermes provider is empty"
+  # The agent keeps no copy: a fooled agent cannot leak what it cannot read.
+  hermes_provider scrub >/dev/null 2>&1 || fail "cannot remove the provider key from $AGENT's Hermes files"
+  rm -rf "$helper_dir"
+  say "took over the provider of $FROM's Hermes ($provider_name, $NIA_PROVIDER_URL): its key is nia-edge's now, $AGENT's files no longer hold it ($FROM's own copy is left as it is)"
+fi
+if [ -n "$FROM" ]; then
+  keys=$(grep -E '^[A-Z0-9_]*(API_KEY|_TOKEN|_SECRET)=' "$AGENT_HOME/.hermes/.env" 2>/dev/null | cut -d= -f1 | tr '\n' ' ' || true)
+  [ -z "$keys" ] || say "$AGENT's .env holds: $keys- the agent can read these; a model key is not needed there: nia-edge holds the provider's"
+fi
 
 # 5. The model through nia-edge; the terminal and the file tools in a
 # container without network, without any host directory.
@@ -175,6 +229,7 @@ set_hermes() {
 set_hermes model.provider custom
 set_hermes model.base_url http://127.0.0.1:8787/v1
 set_hermes model.api_key provided-by-nia-edge
+set_hermes model.api_mode chat_completions
 [ -z "${HERMES_MODEL:-}" ] || set_hermes model.default "$HERMES_MODEL"
 set_hermes terminal.backend docker
 set_hermes terminal.docker_network false

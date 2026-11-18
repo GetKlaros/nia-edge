@@ -96,9 +96,12 @@ attempt itself, so the result does not rest on what the machine says.
 whatever command or script it runs:
 
 ```bash
+# Take over a Hermes already installed under <user>, with the provider it uses:
+sudo NIA_URL=https://nia.example NIA_ENROLL_TOKEN=nen_… install/hermes-linux.sh --from <user>
+# Or a new one, with the provider named:
 sudo NIA_URL=https://nia.example NIA_ENROLL_TOKEN=nen_… \
      NIA_PROVIDER_URL=https://api.example.com/v1 NIA_PROVIDER_KEY_FILE=/root/provider.key \
-     install/hermes-linux.sh --from <user>      # or --fresh
+     install/hermes-linux.sh --fresh
 ```
 
 It needs systemd, nftables and rootless Podman (Debian, Ubuntu:
@@ -110,19 +113,25 @@ It needs systemd, nftables and rootless Podman (Debian, Ubuntu:
    network. So the script stops and says so, unless told `--from <user>`
    (copy that Hermes' configuration, `.env`, memories, skills, sessions and
    scheduled jobs; the original is left as it is) or `--fresh`;
-2. creates the user `hermes`, with subordinate ids and a user manager that
+2. with `--from` and no `NIA_PROVIDER_URL`, takes over the provider that
+   Hermes uses: Hermes' own code says which endpoint and which key it would
+   send (`install/hermes-provider.py`), the key moves from the agent's `.env`
+   and `config.yaml` to nia-edge's state file, and is never printed. A
+   provider Hermes signs in to by itself (OAuth: Nous Portal, Codex…), or
+   one that does not speak chat completions, cannot be taken over: the script
+   stops and asks for `NIA_PROVIDER_URL`;
+3. creates the user `hermes`, with subordinate ids and a user manager that
    runs without a login, and installs Hermes there with its official
    installer;
-3. points Hermes' model at nia-edge, and runs its terminal and file tools in
+4. points Hermes' model at nia-edge, and runs its terminal and file tools in
    a container (`terminal.backend docker` through rootless Podman, no
    network, no host directory mounted); Podman runs as `hermes`, so the
    container is never root on the machine and the user is in no `docker`
    group;
-4. runs `install/linux.sh hermes`: nia-edge, the firewall rule, enrollment,
+5. runs `install/linux.sh hermes`: nia-edge, the firewall rule, enrollment,
    and the proof with `nia-edge doctor`;
-5. gives nia-edge the provider, when `NIA_PROVIDER_URL` is set, so prompts
-   do not go through Nia;
-6. checks that a container of `hermes` has no network interface but loopback
+6. gives nia-edge the provider, so prompts do not go through Nia;
+7. checks that a container of `hermes` has no network interface but loopback
    and sees nothing of its home.
 
 What holds then, for a script the agent wrote and ran (tested by the
