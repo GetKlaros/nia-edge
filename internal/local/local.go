@@ -90,6 +90,9 @@ type Handler struct {
 	Key string
 	// Anthropic selects the x-api-key header; otherwise Authorization: Bearer.
 	Anthropic bool
+	// SessionHeader, when set, carries an opaque id of the conversation to
+	// the provider: OpenCode Go refuses a request without x-opencode-session.
+	SessionHeader string
 	// HTTP reaches the provider. It must not follow redirects.
 	HTTP *http.Client
 	Nia  Authority
@@ -218,7 +221,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		outbound = []byte(body.JSON())
 	}
 
-	answer, contentType, status, err := h.call(r, outbound)
+	answer, contentType, status, err := h.call(r, outbound, session)
 	if err != nil {
 		h.log("provider call failed", "error", err.Error())
 		code, message := "upstream_unavailable", "The model provider is unavailable"
@@ -369,7 +372,7 @@ func (h *Handler) ingest(ctx context.Context, session, tool string) error {
 var errTooLarge = errors.New("the model response is too large")
 
 // call sends the request to the provider and reads its whole answer.
-func (h *Handler) call(r *http.Request, body []byte) (answer []byte, contentType string, status int, err error) {
+func (h *Handler) call(r *http.Request, body []byte, session string) (answer []byte, contentType string, status int, err error) {
 	target := h.Provider.JoinPath(strings.TrimPrefix(r.URL.Path, "/v1"))
 	request, err := http.NewRequestWithContext(r.Context(), http.MethodPost, target.String(), bytes.NewReader(body))
 	if err != nil {
@@ -381,6 +384,12 @@ func (h *Handler) call(r *http.Request, body []byte) (answer []byte, contentType
 		}
 	}
 	request.Header.Set("Content-Type", "application/json")
+	if h.SessionHeader != "" {
+		// The id of the conversation, hashed again: stable for the provider's
+		// routing and cache, and not the id Nia knows it by.
+		sum := sha256.Sum256([]byte("provider-session\x00" + session))
+		request.Header.Set(h.SessionHeader, "nia-"+hex.EncodeToString(sum[:16]))
+	}
 	if h.Anthropic {
 		request.Header.Set("X-Api-Key", h.Key)
 		if request.Header.Get("Anthropic-Version") == "" {

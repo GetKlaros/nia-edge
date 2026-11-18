@@ -131,4 +131,7 @@ type Provider struct {
 	Key string `json:"key"`
 	// Format is "openai" (Authorization: Bearer) or "anthropic" (x-api-key).
 	Format string `json:"format"`
+	// SessionHeader names a header that carries a stable id of the
+	// conversation, for a provider that routes by it; empty for none.
+	SessionHeader string `json:"session_header,omitempty"`
 }
