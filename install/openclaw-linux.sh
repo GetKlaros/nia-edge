@@ -73,6 +73,7 @@ fi
 [ -z "$FROM" ] || [ "$FROM" != "$AGENT" ] || fail "--from names the dedicated user itself"
 [ -z "$FROM" ] || [ "$FRESH" -eq 0 ] || fail "--from and --fresh exclude each other"
 case "$IMAGE" in *[!A-Za-z0-9._:/@-]* | "") fail "OPENCLAW_SANDBOX_IMAGE is not an image name" ;; esac
+case "${OPENCLAW_MODEL:-}" in *[!A-Za-z0-9._:/@-]*) fail "OPENCLAW_MODEL is not a model name" ;; esac
 # The provider before anything is changed: without it the agent has no model.
 case "${NIA_PROVIDER_URL:-}" in
   https://?* | http://127.0.0.1[:/]* | http://localhost[:/]*) ;;
