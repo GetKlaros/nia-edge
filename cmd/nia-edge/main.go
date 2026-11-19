@@ -64,7 +64,7 @@ func main() {
 
 func run(ctx context.Context, args []string, getenv func(string) string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: nia-edge enroll|provider|run|hostd|mcp|doctor|health|version")
+		fmt.Fprintln(stderr, "usage: nia-edge enroll|provider|run|hostd|mcp|agents|doctor|health|version")
 		return 2
 	}
 	var err error
@@ -79,6 +79,8 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdin i
 		err = hostdCommand(ctx, args[1:], getenv, stdout, stderr)
 	case "mcp":
 		err = mcpCommand(ctx, args[1:], getenv, stdin, stdout, stderr)
+	case "agents":
+		err = agentsCommand(args[1:], stdout, stderr)
 	case "doctor":
 		return check(ctx, args[1:], getenv, stdout, stderr)
 	case "health":
@@ -87,7 +89,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdin i
 		fmt.Fprintln(stdout, version)
 		return 0
 	default:
-		fmt.Fprintf(stderr, "nia-edge: unknown command %q (enroll, provider, run, hostd, mcp, doctor, health, version)\n", args[0])
+		fmt.Fprintf(stderr, "nia-edge: unknown command %q (enroll, provider, run, hostd, mcp, agents, doctor, health, version)\n", args[0])
 		return 2
 	}
 	if errors.Is(err, flag.ErrHelp) {

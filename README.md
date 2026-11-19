@@ -152,6 +152,73 @@ own files, but still nobody else's and still sends nothing.
 The messaging gateway (Telegram…) is not installed by this script: its host
 needs an `egress` rule in the role first.
 
+## Find the agents of a machine
+
+```bash
+sudo nia-edge agents        # or -json
+```
+
+lists the agents installed under every account (Hermes, OpenClaw, Codex,
+OpenCode, Claude Code): whether one runs, how many MCP servers it declares,
+whether its model is nia-edge, whether its user is the one nia-edge's
+firewall closes, the groups that would go around it, and what to do next
+(for Hermes and OpenClaw, the installer below with `--from <user>`). It reads
+files and `/proc`, follows no link, prints no secret, changes and decides
+nothing: `nia-edge doctor`, run as the agent's user, is the proof, and Nia
+the judge.
+
+## Install an OpenClaw agent on Linux
+
+`install/openclaw-linux.sh` does for OpenClaw what the Hermes installer does
+for Hermes, through OpenClaw's own CLI (`openclaw config`, which validates
+each change; `install/openclaw-config.mjs` runs it with OpenClaw's Node):
+
+```bash
+sudo NIA_URL=https://nia.example NIA_ENROLL_TOKEN=nen_… \
+     NIA_PROVIDER_URL=https://api.example.com/v1 NIA_PROVIDER_KEY_FILE=/root/provider.key \
+     install/openclaw-linux.sh --from <user>      # or --fresh, with OPENCLAW_MODEL
+```
+
+1. it stops when OpenClaw is under a person's account, unless told
+   `--from <user>` (its configuration, agents, workspaces and state are
+   copied, never its code, logs or sandboxes; settings naming that home are
+   moved to the new one) or `--fresh`;
+2. it creates the user `openclaw` and installs OpenClaw there with its
+   official installer (`install-cli.sh`: its own Node, no onboarding);
+3. the model is nia-edge (provider `nia`, `openai-completions`): the primary
+   model is kept, and the key of every other provider leaves the agent's
+   configuration;
+4. every tool runs in a rootless Podman sandbox (`sandbox.mode all`,
+   `backend podman`, `workspaceAccess none`, `docker.network none`, no bind,
+   no `dangerously*`), for every agent of the configuration; `exec` never
+   runs on the host (`tools.exec.host sandbox`, `tools.elevated.enabled
+   false`); the script refuses a bind into the sandbox and checks each of
+   these as OpenClaw reports it;
+5. OpenClaw's runtime goes through nia-edge's proxy (`proxy.proxyUrl`,
+   loopback direct), and each MCP server it starts gets the proxy in its own
+   `env`; nia-edge's host actions are the server `host`;
+6. then `install/linux.sh openclaw`, the provider into nia-edge, the checks
+   on a container, and the gateway as the agent's own service.
+
+Every call reaches Nia under its own name: the script turns OpenClaw's Tool
+Search off (its `dispatch_action` would hide the call it makes) and denies
+the tools that change OpenClaw's configuration (`openclaw`, `gateway`), so
+the sandbox is not the model's to turn off. nia-edge's MCP servers are named
+`mcp__host` and `mcp__<name>` in OpenClaw's configuration: OpenClaw names a
+tool `<server>__<tool>`, so the model sees `mcp__host__<action>`, as with
+Hermes, and the same role applies. The role lists OpenClaw's own tools
+(`write`, `read`, `exec`…); a tool it does not list is refused. The default
+image is `python:3.14-slim-trixie`: OpenClaw's file tools run a Python helper
+in the sandbox.
+
+`install/mcp-linux.sh add` points an OpenClaw server at the container
+nia-edge runs for it, as it does for Hermes.
+
+Tested by the server's `npm run e2e:openclaw`, with real OpenClaw through its
+gateway: the script the agent wrote runs in its sandbox and reads, deletes
+and sends nothing; the runtime's own connections (catalog, telemetry) go
+through Nia and are refused by the role.
+
 ## Use without the installer
 
 The token carries the role of this machine; the machine chooses nothing.

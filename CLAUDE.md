@@ -45,9 +45,12 @@ private code base; this repository is public.
   only, never shown, never accepted on the command line, never sent anywhere
   but to the provider.
 - The firewall lets the agent's user reach nia-edge and its own services on
-  the loopback, never another user's, and nothing else. The Hermes installer
-  never leaves Hermes under a person's account without saying so, and runs
-  its terminal in a rootless container without network or host directory.
+  the loopback, never another user's, and nothing else. The Hermes and
+  OpenClaw installers never leave the agent under a person's account without
+  saying so, and run its terminal (OpenClaw: every sandboxed tool, exec never
+  on the host, no tool that changes its configuration) in a rootless
+  container without network or host directory. `nia-edge agents` only
+  reports.
 - nia-hostd is the only part that runs as root. It serves the nia-edge user
   alone (peer credentials), verifies the signed policy itself, and runs only
   the actions of the role's catalogue, by name, with fixed programs and
