@@ -307,9 +307,13 @@ roles:
   needs it fails there (`git push`, `npm install` from the registry); a
   deleted directory counts as one path, with all the files it held; what a
   command reads leaves through its output, which the after hook redacts;
-  a long-running server is stopped at the timeout. Under Codex's own
-  sandbox, nia-edge cannot be reached: run Codex with its sandbox off or
-  network on for nia-edge.
+  a long-running server is stopped at the timeout.
+- Codex in its own sandbox (`--sandbox workspace-write` or `read-only`):
+  nia-edge is out of reach there, and with the sandbox's network on, the
+  layer cannot be made inside it; either way its commands are refused
+  (proven with Codex 0.170.0). Under a role that simulates, run Codex
+  with its sandbox off (`danger-full-access`): nia-edge's simulation is
+  then the sandbox of each command.
 
 ## MCP servers hosted by their vendor (GitHub, Notion…)
 
