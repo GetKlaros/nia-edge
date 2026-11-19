@@ -97,7 +97,7 @@ func (h *Handler) simulated(agent Agent, conversation string, hook payload) any 
 	if !ok || strings.TrimSpace(command) == "" {
 		return Refusal(agent, "before", "Nia simulates this role's commands, and this one could not be read")
 	}
-	if agent == ClaudeCode || h.Simulations == nil {
+	if h.Simulations == nil {
 		return Refusal(agent, "before", "Nia simulates this role's commands, and cannot yet for this agent, so this call was not run")
 	}
 	id, ok := h.Simulations.issue(command, conversation, time.Duration(rules.Role.Simulate.Timeout)*time.Second)
@@ -112,6 +112,10 @@ func (h *Handler) simulated(agent Agent, conversation string, hook payload) any 
 		return map[string]any{"hookSpecificOutput": map[string]any{"hookEventName": "PreToolUse", "permissionDecision": "allow", "updatedInput": input}}
 	case GeminiCLI:
 		return map[string]any{"hookSpecificOutput": map[string]any{"hookEventName": "BeforeTool", "tool_input": input}}
+	case ClaudeCode:
+		// No permissionDecision: Claude Code's own permissions still decide
+		// whether the rewritten command may run.
+		return map[string]any{"hookSpecificOutput": map[string]any{"hookEventName": "PreToolUse", "updatedInput": input}}
 	}
 	// nia-edge's own extensions and plugin.
 	return map[string]any{"input": input}
