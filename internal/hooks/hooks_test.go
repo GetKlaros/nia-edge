@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/GetKlaros/nia-edge/internal/local"
 )
@@ -123,6 +124,25 @@ func TestAfterAToolRan(t *testing.T) {
 	_, body = post(t, h, "/v1/hooks/claude-code", `{"hook_event_name":"PostToolUse","session_id":"s1","tool_name":"WebFetch","tool_input":{},"tool_response":{"text":"page"}}`)
 	if !strings.Contains(body, `"decision":"block"`) || strings.Contains(body, "page") {
 		t.Fatalf("%s", body)
+	}
+}
+
+func TestAllowedMCPCallIsReleased(t *testing.T) {
+	releases := &local.Releases{Prefix: "mcp__"}
+	h := &Handler{Nia: &fakeNia{allow: true}, Releases: releases}
+	post(t, h, "/v1/hooks/claude-code", `{"hook_event_name":"PreToolUse","session_id":"s","tool_name":"mcp__github__list_issues","tool_input":{"repo":"a/b"}}`)
+	post(t, h, "/v1/hooks/claude-code", `{"hook_event_name":"PreToolUse","session_id":"s","tool_name":"Bash","tool_input":{"command":"ls"}}`)
+	now := time.Now()
+	if !releases.Take("mcp__github__list_issues", `{"repo": "a/b"}`, now) {
+		t.Fatal("an allowed MCP call is released, under its canonical arguments")
+	}
+	if releases.Take("mcp__github__list_issues", `{"repo":"a/b"}`, now) || releases.Take("Bash", `{"command":"ls"}`, now) {
+		t.Fatal("once, and only MCP calls")
+	}
+	denied := &Handler{Nia: &fakeNia{}, Releases: releases}
+	post(t, denied, "/v1/hooks/claude-code", `{"hook_event_name":"PreToolUse","session_id":"s","tool_name":"mcp__github__delete_repo","tool_input":{}}`)
+	if releases.Take("mcp__github__delete_repo", `{}`, now) {
+		t.Fatal("a refused call is not released")
 	}
 }
 

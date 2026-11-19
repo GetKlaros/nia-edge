@@ -12,11 +12,13 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/GetKlaros/nia-edge/internal/mcpd"
+	"github.com/GetKlaros/nia-edge/internal/remotemcp"
 	"github.com/GetKlaros/nia-edge/internal/state"
 )
 
@@ -35,9 +37,11 @@ const (
 //	nia-edge mcp relay -- command...   in a container: its way out, then the server
 func mcpCommand(ctx context.Context, args []string, getenv func(string) string, stdin io.Reader, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: nia-edge mcp add|remove|list|serve|relay")
+		return errors.New("usage: nia-edge mcp add|remove|list|remote|serve|relay")
 	}
 	switch args[0] {
+	case "remote":
+		return mcpRemote(args[1:], getenv, stdin, stdout, stderr)
 	case "add", "remove", "list":
 		return mcpConfigure(args[0], args[1:], getenv, stdin, stdout, stderr)
 	case "serve":
@@ -50,8 +54,118 @@ func mcpCommand(ctx context.Context, args []string, getenv func(string) string, 
 		listen, socket := mcpd.RelayDefaults()
 		os.Exit(mcpd.Relay(ctx, listen, socket, command, stderr))
 	}
-	return fmt.Errorf("unknown mcp command %q (add, remove, list, serve, relay)", args[0])
+	return fmt.Errorf("unknown mcp command %q (add, remove, list, remote, serve, relay)", args[0])
 }
+
+// mcpRemote keeps the MCP servers hosted by their vendor (GitHub, Notion…)
+// that the agent reaches through nia-edge, which holds their token:
+//
+//	nia-edge mcp remote add <name> -url https://… [-header Authorization] [-scheme Bearer]   (the token on standard input)
+//	nia-edge mcp remote remove <name>
+//	nia-edge mcp remote list
+func mcpRemote(args []string, getenv func(string) string, stdin io.Reader, stdout, stderr io.Writer) error {
+	if len(args) == 0 {
+		return errors.New("usage: nia-edge mcp remote add|remove|list")
+	}
+	action := args[0]
+	flags := flag.NewFlagSet("nia-edge mcp remote "+action, flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	stateFile := flags.String("state", "", "state file (or EDGE_STATE; default "+defaultState+")")
+	serverURL := flags.String("url", "", "the server's Streamable HTTP endpoint (https)")
+	header := flags.String("header", "Authorization", "the header that carries the token")
+	scheme := flags.String("scheme", "Bearer", "what comes before the token in that header (\"\" for nothing)")
+	name := ""
+	rest := args[1:]
+	if action != "list" {
+		if len(rest) == 0 {
+			return fmt.Errorf("usage: nia-edge mcp remote %s <name>", action)
+		}
+		name, rest = rest[0], rest[1:]
+	}
+	if err := flags.Parse(rest); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return errors.New("unexpected argument: the token is read on standard input, never on the command line")
+	}
+	path := statePath(*stateFile, getenv)
+	saved, err := state.Load(path)
+	if errors.Is(err, state.ErrNotEnrolled) {
+		return errors.New("this machine is not enrolled: run nia-edge enroll first")
+	}
+	if err != nil {
+		return err
+	}
+	switch action {
+	case "list":
+		names := make([]string, 0, len(saved.Remote))
+		for server := range saved.Remote {
+			names = append(names, server)
+		}
+		sort.Strings(names)
+		if len(names) == 0 {
+			fmt.Fprintln(stdout, "no MCP server hosted by its vendor goes through nia-edge")
+		}
+		for _, server := range names {
+			// The token is never shown: only where it goes.
+			fmt.Fprintf(stdout, "%s: %s, token in %s, at http://127.0.0.1:8787/remote/%s/mcp\n", server, saved.Remote[server].URL, saved.Remote[server].Header, server)
+		}
+		return nil
+	case "remove":
+		if saved.Remote[name] == nil {
+			return fmt.Errorf("no MCP server %q hosted by its vendor", name)
+		}
+		delete(saved.Remote, name)
+		if err := state.Save(path, saved); err != nil {
+			return err
+		}
+		fmt.Fprintf(stdout, "%s removed, its token with it (restart nia-edge)\n", name)
+		return nil
+	case "add":
+	default:
+		return fmt.Errorf("unknown command %q (add, remove, list)", action)
+	}
+	if !mcpd.ValidName(name) {
+		return errors.New("the name is a lowercase letter, then letters, digits or _ (32 at most), not host, without __")
+	}
+	if saved.MCP[name] != nil {
+		return fmt.Errorf("%s already names an MCP server that runs on this machine", name)
+	}
+	if _, err := remotemcp.ValidURL(*serverURL); err != nil {
+		return err
+	}
+	if !headerName.MatchString(*header) {
+		return errors.New("the header is a header name (letters, digits and -)")
+	}
+	if strings.ContainsAny(*scheme, "\r\n") || len(*scheme) > 32 {
+		return errors.New("the scheme is one short word")
+	}
+	line, err := bufio.NewReader(io.LimitReader(stdin, 16<<10)).ReadString('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
+		return err
+	}
+	token := strings.TrimRight(line, "\r\n")
+	if token == "" || strings.ContainsAny(token, "\r\n\x00") || len(token) >= 16<<10-2 {
+		return errors.New("no token on standard input (one line)")
+	}
+	value := token
+	if *scheme != "" {
+		value = *scheme + " " + token
+	}
+	if saved.Remote == nil {
+		saved.Remote = map[string]*state.RemoteMCP{}
+	}
+	saved.Remote[name] = &state.RemoteMCP{URL: *serverURL, Header: *header, Value: value}
+	if err := state.Save(path, saved); err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "%s kept in %s with its token (restart nia-edge). The agent reaches it at http://127.0.0.1:8787/remote/%s/mcp, without a token; its tools are mcp__%s__<tool>.\n", name, path, name, name)
+	fmt.Fprintln(stdout, "  Claude Code: claude mcp add --transport http "+name+" http://127.0.0.1:8787/remote/"+name+"/mcp")
+	fmt.Fprintln(stdout, "  Remove the token from the agent's own configuration: it no longer needs it.")
+	return nil
+}
+
+var headerName = regexp.MustCompile(`^[A-Za-z0-9-]{1,64}$`)
 
 func mcpConfigure(action string, args []string, getenv func(string) string, stdin io.Reader, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("nia-edge mcp "+action, flag.ContinueOnError)
@@ -143,6 +257,9 @@ func mcpConfigure(action string, args []string, getenv func(string) string, stdi
 	}
 	if err := launch.Validate(); err != nil {
 		return err
+	}
+	if saved.Remote[launch.Name] != nil {
+		return fmt.Errorf("%s already names an MCP server hosted by its vendor", launch.Name)
 	}
 	if saved.MCP == nil {
 		saved.MCP = map[string]*state.MCPServer{}

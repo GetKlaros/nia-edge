@@ -236,3 +236,22 @@ func (c *Client) call(ctx context.Context, method, path, bearer string, body any
 	}
 	return nil
 }
+
+// PinTools reports the tools an MCP server hosted by its vendor lists, as
+// this machine saw them: Nia pins them for the tenant and names back those
+// the agent may see.
+func (c *Client) PinTools(ctx context.Context, key, server string, tools []json.RawMessage) ([]string, error) {
+	if tools == nil {
+		tools = []json.RawMessage{}
+	}
+	var answer struct {
+		Visible []string `json:"visible"`
+	}
+	if err := c.post(ctx, "/edge/v1/mcp/pins", key, map[string]any{"server": server, "tools": tools}, http.StatusOK, &answer); err != nil {
+		return nil, err
+	}
+	if answer.Visible == nil {
+		return nil, errors.New("Nia's answer names no tool list")
+	}
+	return answer.Visible, nil
+}
