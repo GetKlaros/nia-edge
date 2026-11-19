@@ -109,7 +109,10 @@ private code base; this repository is public.
   from it taints the run. Signed in with OAuth, it requires PKCE S256, the
   `state` it sent and the server's URL as resource; the access and refresh
   tokens are in the state file only, like the token.
-- What the machine reports about itself decides nothing.
+- What the machine reports about itself decides nothing. nia-edge's log of
+  decisions (`decisions.jsonl`, 0600, beside the state file) holds tools,
+  hosts, verdicts and Nia's reasons, redacted: never a prompt, an argument
+  or an output; it decides nothing, and failing to write it stops no call.
 - The egress proxy refuses an internal IP literal before any decision,
   resolves a name only after the connection is allowed, once, and connects to
   the address it checked. Only an explicit `allow` opens a connection; a
