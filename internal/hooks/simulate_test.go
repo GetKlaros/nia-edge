@@ -29,19 +29,23 @@ func call(h *Handler, method, path, body string) (int, string) {
 func TestAnAllowedCommandIsSimulated(t *testing.T) {
 	nia := &fakeNia{allow: true}
 	h := &Handler{Nia: nia, Rules: simulatingRules(t), Simulations: &Tickets{}}
-	for agent, want := range map[string]string{"pi": `"input"`, "opencode": `"input"`, "codex": `"updatedInput"`, "gemini-cli": `"tool_input"`} {
-		tool := map[string]string{"pi": "bash", "opencode": "bash", "codex": "Bash", "gemini-cli": "run_shell_command"}[agent]
-		event := map[string]string{"pi": "tool_call", "opencode": "tool_call", "codex": "PreToolUse", "gemini-cli": "BeforeTool"}[agent]
+	for agent, want := range map[string]string{"pi": `"input"`, "opencode": `"input"`, "codex": `"updatedInput"`, "claude-code": `"updatedInput"`, "gemini-cli": `"tool_input"`} {
+		tool := map[string]string{"pi": "bash", "opencode": "bash", "codex": "Bash", "claude-code": "Bash", "gemini-cli": "run_shell_command"}[agent]
+		event := map[string]string{"pi": "tool_call", "opencode": "tool_call", "codex": "PreToolUse", "claude-code": "PreToolUse", "gemini-cli": "BeforeTool"}[agent]
 		_, body := post(t, h, "/v1/hooks/"+agent, `{"hook_event_name":"`+event+`","session_id":"s","tool_name":"`+tool+`","tool_input":{"command":"rm -rf projet","timeout":5}}`)
 		if !strings.Contains(body, want) || !strings.Contains(body, SimulateCommand) || !strings.Contains(body, `"timeout":5`) {
 			t.Fatalf("%s: %s", agent, body)
 		}
+		// Claude Code: no permissionDecision, its own permissions decide.
+		if agent == "claude-code" && strings.Contains(body, "permissionDecision") {
+			t.Fatalf("%s: %s", agent, body)
+		}
 	}
-	// Another tool is not rewritten; Claude Code cannot be yet: refused.
+	// Another tool is not rewritten; a command that cannot be read is refused.
 	if _, body := post(t, h, "/v1/hooks/pi", `{"hook_event_name":"tool_call","session_id":"s","tool_name":"read","tool_input":{"path":"a"}}`); body != "" {
 		t.Fatal(body)
 	}
-	if _, body := post(t, h, "/v1/hooks/claude-code", `{"hook_event_name":"PreToolUse","session_id":"s","tool_name":"Bash","tool_input":{"command":"ls"}}`); !strings.Contains(body, `"deny"`) {
+	if _, body := post(t, h, "/v1/hooks/claude-code", `{"hook_event_name":"PreToolUse","session_id":"s","tool_name":"Bash","tool_input":{"command":7}}`); !strings.Contains(body, `"deny"`) {
 		t.Fatal(body)
 	}
 

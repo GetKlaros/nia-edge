@@ -257,8 +257,8 @@ Pi.
 
 ## Simulate the agents' commands
 
-A role with `simulate` has every shell command of its agents (Gemini CLI,
-Codex, Pi, Oh My Pi, OpenCode) run first in a sandbox, then judged by what
+A role with `simulate` has every shell command of its agents (Claude Code,
+Codex, Gemini CLI, Pi, Oh My Pi, OpenCode) run first in a sandbox, then judged by what
 it did rather than by how it is written: `rm -fr`, `find -delete`, a
 command in base64, a script written then run or a Python `rmtree` all show
 as the files they delete.
@@ -288,9 +288,13 @@ roles:
   out of the user's files (no link followed out).
 - A command that cannot be simulated is refused, never run without one: no
   user namespaces, a command longer than `timeout_seconds`, a setuid file,
-  more than 2,000 changed paths. Claude Code is refused for now (its input
-  rewrite is not reliable yet). Without a signed policy, nia-edge does not
+  more than 2,000 changed paths. Without a signed policy, nia-edge does not
   know the role simulates.
+- The rewrite grants nothing: Claude Code's gets no `permissionDecision`,
+  so its own permissions still decide (proven with 2.1.328: without them,
+  the rewritten command does not run either); Codex applies a rewrite only
+  with `allow`, which in 0.170.0 only carries the new input, its approvals
+  and sandbox still apply.
 - Limits: the network does not exist in a simulation, so a command that
   needs it fails there (`git push`, `npm install` from the registry); a
   deleted directory counts as one path, with all the files it held; what a
