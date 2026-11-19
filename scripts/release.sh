@@ -40,9 +40,9 @@ for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
 done
 # The installer and its firewall rule go with the Linux binaries, as they are.
 cp install/linux.sh "dist/nia-edge_${version#v}_install-linux.sh"
-# Under their own names too: hermes-linux.sh and mcp-linux.sh look for
-# linux.sh and hermes-config.py next to them.
-for script in linux.sh firewall-linux.sh hermes-linux.sh hermes-config.py mcp-linux.sh update-linux.sh; do
+# Under their own names too: hermes-linux.sh, openclaw-linux.sh and
+# mcp-linux.sh look for linux.sh and their helpers next to them.
+for script in linux.sh firewall-linux.sh hermes-linux.sh hermes-config.py openclaw-linux.sh openclaw-config.mjs mcp-linux.sh update-linux.sh; do
   cp "install/$script" "dist/$script"
 done
 # sha256sum on Linux, shasum on macOS: the same output.

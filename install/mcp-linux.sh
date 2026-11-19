@@ -13,9 +13,9 @@
 # with its dependencies inside it, so that it changes only when you load
 # another.
 #
-# NIA_AGENT names the agent's user (default hermes): when it runs Hermes, its
-# configuration points the server <name> at nia-edge. Its Hermes gateway, if
-# one runs, reads it at its next start.
+# NIA_AGENT names the agent's user (default hermes): when it runs Hermes or
+# OpenClaw, its configuration points the server <name> at nia-edge. A Hermes
+# gateway reads it at its next start; OpenClaw's applies it at once.
 set -eu
 
 ACTION=${1:-}
@@ -55,6 +55,23 @@ hermes_local() {
   echo "mcp: $AGENT's Hermes reaches $1 at http://127.0.0.1:8787/local/$1/mcp"
 }
 
+openclaw_local() {
+  home=$(getent passwd "$AGENT" | cut -d: -f6)
+  [ -n "$home" ] && [ -f "$home/.openclaw/openclaw.json" ] || return 0
+  [ -f "$HERE/openclaw-config.mjs" ] || fail "openclaw-config.mjs must be next to this script"
+  openclaw=$home/.openclaw/bin/openclaw
+  node=$(sed -n 's/^exec \(\/[^ ]*\/node\) .*/\1/p' "$openclaw" 2>/dev/null | head -n 1)
+  [ -n "$node" ] && [ -x "$node" ] || fail "cannot find the Node of $AGENT's OpenClaw"
+  helper_dir=$(mktemp -d)
+  chmod 0755 "$helper_dir"
+  cp "$HERE/openclaw-config.mjs" "$helper_dir/"
+  chmod 0644 "$helper_dir/openclaw-config.mjs"
+  runuser -u "$AGENT" -- env -i HOME="$home" PATH=/usr/bin:/bin OPENCLAW="$openclaw" "$node" "$helper_dir/openclaw-config.mjs" local "$1" >/dev/null ||
+    fail "OpenClaw's configuration could not point $1 at nia-edge"
+  rm -rf "$helper_dir"
+  echo "mcp: $AGENT's OpenClaw reaches $1 at http://127.0.0.1:8787/local/$1/mcp"
+}
+
 case "$ACTION" in
   add)
     NAME=${2:?usage: mcp-linux.sh add <name> <image archive> -- <command...>}
@@ -86,12 +103,15 @@ case "$ACTION" in
     names=$(sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' "$variables")
     rm -f "$variables"
     hermes_local "$NAME"
+    openclaw_local "$NAME"
     # The token is nia-edge's now: a copy left with the agent is still the agent's.
     home=$(getent passwd "$AGENT" | cut -d: -f6)
     for variable in $names; do
-      if [ -n "$home" ] && grep -qs "^$variable=" "$home/.hermes/.env"; then
-        echo "mcp: $variable is still in $home/.hermes/.env: remove it, the agent no longer needs it" >&2
-      fi
+      for file in "$home/.hermes/.env" "$home/.openclaw/.env"; do
+        if [ -n "$home" ] && grep -qs "^$variable=" "$file"; then
+          echo "mcp: $variable is still in $file: remove it, the agent no longer needs it" >&2
+        fi
+      done
     done
     systemctl restart nia-edge.service
     echo "mcp: $NAME runs from $ref ($id). Its tools reach the model as mcp__${NAME}__<tool>: give them a rule in the role, and its hosts an egress rule for server $NAME."
