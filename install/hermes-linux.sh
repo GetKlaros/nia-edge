@@ -193,12 +193,15 @@ chmod 0755 "$helper_dir"
 cp "$HERE/hermes-config.py" "$helper_dir/"
 chmod 0644 "$helper_dir/hermes-config.py"
 HERMES_PY=
-for candidate in $(find "$AGENT_HOME/.hermes" "$AGENT_HOME/.local" -maxdepth 8 \( -name python -o -name python3 \) -path '*/bin/*' 2>/dev/null); do
-  if as_agent "'$candidate' -I -c 'import hermes_cli.runtime_provider'" >/dev/null 2>&1; then
+while IFS= read -r candidate; do
+  [ -n "$candidate" ] || continue
+  if as_agent "'$candidate' -I -c 'import hermes_cli.runtime_provider'" </dev/null >/dev/null 2>&1; then
     HERMES_PY=$candidate
     break
   fi
-done
+done <<EOF
+$(find "$AGENT_HOME/.hermes" "$AGENT_HOME/.local" -maxdepth 8 \( -name python -o -name python3 \) -path '*/bin/*' 2>/dev/null)
+EOF
 [ -n "$HERMES_PY" ] || fail "cannot find Hermes' Python for $AGENT"
 hermes_provider() {
   as_agent "HERMES_HOME=\"\$HOME/.hermes\" '$HERMES_PY' -I '$helper_dir/hermes-config.py' $1"
@@ -293,6 +296,7 @@ as_agent "podman run --rm --network=none '$IMAGE' true" ||
 # The profile: the runtime directory Podman needs in any shell of the agent.
 PROFILE=$AGENT_HOME/.profile
 grep -q 'XDG_RUNTIME_DIR' "$PROFILE" 2>/dev/null || {
+  # shellcheck disable=SC2016 # written as is, expanded by the agent's shell
   printf '%s\n' '# Rootless containers of the Hermes terminal' 'export XDG_RUNTIME_DIR=/run/user/$(id -u)' >> "$PROFILE"
   chown "$AGENT:$AGENT" "$PROFILE"
 }

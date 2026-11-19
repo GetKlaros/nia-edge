@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,7 +45,12 @@ func snapshot(t *testing.T, etc string) map[string]string {
 	filepath.Walk(etc, func(p string, info os.FileInfo, err error) error {
 		rel, _ := filepath.Rel(etc, p)
 		st := info.Sys().(*syscall.Stat_t)
-		desc := info.Mode().String() + " " + string(rune('0'+st.Uid%10))
+		// 0: owned by the user the tests run as (root on a machine), as before.
+		owner := "0"
+		if st.Uid != uint32(os.Getuid()) {
+			owner = fmt.Sprint(st.Uid)
+		}
+		desc := info.Mode().String() + " " + owner
 		if info.Mode().IsRegular() {
 			data, _ := os.ReadFile(p)
 			desc += " " + string(data)

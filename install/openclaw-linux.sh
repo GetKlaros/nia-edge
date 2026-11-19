@@ -213,7 +213,7 @@ if [ -n "$FROM" ] || [ -f "$AGENT_HOME/.openclaw/openclaw.json" ]; then
   # The agent keeps no provider key: a fooled agent cannot leak what it
   # cannot read.
   scrubbed=$(openclaw_config scrub) || fail "cannot remove the provider keys from $AGENT's OpenClaw configuration"
-  [ -z "$scrubbed" ] || say "removed the key of these providers from $AGENT's configuration: $(echo $scrubbed)"
+  [ -z "$scrubbed" ] || say "removed the key of these providers from $AGENT's configuration: $(printf '%s\n' "$scrubbed" | tr '\n' ' ')"
 else
   model=$OPENCLAW_MODEL
   openclaw_config "fresh '$model'" >/dev/null || fail "OpenClaw's onboarding failed"
@@ -243,6 +243,7 @@ as_agent "podman run --rm --init --network=none '$IMAGE' true" ||
   fail "rootless containers do not run for $AGENT: check podman info as that user"
 PROFILE=$AGENT_HOME/.profile
 grep -q 'XDG_RUNTIME_DIR' "$PROFILE" 2>/dev/null || {
+  # shellcheck disable=SC2016 # written as is, expanded by the agent's shell
   printf '%s\n' '# Rootless containers of the OpenClaw sandbox' 'export XDG_RUNTIME_DIR=/run/user/$(id -u)' >> "$PROFILE"
   chown "$AGENT:$AGENT" "$PROFILE"
 }

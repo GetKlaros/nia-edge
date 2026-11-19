@@ -185,7 +185,13 @@ func TestSecretsAreDecoysAndAPlanThatTouchesThemCannotApply(t *testing.T) {
 
 	// Changing a secret: reported, not applicable.
 	sandbox.script = func(lower, upper string) error {
-		return os.WriteFile(filepath.Join(upper, "sudoers.d/admins"), []byte("ALL ALL=(ALL) NOPASSWD: ALL\n"), 0o440)
+		// As root would: a read-only file is no obstacle.
+		admins := filepath.Join(upper, "sudoers.d/admins")
+		os.Chmod(admins, 0o640)
+		if err := os.WriteFile(admins, []byte("ALL ALL=(ALL) NOPASSWD: ALL\n"), 0o440); err != nil {
+			return err
+		}
+		return os.Chmod(admins, 0o440)
 	}
 	r = report(t, s.Do(context.Background(), Request{Action: DryRunAction, Script: "x"}))
 	if !contains(r.SecretsChanged, "/etc/sudoers.d/admins") {

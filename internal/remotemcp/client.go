@@ -78,6 +78,9 @@ type Client struct {
 	Endpoint Endpoint
 	HTTP     *http.Client
 	Version  string
+	// Renewer renews a signed-in server's access token; nil for a token
+	// given as it is.
+	Renewer *Renewer
 
 	mu       sync.Mutex
 	session  string
@@ -100,10 +103,46 @@ func NewHTTPClient(timeout time.Duration) *http.Client {
 	}
 }
 
-var errSessionGone = errors.New("the server forgot the session")
+var (
+	errSessionGone = errors.New("the server forgot the session")
+	errRefused     = errors.New("the server refused the token")
+)
+
+// renew puts a new access token in place.
+func (c *Client) renew(ctx context.Context) error {
+	access, err := c.Renewer.Renew(ctx)
+	if err != nil {
+		return err
+	}
+	c.mu.Lock()
+	c.Endpoint.Value = "Bearer " + access
+	c.mu.Unlock()
+	return nil
+}
 
 // call sends one request and returns its result.
 func (c *Client) call(ctx context.Context, method string, params any) (json.RawMessage, *rpcError, error) {
+	if c.Renewer != nil && c.Renewer.due(time.Now()) {
+		if err := c.renew(ctx); err != nil {
+			return nil, nil, err
+		}
+	}
+	result, rpcErr, err := c.attempt(ctx, method, params)
+	// A signed-in server's token may have been revoked or expired early:
+	// renewed once, then tried once more.
+	if errors.Is(err, errRefused) && c.Renewer != nil {
+		if err := c.renew(ctx); err != nil {
+			return nil, nil, err
+		}
+		result, rpcErr, err = c.attempt(ctx, method, params)
+	}
+	if errors.Is(err, errRefused) {
+		err = fmt.Errorf("%s refused the token: renew it with nia-edge mcp remote add, or sign in again with nia-edge mcp remote login", c.Endpoint.URL.Host)
+	}
+	return result, rpcErr, err
+}
+
+func (c *Client) attempt(ctx context.Context, method string, params any) (json.RawMessage, *rpcError, error) {
 	if err := c.initialize(ctx); err != nil {
 		return nil, nil, err
 	}
@@ -164,8 +203,8 @@ func (c *Client) initialize(ctx context.Context) error {
 func (c *Client) headers(request *http.Request) {
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Accept", "application/json, text/event-stream")
-	request.Header.Set(c.Endpoint.Header, c.Endpoint.Value)
 	c.mu.Lock()
+	request.Header.Set(c.Endpoint.Header, c.Endpoint.Value)
 	if c.session != "" {
 		request.Header.Set("Mcp-Session-Id", c.session)
 	}
@@ -214,8 +253,10 @@ func (c *Client) request(ctx context.Context, method string, params any, inSessi
 	switch {
 	case response.StatusCode == http.StatusNotFound && inSession:
 		return nil, nil, errSessionGone
-	case response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden:
-		return nil, nil, fmt.Errorf("%s refused the token (%d): renew it with nia-edge mcp remote add", c.Endpoint.URL.Host, response.StatusCode)
+	case response.StatusCode == http.StatusUnauthorized:
+		return nil, nil, errRefused
+	case response.StatusCode == http.StatusForbidden:
+		return nil, nil, fmt.Errorf("%s refused the call (403): the token lacks a permission", c.Endpoint.URL.Host)
 	case response.StatusCode != http.StatusOK:
 		return nil, nil, fmt.Errorf("%s answered %d", c.Endpoint.URL.Host, response.StatusCode)
 	}
@@ -333,6 +374,14 @@ func (c *Client) Tools(ctx context.Context) ([]json.RawMessage, error) {
 		cursor = listed.NextCursor
 	}
 	return nil, errors.New("the server's list of tools does not end")
+}
+
+// Request sends one request of another method (resources, prompts).
+func (c *Client) Request(ctx context.Context, method string, params json.RawMessage) (json.RawMessage, *rpcError, error) {
+	if len(params) == 0 || string(params) == "null" {
+		params = json.RawMessage("{}")
+	}
+	return c.call(ctx, method, params)
 }
 
 // Call runs one tool.

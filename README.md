@@ -240,8 +240,40 @@ claude mcp add --transport http github http://127.0.0.1:8787/remote/github/mcp  
   agent's hooks (Claude Code, Codex: a `mcp__<name>__<tool>` they allow is
   released). Calling `/remote/<name>/mcp` directly runs nothing.
 - A secret in the vendor's answer is redacted before the agent sees it.
+- Its resources and prompts are relayed too: reading one (`resources/read`,
+  `prompts/get`) is reading content the vendor does not vouch for, so it
+  taints the run, as a tool result does.
 - `nia-edge mcp remote list` shows each server and its header, never the
   token; `remove` takes the token with it.
+
+**Sign in instead of pasting a token (OAuth).** For a vendor that follows
+the MCP authorization specification:
+
+```bash
+sudo -u nia-edge nia-edge mcp remote login notion -url https://mcp.notion.com/mcp \
+  -state /var/lib/nia-edge/state.json
+```
+
+nia-edge prints a link: sign in, in any browser. It comes back to
+`http://127.0.0.1:8790/callback`; when the browser is on another machine,
+paste the address it was sent to. nia-edge finds the vendor's authorization
+server from its 401 (protected resource metadata, then the server's
+metadata), registers itself (its Client ID Metadata Document, served by Nia
+at `/oauth/nia-edge-client.json`, else dynamic registration; or
+`-client-id`, with `-secret-stdin`), and signs in with PKCE (S256, refused
+without it), a `state` it checks and the server's URL as `resource`. The
+access and refresh tokens go to the state file only, never shown; nia-edge
+renews the access token before it expires or after a 401, keeps the rotated
+refresh token, and otherwise says to sign in again.
+
+**Hermes and OpenClaw** are pointed at it by the installer, which also keeps
+the token off the agent:
+
+```bash
+printf '%s\n' "$GITHUB_TOKEN" | sudo ./install/mcp-linux.sh remote github https://api.githubcopilot.com/mcp/
+sudo ./install/mcp-linux.sh login notion https://mcp.notion.com/mcp
+sudo ./install/mcp-linux.sh remote-remove github
+```
 
 Tested by the server's `npm run e2e:devagents`: Claude Code lists a repository's
 issues through nia-edge, never holds the token, is refused `delete_repo`

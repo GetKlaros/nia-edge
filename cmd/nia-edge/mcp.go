@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/GetKlaros/nia-edge/internal/mcpd"
 	"github.com/GetKlaros/nia-edge/internal/remotemcp"
@@ -61,11 +63,12 @@ func mcpCommand(ctx context.Context, args []string, getenv func(string) string, 
 // that the agent reaches through nia-edge, which holds their token:
 //
 //	nia-edge mcp remote add <name> -url https://… [-header Authorization] [-scheme Bearer]   (the token on standard input)
+//	nia-edge mcp remote login <name> -url https://… [-client-id …] [-secret-stdin] [-port 8790]
 //	nia-edge mcp remote remove <name>
 //	nia-edge mcp remote list
 func mcpRemote(args []string, getenv func(string) string, stdin io.Reader, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: nia-edge mcp remote add|remove|list")
+		return errors.New("usage: nia-edge mcp remote add|login|remove|list")
 	}
 	action := args[0]
 	flags := flag.NewFlagSet("nia-edge mcp remote "+action, flag.ContinueOnError)
@@ -74,6 +77,9 @@ func mcpRemote(args []string, getenv func(string) string, stdin io.Reader, stdou
 	serverURL := flags.String("url", "", "the server's Streamable HTTP endpoint (https)")
 	header := flags.String("header", "Authorization", "the header that carries the token")
 	scheme := flags.String("scheme", "Bearer", "what comes before the token in that header (\"\" for nothing)")
+	clientID := flags.String("client-id", "", "login: a client you registered with the vendor (else nia-edge's metadata document, or dynamic registration)")
+	secretStdin := flags.Bool("secret-stdin", false, "login: that client's secret is the first line of standard input")
+	port := flags.Int("port", 8790, "login: the loopback port the browser comes back to")
 	name := ""
 	rest := args[1:]
 	if action != "list" {
@@ -121,9 +127,9 @@ func mcpRemote(args []string, getenv func(string) string, stdin io.Reader, stdou
 		}
 		fmt.Fprintf(stdout, "%s removed, its token with it (restart nia-edge)\n", name)
 		return nil
-	case "add":
+	case "add", "login":
 	default:
-		return fmt.Errorf("unknown command %q (add, remove, list)", action)
+		return fmt.Errorf("unknown command %q (add, login, remove, list)", action)
 	}
 	if !mcpd.ValidName(name) {
 		return errors.New("the name is a lowercase letter, then letters, digits or _ (32 at most), not host, without __")
@@ -139,6 +145,9 @@ func mcpRemote(args []string, getenv func(string) string, stdin io.Reader, stdou
 	}
 	if strings.ContainsAny(*scheme, "\r\n") || len(*scheme) > 32 {
 		return errors.New("the scheme is one short word")
+	}
+	if action == "login" {
+		return mcpLogin(saved, path, name, *serverURL, *clientID, *secretStdin, *port, stdin, stdout)
 	}
 	line, err := bufio.NewReader(io.LimitReader(stdin, 16<<10)).ReadString('\n')
 	if err != nil && !errors.Is(err, io.EOF) {
@@ -345,4 +354,58 @@ func mcpServe(ctx context.Context, args []string, getenv func(string) string, st
 	}
 	fmt.Fprintf(stdout, "nia-mcp %s: serving %s on %s; the servers' way out is %s\n", version, *served, *socket, *upstream)
 	return server.Serve(ctx, listener, func(peer uint32) bool { return peer == uid })
+}
+
+// mcpLogin signs in with a vendor's MCP server, as the MCP authorization
+// specification has a client do it, and keeps the tokens in the state file.
+func mcpLogin(saved *state.State, path, name, serverURL, clientID string, secretStdin bool, port int, stdin io.Reader, stdout io.Writer) error {
+	server, err := remotemcp.ValidURL(serverURL)
+	if err != nil {
+		return err
+	}
+	if port < 1024 || port > 65535 {
+		return errors.New("the port is between 1024 and 65535")
+	}
+	reader := bufio.NewReader(io.LimitReader(stdin, 32<<10))
+	secret := ""
+	if secretStdin {
+		if clientID == "" {
+			return errors.New("-secret-stdin goes with -client-id")
+		}
+		line, err := reader.ReadString('\n')
+		if err != nil && !errors.Is(err, io.EOF) {
+			return err
+		}
+		secret = strings.TrimRight(line, "\r\n")
+		if secret == "" {
+			return errors.New("no client secret on standard input")
+		}
+	}
+	// nia-edge's Client ID Metadata Document, served by the Nia it enrolled with.
+	document := ""
+	if nia, err := url.Parse(saved.NiaURL); err == nil && nia.Scheme == "https" {
+		document = strings.TrimSuffix(nia.String(), "/") + "/oauth/nia-edge-client.json"
+	}
+	login := remotemcp.Login{
+		Server: server, HTTP: remotemcp.NewHTTPClient(30 * time.Second), ClientID: clientID, ClientSecret: secret,
+		MetadataDocument: document, Port: port, Say: stdout, Paste: reader,
+	}
+	signed, err := login.SignIn(context.Background())
+	if err != nil {
+		return err
+	}
+	if saved.Remote == nil {
+		saved.Remote = map[string]*state.RemoteMCP{}
+	}
+	oauth := signed.OAuth
+	saved.Remote[name] = &state.RemoteMCP{URL: serverURL, Header: "Authorization", Value: "Bearer " + signed.AccessToken, OAuth: &oauth}
+	if err := state.Save(path, saved); err != nil {
+		return err
+	}
+	renewal := "nia-edge renews it with its refresh token"
+	if oauth.RefreshToken == "" {
+		renewal = "it has no refresh token: sign in again when it expires"
+	}
+	fmt.Fprintf(stdout, "\nSigned in. %s's token is kept in %s (%s); restart nia-edge. The agent reaches it at http://127.0.0.1:8787/remote/%s/mcp, without a token.\n", name, path, renewal, name)
+	return nil
 }

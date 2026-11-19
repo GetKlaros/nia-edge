@@ -2,7 +2,7 @@
 with Hermes' own code.
 
 Run as the agent, with Hermes' Python, -I, and HERMES_HOME set. One argument
-(two for local):
+(two for local and remote):
 
   describe  prints provider=, api_mode=, base_url=, static= and has_key=
             lines; never the key
@@ -22,6 +22,10 @@ Run as the agent, with Hermes' Python, -I, and HERMES_HOME set. One argument
             points the agent's MCP server <name> at the one nia-edge runs in
             a container (install/mcp-linux.sh): its command and its
             variables leave the agent's configuration, which keeps a URL
+  remote <name>
+            the same for an MCP server hosted by its vendor, whose token
+            nia-edge holds (nia-edge mcp remote add|login): the agent keeps
+            http://127.0.0.1:8787/remote/<name>/mcp and no token
 
 Hermes' imports may write to stdout: everything but the answer goes to stderr.
 """
@@ -103,7 +107,7 @@ def host() -> int:
     return 0
 
 
-def local(name: str) -> int:
+def local(name: str, kind: str = "local") -> int:
     import re
     from hermes_cli.config import read_raw_config, save_config
 
@@ -115,7 +119,7 @@ def local(name: str) -> int:
         servers = {}
     # Its token and its command are nia-edge's now: nothing of the former
     # entry stays with the agent.
-    servers[name] = {"url": f"http://127.0.0.1:8787/local/{name}/mcp", "enabled": True}
+    servers[name] = {"url": f"http://127.0.0.1:8787/{kind}/{name}/mcp", "enabled": True}
     config["mcp_servers"] = servers
     known = {str(other) for other in servers if other != name}
     platforms = config.get("platform_toolsets")
@@ -131,8 +135,8 @@ def local(name: str) -> int:
 
 
 def main(mode: str, *rest: str) -> int:
-    if mode == "local" and len(rest) == 1:
-        return local(rest[0])
+    if mode in ("local", "remote") and len(rest) == 1:
+        return local(rest[0], mode)
     if rest:
         return 2
     if mode == "mcp":
