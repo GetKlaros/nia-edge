@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/GetKlaros/nia-edge/internal/inspect"
 	"github.com/GetKlaros/nia-edge/internal/local"
@@ -50,9 +51,12 @@ func Route(path string) Agent {
 
 // Handler answers both dialects.
 type Handler struct {
-	Nia    local.Authority
-	Rules  func() *local.Rules
-	Logger *slog.Logger
+	Nia   local.Authority
+	Rules func() *local.Rules
+	// Releases keeps the allowed calls of the MCP servers nia-edge serves
+	// (mcp__<server>__<tool>): such a call runs only against one, once.
+	Releases *local.Releases
+	Logger   *slog.Logger
 }
 
 // MaxPayload bounds what a hook may send.
@@ -126,6 +130,9 @@ func (h *Handler) before(ctx context.Context, conversation string, hook payload)
 		return deny("Nia could not decide this call, so it was not run")
 	}
 	if verdict.Allowed {
+		if h.Releases != nil && strings.HasPrefix(hook.Tool, h.Releases.Prefix) && h.Releases.Prefix != "" {
+			h.Releases.Release(hook.Tool, arguments, time.Now())
+		}
 		return nil
 	}
 	message := verdict.Message

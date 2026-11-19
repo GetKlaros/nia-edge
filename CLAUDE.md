@@ -94,6 +94,13 @@ private code base; this repository is public.
   only way out is nia-edge's egress proxy, under the name nia-mcp writes,
   never the server. A tool call runs only against an unused release of the
   model path for the same tool and canonical arguments.
+- An MCP server hosted by its vendor is reached through nia-edge, which holds
+  its token in the state file only: never with the agent, never shown or
+  logged, sent only to the server's own URL over HTTPS, no redirect
+  followed. The agent sees only the tools Nia pinned for the tenant, and a
+  call runs only against an unused release of the model path or of the
+  agent's hooks for the same tool and canonical arguments. A secret in a
+  result is redacted before the agent sees it.
 - What the machine reports about itself decides nothing.
 - The egress proxy refuses an internal IP literal before any decision,
   resolves a name only after the connection is allowed, once, and connects to

@@ -50,6 +50,7 @@ import (
 	"github.com/GetKlaros/nia-edge/internal/niaclient"
 	"github.com/GetKlaros/nia-edge/internal/policy"
 	"github.com/GetKlaros/nia-edge/internal/relay"
+	"github.com/GetKlaros/nia-edge/internal/remotemcp"
 	"github.com/GetKlaros/nia-edge/internal/state"
 )
 
@@ -382,6 +383,25 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 		Host:     &hostd.Client{Socket: hostSocket},
 		Version:  version,
 	}
+	// The MCP servers hosted by their vendor: nia-edge holds their token.
+	remotes := &remotemcp.Handler{
+		Clients:  map[string]*remotemcp.Client{},
+		Nia:      pinner{client: &niaclient.Client{Base: base, HTTP: niaclient.NewHTTPClient(30 * time.Second)}, key: saved.Key},
+		Releases: releases,
+		Version:  version,
+	}
+	vendors := remotemcp.NewHTTPClient(2 * time.Minute)
+	for name, remote := range saved.Remote {
+		endpoint, err := remotemcp.ValidURL(remote.URL)
+		if err != nil || !mcpd.ValidName(name) || remote.Header == "" || remote.Value == "" {
+			logger.Error("an MCP server hosted by its vendor is left out: its entry cannot be used", "server", name)
+			continue
+		}
+		remotes.Clients[name] = &remotemcp.Client{Endpoint: remotemcp.Endpoint{Name: name, URL: endpoint, Header: remote.Header, Value: remote.Value}, HTTP: vendors, Version: version}
+	}
+	if len(remotes.Clients) > 0 {
+		fmt.Fprintf(stdout, "nia-edge %s: %d MCP servers hosted by their vendor, their tokens held here\n", version, len(remotes.Clients))
+	}
 	// The agent's MCP servers that run here, each in a container of nia-mcp.
 	servers := &localmcp.Handler{Servers: map[string]*localmcp.Server{}, Releases: releases, Version: version}
 	if len(saved.MCP) > 0 {
@@ -461,9 +481,10 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 	// Codex): decided here as the model path decides, with or without a
 	// provider on this machine.
 	toolHooks := &hooks.Handler{
-		Nia:    &local.Remote{Base: base, Key: saved.Key, Run: run, HTTP: niaclient.NewHTTPClient(time.Duration(30+wait) * time.Second), Wait: wait},
-		Rules:  policies.rules,
-		Logger: logger,
+		Nia:      &local.Remote{Base: base, Key: saved.Key, Run: run, HTTP: niaclient.NewHTTPClient(time.Duration(30+wait) * time.Second), Wait: wait},
+		Rules:    policies.rules,
+		Releases: releases,
+		Logger:   logger,
 	}
 	// The agent's MCP server of host actions, on nia-edge's own address.
 	agentRoutes := handler
@@ -478,6 +499,10 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 		}
 		if localmcp.Route(r.URL.Path) != "" {
 			servers.ServeHTTP(w, r)
+			return
+		}
+		if remotemcp.Route(r.URL.Path) != "" {
+			remotes.ServeHTTP(w, r)
 			return
 		}
 		agentRoutes.ServeHTTP(w, r)
@@ -974,4 +999,14 @@ func heartbeat(ctx context.Context, client *niaclient.Client, key, modelPath str
 		case <-time.After(wait):
 		}
 	}
+}
+
+// pinner asks Nia which tools of a vendor's MCP server the agent may see.
+type pinner struct {
+	client *niaclient.Client
+	key    string
+}
+
+func (p pinner) Pin(ctx context.Context, server string, tools []json.RawMessage) ([]string, error) {
+	return p.client.PinTools(ctx, p.key, server, tools)
 }

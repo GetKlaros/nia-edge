@@ -216,6 +216,37 @@ For an agent that must not go around Nia, use the confined installers below.
 Tested by the server's `npm run e2e:devagents`, with the real Claude Code and
 Codex.
 
+## MCP servers hosted by their vendor (GitHub, Notion…)
+
+The agent's MCP server is at its vendor, and its token opens every
+repository or page. nia-edge holds that token on the machine, in its state
+file; the agent reaches the server through nia-edge, without it:
+
+```bash
+printf '%s\n' "$GITHUB_TOKEN" | sudo -u nia-edge nia-edge mcp remote add github \
+  -url https://api.githubcopilot.com/mcp/ -state /var/lib/nia-edge/state.json
+sudo systemctl restart nia-edge
+claude mcp add --transport http github http://127.0.0.1:8787/remote/github/mcp   # no token
+```
+
+- nia-edge is an MCP server to the agent and an MCP client to the vendor
+  (Streamable HTTP): the token is added there, over HTTPS only, and no
+  redirect is followed. The agent's own credentials are never forwarded.
+- The tools the vendor lists go to Nia, which pins them for the tenant
+  (`edge:<name>` in Connectors): a tool whose definition changed, or that
+  appeared since, is hidden and refused until an admin approves it.
+- A call runs only against an unused release, for the same tool and
+  canonical arguments: of the model path (Hermes, OpenClaw), or of the
+  agent's hooks (Claude Code, Codex: a `mcp__<name>__<tool>` they allow is
+  released). Calling `/remote/<name>/mcp` directly runs nothing.
+- A secret in the vendor's answer is redacted before the agent sees it.
+- `nia-edge mcp remote list` shows each server and its header, never the
+  token; `remove` takes the token with it.
+
+Tested by the server's `npm run e2e:devagents`: Claude Code lists a repository's
+issues through nia-edge, never holds the token, is refused `delete_repo`
+before it reaches the vendor, and a direct call runs nothing.
+
 ## Install an OpenClaw agent on Linux
 
 `install/openclaw-linux.sh` does for OpenClaw what the Hermes installer does

@@ -497,3 +497,51 @@ func TestMCPServeIsNotRoot(t *testing.T) {
 		t.Fatalf("%d %s", code, stderr)
 	}
 }
+
+func TestRemoteMCPServersKeepTheirTokenOnTheMachine(t *testing.T) {
+	nia := newFakeNia(t)
+	defer nia.Close()
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	if code, _, stderr := command(t, context.Background(), map[string]string{"NIA_ENROLL_TOKEN": "nen_token"}, "", "enroll", "-url", nia.URL, "-state", statePath); code != 0 {
+		t.Fatal(stderr)
+	}
+	const secret = "ghp_secretsecretsecretsecretsecret0000"
+	for name, args := range map[string][]string{
+		"in clear":      {"github", "-url", "http://api.example.com/mcp"},
+		"no url":        {"github"},
+		"bad name":      {"Git-Hub", "-url", "https://api.example.com/mcp"},
+		"token as arg":  {"github", "-url", "https://api.example.com/mcp", secret},
+		"bad header":    {"github", "-url", "https://api.example.com/mcp", "-header", "X Bad"},
+		"the host name": {"host", "-url", "https://api.example.com/mcp"},
+	} {
+		code, out, stderr := command(t, context.Background(), nil, secret+"\n", append([]string{"mcp", "remote", "add"}, append(args, "-state", statePath)...)...)
+		if code == 0 || strings.Contains(out+stderr, secret) {
+			t.Errorf("%s: %d %s %s", name, code, out, stderr)
+		}
+	}
+	if code, _, _ := command(t, context.Background(), nil, "", "mcp", "remote", "add", "github", "-url", "https://api.githubcopilot.com/mcp/", "-state", statePath); code == 0 {
+		t.Fatal("no token, nothing kept")
+	}
+	code, out, stderr := command(t, context.Background(), nil, secret+"\n", "mcp", "remote", "add", "github", "-url", "https://api.githubcopilot.com/mcp/", "-state", statePath)
+	if code != 0 || strings.Contains(out+stderr, secret) || !strings.Contains(out, "/remote/github/mcp") {
+		t.Fatalf("%d %s %s", code, out, stderr)
+	}
+	raw, _ := os.ReadFile(statePath)
+	if !strings.Contains(string(raw), `"value": "Bearer `+secret+`"`) {
+		t.Fatalf("%s", raw)
+	}
+	code, out, _ = command(t, context.Background(), nil, "", "mcp", "remote", "list", "-state", statePath)
+	if code != 0 || !strings.Contains(out, "github: https://api.githubcopilot.com/mcp/") || strings.Contains(out, secret) {
+		t.Fatalf("%s", out)
+	}
+	image := "sha256:" + strings.Repeat("ab", 32)
+	if code, _, _ := command(t, context.Background(), nil, "", "mcp", "add", "-state", statePath, "-name", "github", "-image", image, "--", "node", "x"); code == 0 {
+		t.Fatal("one name, one server")
+	}
+	if code, _, _ := command(t, context.Background(), nil, "", "mcp", "remote", "remove", "github", "-state", statePath); code != 0 {
+		t.Fatal("remove")
+	}
+	if raw, _ := os.ReadFile(statePath); strings.Contains(string(raw), secret) {
+		t.Fatal("the token goes with the server")
+	}
+}

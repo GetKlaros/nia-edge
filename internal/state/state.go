@@ -39,6 +39,19 @@ type State struct {
 	// own container, by name: their image, command and variables (their
 	// tokens, which the agent never holds).
 	MCP map[string]*MCPServer `json:"mcp,omitempty"`
+	// Remote is the MCP servers hosted by their vendor that the agent reaches
+	// through nia-edge, by name: their URL and the header that carries their
+	// token, which the agent never holds.
+	Remote map[string]*RemoteMCP `json:"remote_mcp,omitempty"`
+}
+
+// RemoteMCP is an MCP server hosted by its vendor.
+type RemoteMCP struct {
+	URL string `json:"url"`
+	// Header names the header that carries the token (Authorization).
+	Header string `json:"header"`
+	// Value is that header's whole value: a secret.
+	Value string `json:"value"`
 }
 
 // MCPServer is one of the agent's MCP servers that run on this machine.
