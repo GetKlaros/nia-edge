@@ -15,7 +15,7 @@ nia-edge calls the model provider from the machine and decides the calls with th
 | Part | State |
 | --- | --- |
 | Enrollment with a one-time token, key kept in a private file | done |
-| Relay of the agent's MCP calls (`/mcp/`); model calls only with `NIA_RELAY_MODEL_CALLS=yes` | done |
+| Relay of the agent's MCP calls (`/mcp/`); model calls never go to Nia | done |
 | Heartbeat and health route | done |
 | Hash of a call's arguments, identical to the server's (`canon`) | done |
 | Egress proxy: every outbound connection decided by the role | done |
@@ -598,9 +598,8 @@ version changes before you load it.
 ### Calling the model provider from the machine
 
 An enrolled machine calls its model provider itself: its prompts never go to
-Nia, and until a provider is set nia-edge refuses the agent's model calls
-(`NIA_RELAY_MODEL_CALLS=yes` relays them instead, for a Nia whose policy lets
-machines do so). Set the provider:
+Nia, and until a provider is set nia-edge refuses the agent's model calls:
+Nia does not carry them. Set the provider:
 
 ```bash
 # The key comes from NIA_PROVIDER_KEY, -key-file or standard input, never from the command line.
