@@ -38,6 +38,7 @@ fail() { echo "install: $1" >&2; exit "${2:-2}"; }
 
 [ "$(id -u)" -eq 0 ] || fail "run as root"
 [ -f "$HERE/firewall-linux.sh" ] || fail "firewall-linux.sh must be next to this script"
+[ -f "$HERE/apparmor-linux.sh" ] || fail "apparmor-linux.sh must be next to this script"
 [ -x "$BINARY" ] || fail "no nia-edge binary at $BINARY (build it, or set NIA_EDGE_BINARY)"
 "$BINARY" version >/dev/null || fail "$BINARY does not run on this machine"
 [ "$GOVERNED" -eq 1 ] || command -v nft >/dev/null || fail "nftables is required (for instance: apt install nftables)"
@@ -62,6 +63,12 @@ id nia-edge >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sb
 install -o root -g root -m 0755 "$BINARY" "$BIN"
 install -d -o root -g root -m 0755 "$LIB"
 install -o root -g root -m 0755 "$HERE/firewall-linux.sh" "$LIB/firewall-linux.sh"
+# Simulated commands (a role with simulate) need user namespaces: where
+# AppArmor restricts them, nia-edge's binary alone may make them.
+# NIA_SIMULATE=0 skips it; such commands are then refused.
+if [ "${NIA_SIMULATE:-1}" = 1 ] && [ -f "$HERE/apparmor-linux.sh" ]; then
+  sh "$HERE/apparmor-linux.sh" "$BIN" || echo "install: simulated commands will be refused on this machine" >&2
+fi
 install -d -o nia-edge -g nia-edge -m 0700 "$STATE_DIR"
 
 # nia-mcp: the agent's MCP servers, each in its own rootless container. Its

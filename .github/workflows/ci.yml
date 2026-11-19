@@ -24,3 +24,20 @@ jobs:
       - run: go test -count=1 -race ./...
       - run: go build -o /dev/null ./cmd/nia-edge
       - run: shellcheck -s sh install/*.sh
+
+  # On the runner's Ubuntu, AppArmor restricts user namespaces: the profile
+  # the installer writes must let the simulations run there.
+  simulate:
+    runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: local
+      GOFLAGS: -mod=readonly
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+      - run: cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns
+      - run: go test -c -o /tmp/simulate.test ./internal/simulate && sudo install -m 0755 /tmp/simulate.test /usr/local/bin/nia-simulate.test
+      - run: sudo sh install/apparmor-linux.sh /usr/local/bin/nia-simulate.test nia-simulate-test
+      - run: NIA_SIMULATE_REQUIRED=1 /usr/local/bin/nia-simulate.test -test.v -test.count=1

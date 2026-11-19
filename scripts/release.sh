@@ -42,7 +42,7 @@ done
 cp install/linux.sh "dist/nia-edge_${version#v}_install-linux.sh"
 # Under their own names too: hermes-linux.sh, openclaw-linux.sh and
 # mcp-linux.sh look for linux.sh and their helpers next to them.
-for script in linux.sh firewall-linux.sh hermes-linux.sh hermes-config.py openclaw-linux.sh openclaw-config.mjs mcp-linux.sh update-linux.sh; do
+for script in linux.sh firewall-linux.sh apparmor-linux.sh hermes-linux.sh hermes-config.py openclaw-linux.sh openclaw-config.mjs mcp-linux.sh update-linux.sh; do
   cp "install/$script" "dist/$script"
 done
 # sha256sum on Linux, shasum on macOS: the same output.
