@@ -62,6 +62,10 @@ type Agent struct {
 	// Confined is true when nia-edge's firewall unit names this user: its
 	// network is nia-edge's. nia-edge doctor, as that user, proves it.
 	Confined bool `json:"confined"`
+	// Governed is "machine" when the machine's managed configuration hands
+	// this agent's tool calls to nia-edge (nia-edge agents onboard), "changed"
+	// when that file changed since, "" when it does not.
+	Governed string `json:"governed"`
 	// Next is what to do about it, for a person to read.
 	Next string `json:"next"`
 }
@@ -104,7 +108,7 @@ var Kinds = []Kind{
 		Read: readOpenClaw,
 	},
 	{
-		Name: "codex", Files: []string{".codex/config.toml"},
+		Name: "codex", Files: []string{".codex/config.toml", ".codex/auth.json"}, Installer: "nia-edge agents onboard codex",
 		Process: func(args []string) bool { return base(args, "codex") },
 		Read:    readCodex,
 	},
@@ -114,7 +118,7 @@ var Kinds = []Kind{
 		Read:    readOpenCode,
 	},
 	{
-		Name: "claude-code", Files: []string{".claude.json", ".claude/settings.json"},
+		Name: "claude-code", Files: []string{".claude.json", ".claude/settings.json"}, Installer: "nia-edge agents onboard claude-code",
 		Process: func(args []string) bool { return base(args, "claude") },
 		Read:    readClaude,
 	},
@@ -141,6 +145,12 @@ func Find(o Options) ([]Agent, error) {
 	}
 	groups := memberships(o.path("/etc/group"), users)
 	confined := firewalled(o.path(o.FirewallUnit))
+	governed := map[string]string{}
+	for _, kind := range Governable() {
+		if onboarding, err := For(kind, o.Root, false); err == nil {
+			governed[kind] = onboarding.Status()
+		}
+	}
 	processes := running(o.path("/proc"))
 	var found []Agent
 	for _, u := range users {
@@ -148,7 +158,7 @@ func Find(o Options) ([]Agent, error) {
 			continue
 		}
 		for _, kind := range Kinds {
-			for _, file := range kind.Files {
+			for index, file := range kind.Files {
 				full := filepath.Join(u.home, file)
 				// A link is not followed: the user chose where it points.
 				if info, err := os.Lstat(o.path(full)); err != nil || !info.Mode().IsRegular() {
@@ -158,9 +168,14 @@ func Find(o Options) ([]Agent, error) {
 				if err != nil {
 					continue
 				}
+				// Only the agent's configuration is read for what it says.
+				settings := Config{MCPServers: -1, Model: "unknown"}
+				if index == 0 {
+					settings = kind.Read(data)
+				}
 				agent := Agent{
 					Kind: kind.Name, User: u.name, UID: u.uid, Home: u.home, Config: full,
-					Settings: kind.Read(data), Confined: confined[u.name],
+					Settings: settings, Confined: confined[u.name], Governed: governed[kind.Name],
 				}
 				for _, args := range processes[u.uid] {
 					if kind.Process(args) {
@@ -189,6 +204,15 @@ func Find(o Options) ([]Agent, error) {
 }
 
 func next(kind Kind, a Agent) string {
+	if _, governable := managed[kind.Name]; governable {
+		switch a.Governed {
+		case "machine":
+			return "governed: Nia decides each tool call (its own sandbox, not confined)"
+		case "changed":
+			return "its managed configuration changed since onboarding: sudo nia-edge agents onboard " + kind.Name
+		}
+		return "sudo nia-edge agents onboard " + kind.Name + ": Nia decides each tool call"
+	}
 	switch {
 	case a.Confined && len(a.Groups) == 0 && a.Settings.Model != "other":
 		return "behind nia-edge: prove it with sudo -u " + a.User + " nia-edge doctor"

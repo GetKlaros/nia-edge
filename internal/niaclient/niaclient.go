@@ -33,6 +33,10 @@ type Report struct {
 	// Journal is the head of nia-hostd's journal, and the hash of the entry
 	// Nia last saw as its head. Heartbeats only, when nia-hostd answers.
 	Journal *Journal `json:"journal,omitempty"`
+	// Agents is the last report of nia-edge agents run as root: the agents
+	// found on the machine, shown to admins, deciding nothing. Sent only to a
+	// Nia that says it accepts it.
+	Agents json.RawMessage `json:"agents,omitempty"`
 }
 
 // Journal anchors nia-hostd's hash chain in Nia (hostd.Anchor).
@@ -77,6 +81,8 @@ type Beat struct {
 	// JournalSeq is the number of the head Nia last saw of nia-hostd's
 	// journal; the next heartbeat shows the hash of that entry.
 	JournalSeq int64 `json:"journal_seq"`
+	// Accepts names the optional reports this Nia takes in a heartbeat.
+	Accepts []string `json:"accepts"`
 }
 
 // Refused is an answer from Nia other than success. The message is Nia's;
