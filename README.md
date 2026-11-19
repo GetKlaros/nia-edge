@@ -301,6 +301,20 @@ Tested by the server's `npm run e2e:devagents`: Claude Code lists a repository's
 issues through nia-edge, never holds the token, is refused `delete_repo`
 before it reaches the vendor, and a direct call runs nothing.
 
+## What Nia decided, on the machine
+
+```bash
+sudo nia-edge log            # the last 50 decisions; -n 200, -json
+```
+
+nia-edge keeps the decisions it obtained from Nia in `decisions.jsonl`,
+beside its state file (`0600`, nia-edge's user): the time, the path (model,
+hook, egress, budget), the tool or the host, the decision (allow, deny,
+hold, error) and Nia's reason, a session as a short hash. Never a prompt, an
+argument, an output or a secret (a reason is redacted). It moves to
+`decisions.jsonl.1` past 10 MiB. It decides nothing, and a log that cannot
+be written stops no call.
+
 ## Budgets
 
 When the agent's key has a budget in Nia (console, Budgets), nia-edge asks

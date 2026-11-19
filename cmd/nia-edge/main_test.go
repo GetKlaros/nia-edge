@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/GetKlaros/nia-edge/internal/decisions"
 	"github.com/GetKlaros/nia-edge/internal/state"
 )
 
@@ -543,5 +544,25 @@ func TestRemoteMCPServersKeepTheirTokenOnTheMachine(t *testing.T) {
 	}
 	if raw, _ := os.ReadFile(statePath); strings.Contains(string(raw), secret) {
 		t.Fatal("the token goes with the server")
+	}
+}
+
+func TestLogShowsTheLastDecisions(t *testing.T) {
+	dir := t.TempDir()
+	statePath := filepath.Join(dir, "state.json")
+	if code, out, _ := command(t, context.Background(), nil, "", "log", "-state", statePath); code != 0 || !strings.Contains(out, "no decision recorded yet") {
+		t.Fatalf("%d %s", code, out)
+	}
+	log := decisions.Open(filepath.Join(dir, "decisions.jsonl"))
+	for _, tool := range []string{"a", "b", "c"} {
+		log.Record(decisions.Entry{Path: "hook", Tool: tool, Decision: "deny", Reason: "refused"})
+	}
+	code, out, _ := command(t, context.Background(), nil, "", "log", "-n", "2", "-state", statePath)
+	if code != 0 || strings.Contains(out, "  a  ") || !strings.Contains(out, "deny   b") || !strings.Contains(out, "deny   c  refused") {
+		t.Fatalf("%d %q", code, out)
+	}
+	code, out, _ = command(t, context.Background(), nil, "", "log", "-json", "-state", statePath)
+	if code != 0 || strings.Count(out, `"decision":"deny"`) != 3 {
+		t.Fatalf("%d %q", code, out)
 	}
 }

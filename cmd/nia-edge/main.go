@@ -21,7 +21,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/GetKlaros/nia-edge/internal/decisions"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
@@ -67,7 +69,7 @@ func main() {
 
 func run(ctx context.Context, args []string, getenv func(string) string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: nia-edge enroll|provider|run|hostd|mcp|agents|hook|doctor|health|version")
+		fmt.Fprintln(stderr, "usage: nia-edge enroll|provider|run|hostd|mcp|agents|hook|log|doctor|health|version")
 		return 2
 	}
 	var err error
@@ -86,6 +88,8 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdin i
 		err = agentsCommand(args[1:], getenv, stdout, stderr)
 	case "hook":
 		err = hookCommand(args[1:], getenv, stdin, stdout, stderr)
+	case "log":
+		err = logCommand(args[1:], getenv, stdout, stderr)
 	case "doctor":
 		return check(ctx, args[1:], getenv, stdout, stderr)
 	case "health":
@@ -94,7 +98,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdin i
 		fmt.Fprintln(stdout, version)
 		return 0
 	default:
-		fmt.Fprintf(stderr, "nia-edge: unknown command %q (enroll, provider, run, hostd, mcp, agents, doctor, health, version)\n", args[0])
+		fmt.Fprintf(stderr, "nia-edge: unknown command %q (enroll, provider, run, hostd, mcp, agents, log, doctor, health, version)\n", args[0])
 		return 2
 	}
 	if errors.Is(err, flag.ErrHelp) {
@@ -358,6 +362,8 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 	logger := slog.New(slog.NewTextHandler(stderr, nil))
 	status := &machineStatus{value: "unknown"}
 	policies := &keeper{path: filepath.Join(filepath.Dir(statePath(*stateFile, getenv)), "policy.json"), key: saved.PolicyKey, machineID: saved.MachineID}
+	// What Nia decided, for the person who runs the machine: no content.
+	decisionLog := decisions.Open(filepath.Join(filepath.Dir(statePath(*stateFile, getenv)), "decisions.jsonl"))
 	policies.load(logger)
 	listener, err := net.Listen("tcp", *listen)
 	if err != nil {
@@ -484,8 +490,8 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 			Anthropic:     saved.Provider.Format == "anthropic",
 			SessionHeader: providerSessionHeader(saved.Provider, providerURL),
 			HTTP:          local.NewProviderClient(15 * time.Minute),
-			Nia:           remote,
-			Budgets:       remote,
+			Nia:           decisions.Authority{Authority: remote, Log: decisionLog, Path: "model"},
+			Budgets:       decisions.Budgets{Budgets: remote, Log: decisionLog},
 			Rules:         policies.rules,
 			Releases:      releases,
 			Review:        planReview(&hostd.Client{Socket: hostSocket}),
@@ -505,7 +511,7 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 	// Codex): decided here as the model path decides, with or without a
 	// provider on this machine.
 	toolHooks := &hooks.Handler{
-		Nia:      &local.Remote{Base: base, Key: saved.Key, Run: run, HTTP: niaclient.NewHTTPClient(time.Duration(30+wait) * time.Second), Wait: wait},
+		Nia:      decisions.Authority{Authority: &local.Remote{Base: base, Key: saved.Key, Run: run, HTTP: niaclient.NewHTTPClient(time.Duration(30+wait) * time.Second), Wait: wait}, Log: decisionLog, Path: "hook"},
 		Rules:    policies.rules,
 		Releases: releases,
 		Logger:   logger,
@@ -570,7 +576,7 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 		} else {
 			proxies := map[string]http.Handler{}
 			for name := range saved.MCP {
-				proxies[name] = egress.New(egress.Options{Authority: authority, Session: session, Run: run, Server: name, AllowPrivate: allowPrivate, Logger: logger})
+				proxies[name] = egress.New(egress.Options{Authority: decisions.Egress{Authority: authority, Log: decisionLog}, Session: session, Run: run, Server: name, AllowPrivate: allowPrivate, Logger: logger})
 			}
 			fmt.Fprintf(stdout, "nia-edge %s: %d MCP servers in containers, their way out on %s\n", version, len(proxies), egressSocket)
 			go func() {
@@ -586,7 +592,7 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 		}
 		proxy = &http.Server{
 			Handler: egress.New(egress.Options{
-				Authority:    authority,
+				Authority:    decisions.Egress{Authority: authority, Log: decisionLog},
 				Session:      session,
 				Run:          run,
 				AllowPrivate: allowPrivate,
@@ -1033,4 +1039,40 @@ type pinner struct {
 
 func (p pinner) Pin(ctx context.Context, server string, tools []json.RawMessage) ([]string, error) {
 	return p.client.PinTools(ctx, p.key, server, tools)
+}
+
+// logCommand shows the last decisions Nia made for this machine, from
+// nia-edge's log beside its state file (root or the nia-edge user).
+func logCommand(args []string, getenv func(string) string, stdout, stderr io.Writer) error {
+	flags := flag.NewFlagSet("nia-edge log", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	stateFile := flags.String("state", "", "state file (or NIA_EDGE_STATE); the log is beside it")
+	count := flags.Int("n", 50, "how many decisions")
+	asJSON := flags.Bool("json", false, "one JSON object per line")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 || *count < 1 {
+		return errors.New("usage: nia-edge log [-n 50] [-json] [-state file]")
+	}
+	path := filepath.Join(filepath.Dir(statePath(*stateFile, getenv)), "decisions.jsonl")
+	entries, err := decisions.Last(path, *count)
+	if errors.Is(err, fs.ErrNotExist) {
+		fmt.Fprintln(stdout, "no decision recorded yet ("+path+")")
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if *asJSON {
+		encoder := json.NewEncoder(stdout)
+		for _, entry := range entries {
+			if err := encoder.Encode(entry); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	decisions.Format(stdout, entries)
+	return nil
 }
