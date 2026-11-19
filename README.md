@@ -200,6 +200,14 @@ sudo nia-edge agents restore codex                                # exactly as i
   configuration would otherwise turn off. Codex lets a call through when its
   hook fails: `nia-edge hook` answers `deny` whatever fails, within the
   hook's timeout.
+  `-model` also sends its model calls to nia-edge: the requirements select
+  the provider `nia-edge` (`model_provider`, which Codex 0.170.0 applies over
+  the user's and the session's configuration) and define it
+  (`model_providers`, the Responses API at `127.0.0.1:8787/v1`); nia-edge
+  needs an `openai` provider. Onboarding refuses requirements that already
+  select a provider. The role then decides each call twice, under the name
+  the model proposes (`exec_command`, its `cmd`) and the one the hook
+  reports (`Bash`, its `command`): it names both.
 - Gemini CLI: command hooks (`nia-edge hook gemini-cli`, `BeforeTool` and
   `AfterTool`) in its system overrides, `/etc/gemini-cli/settings.json`,
   which win over the user's and the project's settings; they pin

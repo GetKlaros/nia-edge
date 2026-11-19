@@ -157,8 +157,38 @@ func TestCodexRequirements(t *testing.T) {
 	if back, _ := os.ReadFile(o.File); string(back) != original {
 		t.Fatalf("%s", back)
 	}
-	if _, err := For("codex", root, true); err == nil {
-		t.Fatal("-model is for claude-code only")
+	// -model: nia-edge is Codex's provider, a top-level key before any table.
+	withModel, err := For("codex", root, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := withModel.Apply(); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ = os.ReadFile(o.File)
+	text = string(raw)
+	if !strings.HasPrefix(text, codexModelBegin+"\nmodel_provider = \"nia-edge\"\n"+codexModelEnd+"\n") ||
+		!strings.Contains(text, "[model_providers.nia-edge]\nname = \"nia-edge\"\nbase_url = \"http://127.0.0.1:8787/v1\"\nwire_api = \"responses\"\n") {
+		t.Fatalf("%s", text)
+	}
+	// Again, with or without -model: the blocks are replaced, not added.
+	if err := withModel.Apply(); err != nil {
+		t.Fatal(err)
+	}
+	if again, _ := os.ReadFile(o.File); string(again) != text {
+		t.Fatalf("%s", again)
+	}
+	if err := withModel.Restore(); err != nil {
+		t.Fatal(err)
+	}
+	if back, _ := os.ReadFile(o.File); string(back) != original {
+		t.Fatalf("%s", back)
+	}
+	if _, err := codexRequirements([]byte("model_provider = \"azure\"\n"), true); err == nil {
+		t.Fatal("a provider the administrator chose is not replaced")
+	}
+	if _, err := For("gemini-cli", root, true); err == nil {
+		t.Fatal("-model is for claude-code and codex")
 	}
 	if _, err := For("hermes", root, false); err == nil {
 		t.Fatal("hermes is confined, not governed by hooks")

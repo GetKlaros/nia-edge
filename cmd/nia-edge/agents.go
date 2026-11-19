@@ -182,7 +182,7 @@ func onboardCommand(action string, args []string, getenv func(string) string, st
 	flags := flag.NewFlagSet("nia-edge agents "+action, flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	dryRun := flags.Bool("dry-run", false, "print what would change, change nothing")
-	model := flags.Bool("model", false, "also send the agent's model calls to nia-edge (claude-code; nia-edge needs an anthropic provider)")
+	model := flags.Bool("model", false, "also send the agent's model calls to nia-edge (claude-code: an anthropic provider on nia-edge; codex: an openai one)")
 	root := flags.String("root", "", "the machine's files under this directory (tests)")
 	only := flags.String("user", "", "pi, omp: only this user (default: every user it is found under)")
 	if len(args) == 0 {
@@ -261,7 +261,11 @@ func onboardCommand(action string, args []string, getenv func(string) string, st
 		fmt.Fprintln(stdout, "  Codex runs "+agents.HookCommand+" for each call: keep nia-edge there.")
 	}
 	if *model {
-		fmt.Fprintln(stdout, "  Its model calls go to nia-edge, which calls the provider with its own key (nia-edge provider -format anthropic).")
+		format := "anthropic"
+		if kind == "codex" {
+			format = "openai"
+		}
+		fmt.Fprintln(stdout, "  Its model calls go to nia-edge, which calls the provider with its own key (nia-edge provider -format "+format+").")
 	}
 	fmt.Fprintln(stdout, "  This governs "+kind+", it does not confine it: its user's other programs reach the network as before.")
 	if !edgeHealthy(getenv) {

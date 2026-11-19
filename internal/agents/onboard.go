@@ -90,8 +90,8 @@ func For(kind, root string, model bool) (Onboarding, error) {
 	if !ok {
 		return Onboarding{}, fmt.Errorf("%s is not governed by its hooks: %s", kind, strings.Join(append(Governable(), PerUser()...), ", ")+" are; Hermes and OpenClaw are confined by their installers")
 	}
-	if model && kind != "claude-code" {
-		return Onboarding{}, fmt.Errorf("-model is for claude-code only for now: %s's model calls go to its provider", kind)
+	if model && kind != "claude-code" && kind != "codex" {
+		return Onboarding{}, fmt.Errorf("-model is for claude-code and codex only for now: %s's model calls go to its provider", kind)
 	}
 	return Onboarding{Kind: kind, File: filepath.Join(root, file), Model: model}, nil
 }
@@ -125,7 +125,7 @@ func (o Onboarding) Plan() (before, after []byte, err error) {
 	case "claude-code":
 		after, err = claudeSettings(before, o.Model)
 	case "codex":
-		after, err = codexRequirements(before)
+		after, err = codexRequirements(before, o.Model)
 	case "gemini-cli":
 		after, err = geminiSettings(before)
 	case "pi", "omp":
@@ -436,20 +436,51 @@ func claudeSettings(before []byte, model bool) ([]byte, error) {
 const (
 	codexBegin = "# >>> nia-edge: Nia decides every tool call (nia-edge agents restore codex)"
 	codexEnd   = "# <<< nia-edge"
+	// The model block is a top-level key: it goes first, before any table.
+	codexModelBegin = "# >>> nia-edge: model calls through nia-edge (nia-edge agents restore codex)"
+	codexModelEnd   = "# <<< nia-edge model"
 )
+
+// cutBlock removes a block between its markers, or reports it broken.
+func cutBlock(text, begin, end string) (string, error) {
+	i := strings.Index(text, begin)
+	if i < 0 {
+		return text, nil
+	}
+	j := strings.Index(text[i:], end)
+	if j < 0 {
+		return "", errors.New("Codex's requirements hold a nia-edge block without its end: fix it by hand")
+	}
+	return text[:i] + strings.TrimPrefix(text[i+j+len(end):], "\n"), nil
+}
 
 // codexRequirements appends nia-edge's command hooks to Codex's
 // requirements: managed hooks, which Codex trusts and a user cannot turn
 // off. Codex lets a call through when its hook fails; nia-edge's hook
 // answers "deny" whatever fails, within the hook's timeout.
-func codexRequirements(before []byte) ([]byte, error) {
-	text := string(before)
-	if i := strings.Index(text, codexBegin); i >= 0 {
-		j := strings.Index(text[i:], codexEnd)
-		if j < 0 {
-			return nil, errors.New("Codex's requirements hold nia-edge's block without its end: fix it by hand")
+//
+// With model, the requirements also select nia-edge as Codex's model
+// provider (model_provider, "exact provider selection, overriding local and
+// session configuration" in Codex 0.170.0): its model calls go to nia-edge,
+// which calls the provider with its own key.
+func codexRequirements(before []byte, model bool) ([]byte, error) {
+	text, err := cutBlock(string(before), codexModelBegin, codexModelEnd)
+	if err != nil {
+		return nil, err
+	}
+	if text, err = cutBlock(text, codexBegin, codexEnd); err != nil {
+		return nil, err
+	}
+	if model {
+		for _, line := range strings.Split(text, "\n") {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "[") {
+				break
+			}
+			if key, _, found := strings.Cut(trimmed, "="); found && strings.TrimSpace(key) == "model_provider" {
+				return nil, errors.New("Codex's requirements already select a model provider (model_provider): remove it first, or onboard without -model")
+			}
 		}
-		text = text[:i] + strings.TrimPrefix(text[i+j+len(codexEnd):], "\n")
 	}
 	lines := strings.Split(text, "\n")
 	features := -1
@@ -500,9 +531,16 @@ func codexRequirements(before []byte) ([]byte, error) {
 	}{{"PreToolUse", 330}, {"PostToolUse", 60}} {
 		fmt.Fprintf(&block, "[[hooks.%s]]\nmatcher = \".*\"\n[[hooks.%s.hooks]]\ntype = \"command\"\ncommand = %q\ntimeout = %d\n", event.name, event.name, HookCommand, event.timeout)
 	}
+	if model {
+		fmt.Fprintf(&block, "[model_providers.nia-edge]\nname = \"nia-edge\"\nbase_url = %q\nwire_api = \"responses\"\n", Edge+"/v1")
+	}
 	block.WriteString(codexEnd + "\n")
 	if text != "" {
 		text += "\n"
 	}
-	return []byte(text + block.String()), nil
+	out := text + block.String()
+	if model {
+		out = codexModelBegin + "\nmodel_provider = \"nia-edge\"\n" + codexModelEnd + "\n\n" + out
+	}
+	return []byte(out), nil
 }
