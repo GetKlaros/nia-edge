@@ -279,6 +279,16 @@ Tested by the server's `npm run e2e:devagents`: Claude Code lists a repository's
 issues through nia-edge, never holds the token, is refused `delete_repo`
 before it reaches the vendor, and a direct call runs nothing.
 
+## Budgets
+
+When the agent's key has a budget in Nia (console, Budgets), nia-edge asks
+Nia before each model call and, after it, tells Nia the tokens the provider
+reported: counts only, never content. It asks a streamed Chat Completions
+call for its usage (`stream_options.include_usage`). Past the budget, no call
+is made: the agent gets a message, and a reviewer an approval that adds the
+budget once more for the day or the month. With a budget, a call whose usage
+cannot be read, or that Nia could not record, is not released.
+
 ## Install an OpenClaw agent on Linux
 
 `install/openclaw-linux.sh` does for OpenClaw what the Hermes installer does
