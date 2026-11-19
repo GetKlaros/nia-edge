@@ -255,6 +255,50 @@ Tested by the server's `npm run e2e:devagents`, with the real Claude Code and
 Codex, and `npm run e2e:moreagents`, with the real Gemini CLI, Pi and Oh My
 Pi.
 
+## Simulate the agents' commands
+
+A role with `simulate` has every shell command of its agents (Gemini CLI,
+Codex, Pi, Oh My Pi, OpenCode) run first in a sandbox, then judged by what
+it did rather than by how it is written: `rm -fr`, `find -delete`, a
+command in base64, a script written then run or a Python `rmtree` all show
+as the files they delete.
+
+```yaml
+roles:
+  - name: dev
+    simulate: {}          # max_deleted: 20, timeout_seconds: 60, protected: .ssh, .gnupg, .aws, .env*
+    tools: [{ name: bash, when_untrusted: allow }]
+```
+
+- The hook of an allowed command hands it to nia-edge under a ticket and
+  the agent runs `nia-edge simulate <ticket>` instead. nia-edge runs it in
+  new user, mount, PID, network, IPC and UTS namespaces: the user's home
+  (and the working directory, when it is theirs and outside it) is an
+  overlay over a scratch layer; the rest of the machine is read only;
+  `/tmp`, `/var/tmp`, `/run` (and every socket under it) and `/dev/shm` are
+  empty; no network; every process it started is killed when it ends.
+- What the layer holds is the effect, judged by Nia as the call
+  `nia:effect` (`{"deleted": files, "paths": [...]}`): more files deleted
+  than `max_deleted`, or a changed path matching `protected`, is held for a
+  reviewer, who sees those paths; a held effect is refused to the agent,
+  with what its simulation did.
+- Allowed, the layer is written to the machine as it is: the command does
+  not run twice, and the agent gets the simulation's output. It is written
+  only where the machine still holds what the simulation saw, and never
+  out of the user's files (no link followed out).
+- A command that cannot be simulated is refused, never run without one: no
+  user namespaces, a command longer than `timeout_seconds`, a setuid file,
+  more than 2,000 changed paths. Claude Code is refused for now (its input
+  rewrite is not reliable yet). Without a signed policy, nia-edge does not
+  know the role simulates.
+- Limits: the network does not exist in a simulation, so a command that
+  needs it fails there (`git push`, `npm install` from the registry); a
+  deleted directory counts as one path, with all the files it held; what a
+  command reads leaves through its output, which the after hook redacts;
+  a long-running server is stopped at the timeout. Under Codex's own
+  sandbox, nia-edge cannot be reached: run Codex with its sandbox off or
+  network on for nia-edge.
+
 ## MCP servers hosted by their vendor (GitHub, Notion…)
 
 The agent's MCP server is at its vendor, and its token opens every

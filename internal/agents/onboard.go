@@ -400,6 +400,8 @@ export default {
         throw new Error("[Nia agent firewall] nia-edge could not decide this call, so it was not run");
       }
       if (answer.block) throw new Error(String(answer.reason ?? "[Nia agent firewall] refused"));
+      // The role simulates commands: the command becomes nia-edge's.
+      if (answer.input && typeof answer.input === "object") Object.assign(output.args, answer.input);
     },
     "tool.execute.after": async (input, output) => {
       // A built-in tool's output is text; an MCP tool's, a list of contents.
@@ -453,6 +455,11 @@ export default function (agent) {
     try {
       const answer = await ask({ hook_event_name: "tool_call", session_id: session(ctx), tool_name: event.toolName, tool_input: event.input ?? {} }, ctx?.signal);
       if (answer.block) return { block: true, reason: String(answer.reason ?? "[Nia agent firewall] refused") };
+      // The role simulates commands: the command becomes nia-edge's.
+      if (answer.input && typeof answer.input === "object") {
+        Object.assign(event.input, answer.input);
+        return { input: event.input };
+      }
       return undefined;
     } catch (error) {
       return { block: true, reason: "[Nia agent firewall] nia-edge could not decide this call, so it was not run" };

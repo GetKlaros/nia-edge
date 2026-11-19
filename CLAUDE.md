@@ -65,6 +65,13 @@ private code base; this repository is public.
   hook it cannot read or a decision it cannot obtain refuse the call, and
   `nia-edge hook` answers deny whatever fails. Onboarding saves each file
   before it changes it, and restore puts it back byte for byte.
+- A role with `simulate` has each shell command of a hook-governed agent
+  rewritten to `nia-edge simulate <ticket>`, which runs it in new user,
+  mount, PID, network, IPC and UTS namespaces, the user's files as an
+  overlay and everything else read only or empty, then has Nia judge the
+  layer (`nia:effect`) and writes it as it is, once, only where the machine
+  still holds what it saw and never out of the user's files. A command that
+  cannot be simulated, or an agent that cannot be rewritten, is refused.
 - nia-hostd is the only part that runs as root. It serves the nia-edge user
   alone (peer credentials), verifies the signed policy itself, and runs only
   the actions of the role's catalogue, by name, with fixed programs and

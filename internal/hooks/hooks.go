@@ -73,7 +73,10 @@ type Handler struct {
 	// Releases keeps the allowed calls of the MCP servers nia-edge serves
 	// (mcp__<server>__<tool>): such a call runs only against one, once.
 	Releases *local.Releases
-	Logger   *slog.Logger
+	// Simulations hold the commands of a role that simulates them; nil
+	// refuses such commands.
+	Simulations *Tickets
+	Logger      *slog.Logger
 }
 
 // MaxPayload bounds what a hook may send.
@@ -147,7 +150,7 @@ func (h *Handler) before(ctx context.Context, agent Agent, conversation string, 
 		if h.Releases != nil && strings.HasPrefix(hook.Tool, h.Releases.Prefix) && h.Releases.Prefix != "" {
 			h.Releases.Release(hook.Tool, arguments, time.Now())
 		}
-		return nil
+		return h.simulated(agent, conversation, hook)
 	}
 	message := verdict.Message
 	if message == "" {
