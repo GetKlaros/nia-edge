@@ -2,6 +2,8 @@ package agents
 
 import (
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -358,5 +360,81 @@ func TestPiOnboardingPerUser(t *testing.T) {
 	}
 	if _, err := ForUser("codex", root, me, home); err == nil {
 		t.Fatal("codex is governed machine-wide")
+	}
+}
+
+func TestOpenCodeOnboarding(t *testing.T) {
+	root := t.TempDir()
+	onboarding, err := For("opencode", root, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if onboarding.File != filepath.Join(root, "/etc/opencode/opencode.json") {
+		t.Fatal(onboarding.File)
+	}
+	plugin := filepath.Join(root, OpenCodePlugin)
+	// The administrator's own configuration and plugins are kept.
+	if err := os.MkdirAll(filepath.Dir(onboarding.File), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	original := `{"share":"disabled","plugin":["opencode-audit@1.0.0"]}`
+	if err := os.WriteFile(onboarding.File, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// A plugin file that is not nia-edge's is never overwritten.
+	if err := os.WriteFile(plugin, []byte("export default {}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := onboarding.Apply(); err == nil {
+		t.Fatal("overwrote a plugin that is not nia-edge's")
+	}
+	if err := os.Remove(plugin); err != nil {
+		t.Fatal(err)
+	}
+	if err := onboarding.Apply(); err != nil {
+		t.Fatal(err)
+	}
+	var config map[string]any
+	data, _ := os.ReadFile(onboarding.File)
+	if err := json.Unmarshal(data, &config); err != nil {
+		t.Fatal(err)
+	}
+	if plugins := config["plugin"].([]any); len(plugins) != 2 || plugins[0] != "opencode-audit@1.0.0" || plugins[1] != OpenCodePlugin || config["share"] != "disabled" {
+		t.Fatalf("%s", data)
+	}
+	if code, _ := os.ReadFile(plugin); !strings.Contains(string(code), Edge+"/v1/hooks/opencode") || !strings.Contains(string(code), `"tool.execute.before"`) {
+		t.Fatalf("%s", code)
+	}
+	if onboarding.Status() != "machine" {
+		t.Fatal(onboarding.Status())
+	}
+	// Again: the same, not twice.
+	if err := onboarding.Apply(); err != nil {
+		t.Fatal(err)
+	}
+	if again, _ := os.ReadFile(onboarding.File); string(again) != string(data) {
+		t.Fatalf("%s", again)
+	}
+	// The plugin changed: not governed as written.
+	if err := os.WriteFile(plugin, []byte("export default {}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if onboarding.Status() != "changed" {
+		t.Fatal(onboarding.Status())
+	}
+	if err := onboarding.Restore(); err != nil {
+		t.Fatal(err)
+	}
+	if back, _ := os.ReadFile(onboarding.File); string(back) != original {
+		t.Fatalf("%s", back)
+	}
+	if _, err := os.Stat(plugin); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatal("the plugin is still there")
+	}
+	if _, err := opencodeConfig([]byte(`{"plugin":"x"}`)); err == nil {
+		t.Fatal("plugins not a list")
+	}
+	if _, err := For("opencode", root, true); err == nil {
+		t.Fatal("-model for opencode")
 	}
 }

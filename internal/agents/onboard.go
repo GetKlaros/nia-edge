@@ -59,7 +59,13 @@ var managed = map[string]string{
 	"codex":       "/etc/codex/requirements.toml",
 	// Gemini CLI's system overrides (docs/cli/enterprise.md, 0.69.0).
 	"gemini-cli": "/etc/gemini-cli/settings.json",
+	// OpenCode's managed configuration (config/managed.ts, 1.19.6), merged
+	// after the user's and the project's; it names nia-edge's plugin.
+	"opencode": "/etc/opencode/opencode.json",
 }
+
+// OpenCodePlugin is nia-edge's plugin, as OpenCode loads it.
+const OpenCodePlugin = "/etc/opencode/nia-edge.js"
 
 // extensions are the agents with no machine-wide configuration: nia-edge's
 // extension goes in each user's agent directory, where the agent loads it.
@@ -69,7 +75,7 @@ var extensions = map[string]string{
 }
 
 // Governable lists the agents nia-edge governs by their hooks, machine-wide.
-func Governable() []string { return []string{"claude-code", "codex", "gemini-cli"} }
+func Governable() []string { return []string{"claude-code", "codex", "gemini-cli", "opencode"} }
 
 // PerUser lists the agents it governs user by user, with its extension.
 func PerUser() []string { return []string{"pi", "omp"} }
@@ -106,6 +112,11 @@ type saved struct {
 
 func (o Onboarding) backup() string { return o.File + ".nia-edge.json" }
 
+// plugin is where OpenCode's plugin goes, beside its managed configuration.
+func (o Onboarding) plugin() string {
+	return filepath.Join(filepath.Dir(o.File), filepath.Base(OpenCodePlugin))
+}
+
 func digest(data []byte) string {
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
@@ -128,6 +139,8 @@ func (o Onboarding) Plan() (before, after []byte, err error) {
 		after, err = codexRequirements(before, o.Model)
 	case "gemini-cli":
 		after, err = geminiSettings(before)
+	case "opencode":
+		after, err = opencodeConfig(before)
 	case "pi", "omp":
 		after, err = []byte(extension(o.Kind)), nil
 	}
@@ -187,6 +200,16 @@ func (o Onboarding) Apply() error {
 	} else if err := os.MkdirAll(filepath.Dir(o.File), 0o755); err != nil {
 		return err
 	}
+	if o.Kind == "opencode" {
+		// The plugin before the configuration that names it: OpenCode skips
+		// a plugin it cannot load. It is nia-edge's alone.
+		if current, err := os.ReadFile(o.plugin()); err == nil && !bytes.Equal(current, []byte(opencodePlugin())) && !already {
+			return fmt.Errorf("%s exists and is not nia-edge's: move it away first", o.plugin())
+		}
+		if err := writeAtomic(o.plugin(), []byte(opencodePlugin()), 0o644); err != nil {
+			return err
+		}
+	}
 	// The original first: whatever fails next, it can be put back.
 	if err := writeAtomic(o.backup(), encoded, 0o600); err != nil {
 		return err
@@ -211,6 +234,11 @@ func (o Onboarding) Restore() error {
 	} else if err := os.Remove(o.File); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
+	if o.Kind == "opencode" {
+		if err := os.Remove(o.plugin()); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+	}
 	return os.Remove(o.backup())
 }
 
@@ -221,6 +249,11 @@ func (o Onboarding) Status() string {
 	current, err := os.ReadFile(o.File)
 	if err != nil || !governedBy(o.Kind, current) {
 		return ""
+	}
+	if o.Kind == "opencode" {
+		if plugin, err := os.ReadFile(o.plugin()); err != nil || !bytes.Equal(plugin, []byte(opencodePlugin())) {
+			return "changed"
+		}
 	}
 	if prior, ok := o.saved(); ok && digest(current) != prior.Wrote {
 		return "changed"
@@ -236,6 +269,8 @@ func governedBy(kind string, data []byte) bool {
 		return bytes.Contains(data, []byte(codexBegin)) && bytes.Contains(data, []byte(HookCommand))
 	case "gemini-cli":
 		return bytes.Contains(data, []byte(GeminiHookCommand))
+	case "opencode":
+		return bytes.Contains(data, []byte(OpenCodePlugin))
 	case "pi", "omp":
 		return bytes.Equal(data, []byte(extension(kind)))
 	}
@@ -296,6 +331,94 @@ func geminiSettings(before []byte) ([]byte, error) {
 		return nil, err
 	}
 	return append(out, '\n'), nil
+}
+
+// opencodeConfig names nia-edge's plugin in OpenCode's managed
+// configuration. The lists of plugins of every level are merged: a user's
+// own configuration does not remove it.
+func opencodeConfig(before []byte) ([]byte, error) {
+	config := map[string]any{}
+	if len(bytes.TrimSpace(before)) > 0 {
+		decoder := json.NewDecoder(bytes.NewReader(before))
+		decoder.UseNumber()
+		if err := decoder.Decode(&config); err != nil {
+			return nil, fmt.Errorf("OpenCode's managed configuration is not JSON: %w", err)
+		}
+	}
+	plugins, _ := config["plugin"].([]any)
+	if config["plugin"] != nil && plugins == nil {
+		return nil, errors.New("OpenCode's managed configuration has plugins that are not a list")
+	}
+	kept := []any{}
+	for _, plugin := range plugins {
+		if plugin != OpenCodePlugin {
+			kept = append(kept, plugin)
+		}
+	}
+	config["plugin"] = append(kept, OpenCodePlugin)
+	out, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return append(out, '\n'), nil
+}
+
+// opencodePlugin is nia-edge's plugin for OpenCode (its plugin API,
+// packages/plugin, 1.19.6): before a tool runs it asks nia-edge, and an
+// error, a timeout or an answer it cannot read throws, which fails the
+// call. After a tool, the session is told it holds that tool's result,
+// and a secret is redacted from what the model gets.
+func opencodePlugin() string {
+	return `// nia-edge: Nia decides every tool call of OpenCode. Written by
+// "nia-edge agents onboard opencode"; "nia-edge agents restore opencode" removes it.
+const EDGE = "` + Edge + `/v1/hooks/opencode";
+
+async function ask(body) {
+  const response = await fetch(EDGE, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(300000),
+  });
+  if (!response.ok) throw new Error("nia-edge answered " + response.status);
+  const text = await response.text();
+  return text.trim() === "" ? {} : JSON.parse(text);
+}
+
+function texts(content) {
+  return content.filter((item) => item?.type === "text").map((item) => String(item.text)).join("\n");
+}
+
+export default {
+  id: "nia-edge",
+  server: async () => ({
+    "tool.execute.before": async (input, output) => {
+      let answer;
+      try {
+        answer = await ask({ hook_event_name: "tool_call", session_id: String(input.sessionID), tool_name: String(input.tool), tool_input: output.args ?? {} });
+      } catch (error) {
+        throw new Error("[Nia agent firewall] nia-edge could not decide this call, so it was not run");
+      }
+      if (answer.block) throw new Error(String(answer.reason ?? "[Nia agent firewall] refused"));
+    },
+    "tool.execute.after": async (input, output) => {
+      // A built-in tool's output is text; an MCP tool's, a list of contents.
+      const mcp = Array.isArray(output?.content);
+      const response = mcp ? output.content : [{ type: "text", text: String(output?.output ?? "") }];
+      let answer;
+      try {
+        answer = await ask({ hook_event_name: "tool_result", session_id: String(input.sessionID), tool_name: String(input.tool), tool_input: input.args ?? {}, tool_response: response });
+      } catch (error) {
+        throw new Error("[Nia agent firewall] nia-edge could not record this tool's output, so the model does not see it");
+      }
+      if (!Array.isArray(answer.content)) return;
+      if (answer.isError === true) throw new Error(texts(answer.content));
+      if (mcp) output.content = answer.content;
+      else output.output = texts(answer.content);
+    },
+  }),
+};
+`
 }
 
 // extension is nia-edge's extension for Pi and Oh My Pi (their extension

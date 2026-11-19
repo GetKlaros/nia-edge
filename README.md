@@ -183,7 +183,7 @@ have none, so nia-edge's extension goes in each user's agent directory.
 ```bash
 sudo NIA_URL=… NIA_ENROLL_TOKEN=… install/linux.sh --governed   # nia-edge, no network rule
 sudo nia-edge agents onboard claude-code -dry-run                 # what would change
-sudo nia-edge agents onboard claude-code                          # or codex, gemini-cli, pi, omp
+sudo nia-edge agents onboard claude-code                          # or codex, gemini-cli, opencode, pi, omp
 sudo nia-edge agents status codex
 sudo nia-edge agents restore codex                                # exactly as it was
 ```
@@ -217,6 +217,15 @@ sudo nia-edge agents restore codex                                # exactly as i
   `hooksConfig.disabled` (the lists of every level are merged), or point
   `GEMINI_CLI_SYSTEM_SETTINGS_PATH` elsewhere; in a folder it does not
   trust, it loads no hook from settings, and refuses to run headless.
+- OpenCode: nia-edge's plugin (`/etc/opencode/nia-edge.js`, root's), named
+  in its managed configuration, `/etc/opencode/opencode.json`, which it
+  merges after the user's and the project's; the lists of plugins of every
+  level are merged, so a user's own does not remove it. Before a tool, the
+  plugin's `tool.execute.before` asks nia-edge and throws when the call is
+  refused or nia-edge cannot answer, which fails the call (built-in and MCP
+  tools alike); after it, a secret is redacted from what the model gets.
+  Limits, read in its code (1.19.6): `--pure` or `OPENCODE_PURE` starts it
+  without external plugins, and a plugin it cannot load is skipped.
 - Pi and Oh My Pi: nia-edge's extension (`~/.pi/agent/extensions/nia-edge.ts`,
   `~/.omp/agent/extensions/nia-edge.ts`, the file root's, its directory the
   user's), for every user the agent is found under (`-user` for one). Its

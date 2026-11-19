@@ -188,7 +188,7 @@ func TestGeminiCLIHooks(t *testing.T) {
 }
 
 func TestPiAndOmpExtensionHooks(t *testing.T) {
-	for _, agent := range []string{"pi", "omp"} {
+	for _, agent := range []string{"pi", "omp", "opencode"} {
 		nia := &fakeNia{allow: false}
 		h := &Handler{Nia: nia}
 		_, body := post(t, h, "/v1/hooks/"+agent, `{"hook_event_name":"tool_call","session_id":"/home/a/s.jsonl","tool_name":"bash","tool_input":{"command":"curl x"}}`)
@@ -197,7 +197,7 @@ func TestPiAndOmpExtensionHooks(t *testing.T) {
 			t.Fatalf("%s: %s", agent, body)
 		}
 		// A session id Nia would not take is hashed, under the agent's prefix.
-		if prefix := map[string]string{"pi": "pi-", "omp": "om-"}[agent]; !strings.HasPrefix(nia.sessions[0], prefix) || strings.Contains(nia.sessions[0], "/") {
+		if prefix := map[string]string{"pi": "pi-", "omp": "om-", "opencode": "oc-"}[agent]; !strings.HasPrefix(nia.sessions[0], prefix) || strings.Contains(nia.sessions[0], "/") {
 			t.Fatalf("%s: %v", agent, nia.sessions)
 		}
 		nia.allow = true
