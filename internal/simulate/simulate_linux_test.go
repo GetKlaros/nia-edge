@@ -42,6 +42,9 @@ func simulate(t *testing.T, dir, command string) *Result {
 	t.Helper()
 	result, err := Run(context.Background(), Options{Command: command, Dir: dir, Home: dir, Timeout: 20 * time.Second, Env: []string{"HOME=" + dir, "PATH=/usr/local/bin:/usr/bin:/bin"}})
 	if errors.Is(err, ErrUnsupported) {
+		if os.Getenv("NIA_SIMULATE_REQUIRED") != "" {
+			t.Fatalf("no sandbox where one is required: %v", err)
+		}
 		t.Skipf("no sandbox here: %v", err)
 	}
 	if err != nil {

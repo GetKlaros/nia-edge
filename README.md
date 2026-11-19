@@ -286,6 +286,14 @@ roles:
   not run twice, and the agent gets the simulation's output. It is written
   only where the machine still holds what the simulation saw, and never
   out of the user's files (no link followed out).
+- Ubuntu 23.10 and later let AppArmor restrict user namespaces
+  (`kernel.apparmor_restrict_unprivileged_userns`): the installer then
+  writes `/etc/apparmor.d/nia-edge`, the unconfined profile with the
+  `userns` rule that Ubuntu documents for such programs, so nia-edge's
+  binary alone may make them (`install/apparmor-linux.sh`, proven on the
+  CI's Ubuntu; `NIA_SIMULATE=0` skips it). Any user who runs that binary can
+  then make a user namespace with it, as with rootless podman. A machine
+  installed before: `sudo sh apparmor-linux.sh` once.
 - A command that cannot be simulated is refused, never run without one: no
   user namespaces, a command longer than `timeout_seconds`, a setuid file,
   more than 2,000 changed paths. Without a signed policy, nia-edge does not
