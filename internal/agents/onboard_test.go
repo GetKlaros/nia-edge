@@ -229,3 +229,104 @@ func TestBackupIsPrivate(t *testing.T) {
 		t.Fatalf("%v %v", info, err)
 	}
 }
+
+func TestGeminiCLIOnboarding(t *testing.T) {
+	root := t.TempDir()
+	onboarding, err := For("gemini-cli", root, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if onboarding.File != filepath.Join(root, "/etc/gemini-cli/settings.json") {
+		t.Fatal(onboarding.File)
+	}
+	// The administrator's own settings are kept, hooks pinned on.
+	if err := os.MkdirAll(filepath.Dir(onboarding.File), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	original := `{"security":{"auth":{"enforcedType":"gemini-api-key"}},"hooksConfig":{"enabled":false},"hooks":{"BeforeTool":[{"matcher":"write_file","hooks":[{"type":"command","command":"/opt/audit"}]}]}}`
+	if err := os.WriteFile(onboarding.File, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := onboarding.Apply(); err != nil {
+		t.Fatal(err)
+	}
+	var settings map[string]any
+	data, _ := os.ReadFile(onboarding.File)
+	if err := json.Unmarshal(data, &settings); err != nil {
+		t.Fatal(err)
+	}
+	before := settings["hooks"].(map[string]any)["BeforeTool"].([]any)
+	if len(before) != 2 || !strings.Contains(string(data), "/opt/audit") || !strings.Contains(string(data), GeminiHookCommand) ||
+		settings["hooksConfig"].(map[string]any)["enabled"] != true || !strings.Contains(string(data), "enforcedType") {
+		t.Fatalf("%s", data)
+	}
+	if onboarding.Status() != "machine" {
+		t.Fatal(onboarding.Status())
+	}
+	// Again: the same, not twice.
+	if err := onboarding.Apply(); err != nil {
+		t.Fatal(err)
+	}
+	if again, _ := os.ReadFile(onboarding.File); string(again) != string(data) {
+		t.Fatalf("%s", again)
+	}
+	if err := onboarding.Restore(); err != nil {
+		t.Fatal(err)
+	}
+	if back, _ := os.ReadFile(onboarding.File); string(back) != original {
+		t.Fatalf("%s", back)
+	}
+	if _, err := geminiSettings([]byte(`{not json`)); err == nil {
+		t.Fatal("not JSON")
+	}
+}
+
+func TestPiOnboardingPerUser(t *testing.T) {
+	root := t.TempDir()
+	home := "/home/dana"
+	if err := os.MkdirAll(filepath.Join(root, home, ".pi/agent"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	me := Owner{Name: "dana", UID: os.Getuid(), GID: os.Getgid()}
+	onboarding, err := ForUser("pi", root, me, home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if onboarding.Status() != "" {
+		t.Fatal("not yet")
+	}
+	if err := onboarding.Apply(); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(filepath.Join(root, home, ".pi/agent/extensions/nia-edge.ts"))
+	if !strings.Contains(string(data), `"http://127.0.0.1:8787/v1/hooks/pi"`) || !strings.Contains(string(data), `agent.on("tool_call"`) {
+		t.Fatalf("%s", data)
+	}
+	if onboarding.Status() != "machine" {
+		t.Fatal(onboarding.Status())
+	}
+	// Changed by someone: reported, not overwritten.
+	if err := os.WriteFile(onboarding.File, []byte("// mine\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if onboarding.Status() != "" || onboarding.Apply() == nil {
+		t.Fatal("a changed extension is not overwritten")
+	}
+	if err := os.WriteFile(onboarding.File, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := onboarding.Restore(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(onboarding.File); !os.IsNotExist(err) {
+		t.Fatal("removed")
+	}
+	// No agent directory: nothing is made up.
+	other, _ := ForUser("omp", root, me, "/home/nobody")
+	if err := other.Apply(); err == nil || !strings.Contains(err.Error(), "run it once") {
+		t.Fatalf("%v", err)
+	}
+	if _, err := ForUser("codex", root, me, home); err == nil {
+		t.Fatal("codex is governed machine-wide")
+	}
+}

@@ -17,8 +17,9 @@ import (
 // does not reach the model.
 func hookCommand(args []string, getenv func(string) string, stdin io.Reader, stdout, stderr io.Writer) error {
 	if len(args) != 1 || hooks.Route("/v1/hooks/"+args[0]) == "" {
-		return fmt.Errorf("usage: nia-edge hook claude-code|codex (the hook on standard input)")
+		return fmt.Errorf("usage: nia-edge hook claude-code|codex|gemini-cli (the hook on standard input)")
 	}
+	agent := hooks.Route("/v1/hooks/" + args[0])
 	raw, err := io.ReadAll(io.LimitReader(stdin, hooks.MaxPayload+1))
 	var event struct {
 		Event string `json:"hook_event_name"`
@@ -26,16 +27,10 @@ func hookCommand(args []string, getenv func(string) string, stdin io.Reader, std
 	_ = json.Unmarshal(raw, &event)
 	refuse := func(why string) error {
 		fmt.Fprintln(stderr, "nia-edge hook: "+why)
-		var answer any
-		if event.Event == "PostToolUse" {
-			answer = map[string]any{"continue": false, "stopReason": "[Nia agent firewall] " + why + "; the turn was stopped."}
-		} else {
-			answer = map[string]any{"hookSpecificOutput": map[string]any{
-				"hookEventName": "PreToolUse", "permissionDecision": "deny",
-				"permissionDecisionReason": "[Nia agent firewall] " + why + ", so this call was not run",
-			}}
+		if event.Event == "PostToolUse" || event.Event == "AfterTool" {
+			return json.NewEncoder(stdout).Encode(hooks.Refusal(agent, "after", why))
 		}
-		return json.NewEncoder(stdout).Encode(answer)
+		return json.NewEncoder(stdout).Encode(hooks.Refusal(agent, "before", why+", so this call was not run"))
 	}
 	if err != nil || len(raw) > hooks.MaxPayload {
 		return refuse("the hook could not be read")
@@ -63,6 +58,11 @@ func hookCommand(args []string, getenv func(string) string, stdin io.Reader, std
 		return refuse("nia-edge did not answer")
 	}
 	if len(bytes.TrimSpace(answer)) == 0 {
+		// Nothing to say: Gemini CLI reads JSON on standard output, always.
+		if agent == hooks.GeminiCLI {
+			_, err = io.WriteString(stdout, "{}\n")
+			return err
+		}
 		return nil
 	}
 	if !json.Valid(answer) {

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -85,7 +86,7 @@ func protection(a agents.Agent) string {
 	switch {
 	case a.Confined:
 		return "confined"
-	case a.Governed == "machine":
+	case a.Governed == "machine", a.Governed == "user":
 		return "governed"
 	}
 	return "none"
@@ -183,8 +184,9 @@ func onboardCommand(action string, args []string, getenv func(string) string, st
 	dryRun := flags.Bool("dry-run", false, "print what would change, change nothing")
 	model := flags.Bool("model", false, "also send the agent's model calls to nia-edge (claude-code; nia-edge needs an anthropic provider)")
 	root := flags.String("root", "", "the machine's files under this directory (tests)")
+	only := flags.String("user", "", "pi, omp: only this user (default: every user it is found under)")
 	if len(args) == 0 {
-		return fmt.Errorf("usage: nia-edge agents %s <%s>", action, "claude-code|codex")
+		return fmt.Errorf("usage: nia-edge agents %s <%s>", action, strings.Join(append(agents.Governable(), agents.PerUser()...), "|"))
 	}
 	kind := args[0]
 	if err := flags.Parse(args[1:]); err != nil {
@@ -192,6 +194,9 @@ func onboardCommand(action string, args []string, getenv func(string) string, st
 	}
 	if flags.NArg() != 0 {
 		return fmt.Errorf("agents %s takes one agent", action)
+	}
+	if slices.Contains(agents.PerUser(), kind) {
+		return perUserCommand(action, kind, *root, *only, *dryRun, *model, getenv, stdout)
 	}
 	onboarding, err := agents.For(kind, *root, *model)
 	if err != nil {
@@ -263,6 +268,84 @@ func onboardCommand(action string, args []string, getenv func(string) string, st
 		fmt.Fprintln(stdout, "  nia-edge does not answer on "+agents.Edge+" yet: until it does, every tool call is refused.")
 	}
 	rescan()
+	return nil
+}
+
+// perUserCommand onboards, shows or restores nia-edge's extension of an
+// agent governed user by user, for every user it is found under.
+func perUserCommand(action, kind, root, only string, dryRun, model bool, getenv func(string) string, stdout io.Writer) error {
+	if model {
+		return fmt.Errorf("-model is for claude-code only for now: %s's model calls go to its provider", kind)
+	}
+	found, err := agents.Find(agents.Options{Root: root})
+	if err != nil {
+		return err
+	}
+	var targets []agents.Onboarding
+	for _, agent := range found {
+		if agent.Kind != kind || (only != "" && agent.User != only) {
+			continue
+		}
+		onboarding, err := agents.ForUser(kind, root, agents.Owner{Name: agent.User, UID: agent.UID, GID: agent.GID}, agent.Home)
+		if err != nil {
+			return err
+		}
+		targets = append(targets, onboarding)
+	}
+	if len(targets) == 0 {
+		return fmt.Errorf("%s is not found under any user of this machine (nia-edge agents lists what is)", kind)
+	}
+	if !dryRun && action != "status" {
+		if err := needRoot(root); err != nil {
+			return err
+		}
+	}
+	for _, onboarding := range targets {
+		user := onboarding.User.Name
+		switch action {
+		case "status":
+			switch onboarding.Status() {
+			case "machine":
+				fmt.Fprintf(stdout, "%s (%s): governed, nia-edge's extension is %s\n", kind, user, onboarding.File)
+			case "changed":
+				fmt.Fprintf(stdout, "%s (%s): nia-edge's extension changed since onboarding (%s)\n", kind, user, onboarding.File)
+			default:
+				fmt.Fprintf(stdout, "%s (%s): not onboarded (sudo nia-edge agents onboard %s)\n", kind, user, kind)
+			}
+		case "restore", "offboard":
+			if dryRun {
+				fmt.Fprintf(stdout, "would remove %s\n", onboarding.File)
+				continue
+			}
+			if err := onboarding.Restore(); err != nil {
+				return err
+			}
+			fmt.Fprintf(stdout, "%s (%s): nia-edge's extension removed; Nia no longer decides its tool calls\n", kind, user)
+		default:
+			if dryRun {
+				_, after, err := onboarding.Plan()
+				if err != nil {
+					return err
+				}
+				fmt.Fprintf(stdout, "would write %s:\n%s", onboarding.File, after)
+				continue
+			}
+			if err := onboarding.Apply(); err != nil {
+				return fmt.Errorf("%s (%s): %w", kind, user, err)
+			}
+			fmt.Fprintf(stdout, "%s (%s): onboarded with nia-edge's extension (%s)\n", kind, user, onboarding.File)
+		}
+	}
+	if action == "onboard" && !dryRun {
+		fmt.Fprintln(stdout, "  Nia decides each tool call before it runs; a call it does not allow, or cannot decide, is refused.")
+		fmt.Fprintln(stdout, "  The extension is in the user's own directory: they can remove it. This governs "+kind+", it does not confine it.")
+		if !edgeHealthy(getenv) {
+			fmt.Fprintln(stdout, "  nia-edge does not answer on "+agents.Edge+" yet: until it does, every tool call is refused.")
+		}
+	}
+	if action != "status" && !dryRun {
+		rescan()
+	}
 	return nil
 }
 

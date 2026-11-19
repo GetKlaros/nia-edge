@@ -178,7 +178,7 @@ func TestGeminiOmpAndPi(t *testing.T) {
 	if !got["omp"].Running || !got["pi"].Running || got["omp"].Settings.MCPServers != -1 {
 		t.Fatalf("%+v", found)
 	}
-	if !strings.Contains(got["omp"].Next, "no installer for omp yet") {
+	if got["omp"].Next != "sudo nia-edge agents onboard omp: Nia decides each tool call" || got["gemini-cli"].Next != "sudo nia-edge agents onboard gemini-cli: Nia decides each tool call" {
 		t.Fatalf("%s", got["omp"].Next)
 	}
 }

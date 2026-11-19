@@ -51,6 +51,7 @@ type Agent struct {
 	Kind     string `json:"kind"`
 	User     string `json:"user"`
 	UID      int    `json:"uid"`
+	GID      int    `json:"-"`
 	Home     string `json:"home"`
 	Config   string `json:"config"`
 	Settings Config `json:"configuration"`
@@ -63,8 +64,9 @@ type Agent struct {
 	// network is nia-edge's. nia-edge doctor, as that user, proves it.
 	Confined bool `json:"confined"`
 	// Governed is "machine" when the machine's managed configuration hands
-	// this agent's tool calls to nia-edge (nia-edge agents onboard), "changed"
-	// when that file changed since, "" when it does not.
+	// this agent's tool calls to nia-edge (nia-edge agents onboard), "user"
+	// when nia-edge's extension in this user's agent directory does (Pi, Oh
+	// My Pi), "changed" when that file changed since, "" when none does.
 	Governed string `json:"governed"`
 	// Next is what to do about it, for a person to read.
 	Next string `json:"next"`
@@ -119,7 +121,7 @@ var Kinds = []Kind{
 	},
 	{
 		// Gemini CLI (@google/gemini-cli): ~/.gemini/settings.json, binary gemini.
-		Name: "gemini-cli", Files: []string{".gemini/settings.json"},
+		Name: "gemini-cli", Files: []string{".gemini/settings.json"}, Installer: "nia-edge agents onboard gemini-cli",
 		Process: func(args []string) bool {
 			return base(args, "gemini") || (len(args) > 1 && strings.Contains(args[1], "/@google/gemini-cli/"))
 		},
@@ -127,7 +129,7 @@ var Kinds = []Kind{
 	},
 	{
 		// Oh My Pi (@oh-my-pi/pi-coding-agent): ~/.omp/agent/config.yml, binary omp.
-		Name: "omp", Files: []string{".omp/agent/config.yml", ".omp/agent/config.yaml", ".omp/agent/settings.json"},
+		Name: "omp", Files: []string{".omp/agent/config.yml", ".omp/agent/config.yaml", ".omp/agent/settings.json"}, Installer: "nia-edge agents onboard omp",
 		Process: func(args []string) bool {
 			return base(args, "omp") || (len(args) > 1 && strings.Contains(args[1], "/@oh-my-pi/pi-coding-agent/"))
 		},
@@ -135,7 +137,7 @@ var Kinds = []Kind{
 	},
 	{
 		// Pi (@mariozechner/pi-coding-agent): ~/.pi/agent/settings.json, binary pi.
-		Name: "pi", Files: []string{".pi/agent/settings.json", ".pi/agent/models.json", ".pi/agent/auth.json"},
+		Name: "pi", Files: []string{".pi/agent/settings.json", ".pi/agent/models.json", ".pi/agent/auth.json"}, Installer: "nia-edge agents onboard pi",
 		Process: func(args []string) bool {
 			return len(args) > 1 && strings.Contains(args[1], "/@mariozechner/pi-coding-agent/")
 		},
@@ -201,6 +203,18 @@ func Find(o Options) ([]Agent, error) {
 					Kind: kind.Name, User: u.name, UID: u.uid, Home: u.home, Config: full,
 					Settings: settings, Confined: confined[u.name], Governed: governed[kind.Name],
 				}
+				gid, _ := strconv.Atoi(u.gid)
+				agent.GID = gid
+				if onboarding, err := ForUser(kind.Name, o.Root, Owner{Name: u.name, UID: u.uid, GID: gid}, u.home); err == nil {
+					// Governed user by user: by nia-edge's extension in this
+					// user's agent directory.
+					switch onboarding.Status() {
+					case "machine":
+						agent.Governed = "user"
+					case "changed":
+						agent.Governed = "changed"
+					}
+				}
 				for _, args := range processes[u.uid] {
 					if kind.Process(args) {
 						agent.Running = true
@@ -228,6 +242,15 @@ func Find(o Options) ([]Agent, error) {
 }
 
 func next(kind Kind, a Agent) string {
+	if _, perUser := extensions[kind.Name]; perUser {
+		switch a.Governed {
+		case "user":
+			return "governed: nia-edge's extension makes Nia decide each tool call (" + a.User + " can remove it: not confined)"
+		case "changed":
+			return "nia-edge's extension changed since onboarding: sudo nia-edge agents onboard " + kind.Name
+		}
+		return "sudo nia-edge agents onboard " + kind.Name + ": Nia decides each tool call"
+	}
 	if _, governable := managed[kind.Name]; governable {
 		switch a.Governed {
 		case "machine":

@@ -72,3 +72,30 @@ func TestHookCommandPassesNiaEdgesAnswer(t *testing.T) {
 		t.Fatalf("allowed answers nothing: %q", out)
 	}
 }
+
+func TestGeminiHookCommand(t *testing.T) {
+	run1 := func(base, payload string) (int, string) {
+		var out, errs bytes.Buffer
+		env := func(name string) string {
+			if name == "NIA_EDGE_URL" {
+				return base
+			}
+			return ""
+		}
+		code := run(context.Background(), []string{"hook", "gemini-cli"}, env, strings.NewReader(payload), &out, &errs)
+		return code, out.String()
+	}
+	// Gemini CLI lets a call through when its hook fails: the hook answers deny.
+	for _, event := range []string{"BeforeTool", "AfterTool"} {
+		code, out := run1("http://127.0.0.1:1", `{"hook_event_name":"`+event+`","tool_name":"run_shell_command"}`)
+		if code != 0 || !strings.Contains(out, `"decision":"deny"`) {
+			t.Fatalf("%s: %d %s", event, code, out)
+		}
+	}
+	// Allowed: nia-edge says nothing, Gemini CLI reads an empty object.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }))
+	defer server.Close()
+	if code, out := run1(server.URL, `{"hook_event_name":"BeforeTool","tool_name":"read_file"}`); code != 0 || strings.TrimSpace(out) != "{}" {
+		t.Fatalf("%d %q", code, out)
+	}
+}

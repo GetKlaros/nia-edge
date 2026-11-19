@@ -172,16 +172,18 @@ the next heartbeat carries it to a Nia that says it accepts it: the console's
 Agents page shows every machine's agents, unprotected first, with the
 command to run. A report decides nothing.
 
-## Govern Claude Code and Codex
+## Govern the coding agents
 
-Claude Code and Codex run their own tools: nia-edge does not move them, it
-hands each of their tool calls to Nia through their hooks, in the machine's
-managed configuration, for every user of the machine.
+Claude Code, Codex, Gemini CLI, Pi and Oh My Pi run their own tools:
+nia-edge does not move them, it hands each of their tool calls to Nia
+through their hooks. Claude Code's, Codex's and Gemini CLI's go in the
+machine's own configuration, for every user of the machine; Pi and Oh My Pi
+have none, so nia-edge's extension goes in each user's agent directory.
 
 ```bash
 sudo NIA_URL=… NIA_ENROLL_TOKEN=… install/linux.sh --governed   # nia-edge, no network rule
 sudo nia-edge agents onboard claude-code -dry-run                 # what would change
-sudo nia-edge agents onboard claude-code                          # or codex
+sudo nia-edge agents onboard claude-code                          # or codex, gemini-cli, pi, omp
 sudo nia-edge agents status codex
 sudo nia-edge agents restore codex                                # exactly as it was
 ```
@@ -198,6 +200,25 @@ sudo nia-edge agents restore codex                                # exactly as i
   configuration would otherwise turn off. Codex lets a call through when its
   hook fails: `nia-edge hook` answers `deny` whatever fails, within the
   hook's timeout.
+- Gemini CLI: command hooks (`nia-edge hook gemini-cli`, `BeforeTool` and
+  `AfterTool`) in its system overrides, `/etc/gemini-cli/settings.json`,
+  which win over the user's and the project's settings; they pin
+  `hooksConfig.enabled`. Gemini CLI lets a call through when its hook fails:
+  `nia-edge hook` answers `deny` whatever fails. Weaker than Claude Code's:
+  read in its code (0.69.0), a user can list the hook in their own
+  `hooksConfig.disabled` (the lists of every level are merged), or point
+  `GEMINI_CLI_SYSTEM_SETTINGS_PATH` elsewhere; in a folder it does not
+  trust, it loads no hook from settings, and refuses to run headless.
+- Pi and Oh My Pi: nia-edge's extension (`~/.pi/agent/extensions/nia-edge.ts`,
+  `~/.omp/agent/extensions/nia-edge.ts`, the file root's, its directory the
+  user's), for every user the agent is found under (`-user` for one). Its
+  `tool_call` handler asks nia-edge; an error or a timeout blocks the call,
+  as those agents block a tool whose handler fails. Weaker still: it is the
+  user's directory, and `--no-extensions` starts the agent without it.
+- OpenBot (openbot.run) runs these agents (Claude Code through the Agent SDK,
+  Codex through its app server, Gemini CLI, OpenCode…) with homes of its
+  own: governing them on the machine governs them under OpenBot too; Claude
+  Code's managed settings apply to Agent SDK sessions.
 - Before a tool runs, nia-edge decides it as the model path does: with the
   signed policy in force, Nia receives the call's hash and the decision for
   each state of the session, never its arguments. `allow` answers nothing,
@@ -214,7 +235,8 @@ This governs the agent, it does not confine it: its user's other programs
 reach the network as before, and root on the machine can remove the hooks.
 For an agent that must not go around Nia, use the confined installers below.
 Tested by the server's `npm run e2e:devagents`, with the real Claude Code and
-Codex.
+Codex, and `npm run e2e:moreagents`, with the real Gemini CLI, Pi and Oh My
+Pi.
 
 ## MCP servers hosted by their vendor (GitHub, Notion…)
 

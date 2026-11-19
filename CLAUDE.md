@@ -54,8 +54,10 @@ private code base; this repository is public.
   on the host, no tool that changes its configuration) in a rootless
   container without network or host directory. `nia-edge agents` only
   reports; what it reports decides nothing.
-- An agent governed by its hooks (Claude Code, Codex) gets them in the
-  machine's managed configuration, which its users cannot turn off: before a
+- An agent governed by its hooks (Claude Code, Codex, Gemini CLI) gets them
+  in the machine's own configuration; Pi and Oh My Pi, which have none, get
+  nia-edge's extension in each user's agent directory, and are said to be
+  governed for that user only. Before a
   tool runs nia-edge decides it as the model path does (hash and decisions,
   arguments only when Nia asks), and "allow" answers nothing, so the agent's
   own permissions still apply; a hold is a deny. nia-edge out of reach, a

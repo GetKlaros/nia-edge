@@ -1,6 +1,7 @@
 // Package hooks answers the tool hooks of the coding agents that run their
-// own tools (Claude Code, Codex): before a tool runs, Nia decides it; after,
-// the session is told it holds a result of that tool.
+// own tools (Claude Code, Codex, Gemini CLI, and Pi and Oh My Pi through
+// nia-edge's extension): before a tool runs, Nia decides it; after, the
+// session is told it holds a result of that tool.
 //
 // It decides as the model path does (local.Decide): when the signed policy in
 // force can decide the call, Nia receives its hash and the decision for each
@@ -36,6 +37,11 @@ type Agent string
 const (
 	ClaudeCode Agent = "claude-code"
 	Codex      Agent = "codex"
+	GeminiCLI  Agent = "gemini-cli"
+	// Pi and Omp speak nia-edge's own dialect, from its extension
+	// (tool_call, tool_result).
+	Pi  Agent = "pi"
+	Omp Agent = "omp"
 )
 
 // Route returns the agent whose hooks a path receives, or "".
@@ -45,6 +51,12 @@ func Route(path string) Agent {
 		return ClaudeCode
 	case "/v1/hooks/codex":
 		return Codex
+	case "/v1/hooks/gemini-cli":
+		return GeminiCLI
+	case "/v1/hooks/pi":
+		return Pi
+	case "/v1/hooks/omp":
+		return Omp
 	}
 	return ""
 }
@@ -76,10 +88,7 @@ var sessionPattern = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,120}$`)
 // path's: cc- or cx- and the agent's own id, or its hash when Nia would not
 // take it as it is.
 func session(agent Agent, id string) string {
-	prefix := "cc-"
-	if agent == Codex {
-		prefix = "cx-"
-	}
+	prefix := map[Agent]string{ClaudeCode: "cc-", Codex: "cx-", GeminiCLI: "gm-", Pi: "pi-", Omp: "om-"}[agent]
 	if sessionPattern.MatchString(id) {
 		return prefix + id
 	}
@@ -103,15 +112,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var hook payload
 	if err != nil || len(raw) > MaxPayload || json.Unmarshal(raw, &hook) != nil || hook.Tool == "" {
 		// Unreadable: whatever event it was, nothing is let through.
-		writeJSON(w, deny("Nia could not read this hook"))
+		writeJSON(w, Refusal(agent, hook.Event, "Nia could not read this hook"))
 		return
 	}
 	ctx := r.Context()
 	conversation := session(agent, hook.Session)
 	switch hook.Event {
-	case "PreToolUse":
-		writeJSON(w, h.before(ctx, conversation, hook))
-	case "PostToolUse":
+	case "PreToolUse", "BeforeTool", "tool_call":
+		writeJSON(w, h.before(ctx, agent, conversation, hook))
+	case "PostToolUse", "AfterTool", "tool_result":
 		writeJSON(w, h.after(ctx, agent, conversation, hook))
 	default:
 		// Not an event of a tool: nothing to decide.
@@ -119,7 +128,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) before(ctx context.Context, conversation string, hook payload) any {
+func (h *Handler) before(ctx context.Context, agent Agent, conversation string, hook payload) any {
 	arguments := string(hook.Input)
 	if strings.TrimSpace(arguments) == "" || arguments == "null" {
 		arguments = "{}"
@@ -127,7 +136,7 @@ func (h *Handler) before(ctx context.Context, conversation string, hook payload)
 	verdict, err := local.Decide(ctx, h.Nia, h.Rules, conversation, hook.Tool, arguments, nil)
 	if err != nil {
 		h.log("a hook call was refused: Nia could not decide", "tool", hook.Tool, "error", err.Error())
-		return deny("Nia could not decide this call, so it was not run")
+		return Refusal(agent, "before", "Nia could not decide this call, so it was not run")
 	}
 	if verdict.Allowed {
 		if h.Releases != nil && strings.HasPrefix(hook.Tool, h.Releases.Prefix) && h.Releases.Prefix != "" {
@@ -139,7 +148,29 @@ func (h *Handler) before(ctx context.Context, conversation string, hook payload)
 	if message == "" {
 		message = "Nia refused this call"
 	}
-	return deny(message)
+	return Refusal(agent, "before", message)
+}
+
+// Refusal is the answer that refuses, in the agent's dialect: before a tool,
+// the call is not run; after it, its output does not reach the model.
+func Refusal(agent Agent, event, reason string) any {
+	after := event == "after" || event == "PostToolUse" || event == "AfterTool" || event == "tool_result"
+	reason = "[Nia agent firewall] " + reason
+	switch agent {
+	case GeminiCLI:
+		// BeforeTool: the call is not run. AfterTool: the reason replaces
+		// the output the model gets.
+		return map[string]any{"decision": "deny", "reason": reason}
+	case Pi, Omp:
+		if after {
+			return map[string]any{"content": []any{map[string]any{"type": "text", "text": reason}}, "isError": true}
+		}
+		return map[string]any{"block": true, "reason": reason}
+	}
+	if after {
+		return map[string]any{"continue": false, "stopReason": reason + "; the turn was stopped."}
+	}
+	return deny(strings.TrimPrefix(reason, "[Nia agent firewall] "))
 }
 
 func (h *Handler) after(ctx context.Context, agent Agent, conversation string, hook payload) any {
@@ -177,6 +208,32 @@ func withhold(agent Agent, hook payload, reason string, redact bool) any {
 		}
 		return "[withheld by Nia]"
 	})
+	switch agent {
+	case GeminiCLI:
+		// The reason replaces the output: the redacted output, as text.
+		if !redact {
+			return Refusal(agent, "after", reason)
+		}
+		shown := replaced
+		if object, ok := replaced.(map[string]any); ok && object["llmContent"] != nil {
+			shown = object["llmContent"]
+		}
+		text, ok := shown.(string)
+		if !ok {
+			encoded, _ := json.Marshal(shown)
+			text = string(encoded)
+		}
+		return map[string]any{"decision": "deny", "reason": text + "\n[" + reason + ".]"}
+	case Pi, Omp:
+		if !redact {
+			return Refusal(agent, "after", reason)
+		}
+		content, ok := replaced.([]any)
+		if !ok {
+			return Refusal(agent, "after", reason)
+		}
+		return map[string]any{"content": append(content, map[string]any{"type": "text", "text": "[" + reason + ".]"})}
+	}
 	if agent == Codex {
 		if strings.HasPrefix(hook.Tool, "mcp__") {
 			return map[string]any{"hookSpecificOutput": map[string]any{

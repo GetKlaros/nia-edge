@@ -156,3 +156,66 @@ func TestRoutes(t *testing.T) {
 		t.Fatal(recorder.Code)
 	}
 }
+
+func TestGeminiCLIHooks(t *testing.T) {
+	nia := &fakeNia{allow: true}
+	h := &Handler{Nia: nia}
+	before := `{"hook_event_name":"BeforeTool","session_id":"g1","tool_name":"run_shell_command","tool_input":{"command":"ls"}}`
+	if code, body := post(t, h, "/v1/hooks/gemini-cli", before); code != 200 || body != "" || nia.sessions[0] != "gm-g1" {
+		t.Fatalf("%d %q %v", code, body, nia.sessions)
+	}
+	nia.allow = false
+	_, body := post(t, h, "/v1/hooks/gemini-cli", before)
+	var answer map[string]any
+	if json.Unmarshal([]byte(body), &answer) != nil || answer["decision"] != "deny" || !strings.Contains(answer["reason"].(string), "held for a reviewer") {
+		t.Fatalf("%s", body)
+	}
+	// After: the session is told, and a secret is redacted from what the model gets.
+	secret := `{"llmContent":"token ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa here","returnDisplay":"x"}`
+	_, body = post(t, h, "/v1/hooks/gemini-cli", `{"hook_event_name":"AfterTool","session_id":"g1","tool_name":"web_fetch","tool_input":{},"tool_response":`+secret+`}`)
+	if json.Unmarshal([]byte(body), &answer) != nil || answer["decision"] != "deny" || strings.Contains(body, "ghp_aaaa") || !strings.Contains(answer["reason"].(string), "token ") {
+		t.Fatalf("%s", body)
+	}
+	if nia.ingested[len(nia.ingested)-1] != "web_fetch" {
+		t.Fatalf("%v", nia.ingested)
+	}
+	// Not recorded: the output does not reach the model.
+	nia.ingestErr = true
+	_, body = post(t, h, "/v1/hooks/gemini-cli", `{"hook_event_name":"AfterTool","session_id":"g1","tool_name":"web_fetch","tool_input":{},"tool_response":{"llmContent":"page"}}`)
+	if json.Unmarshal([]byte(body), &answer) != nil || answer["decision"] != "deny" || strings.Contains(body, "page") {
+		t.Fatalf("%s", body)
+	}
+}
+
+func TestPiAndOmpExtensionHooks(t *testing.T) {
+	for _, agent := range []string{"pi", "omp"} {
+		nia := &fakeNia{allow: false}
+		h := &Handler{Nia: nia}
+		_, body := post(t, h, "/v1/hooks/"+agent, `{"hook_event_name":"tool_call","session_id":"/home/a/s.jsonl","tool_name":"bash","tool_input":{"command":"curl x"}}`)
+		var answer map[string]any
+		if json.Unmarshal([]byte(body), &answer) != nil || answer["block"] != true || !strings.Contains(answer["reason"].(string), "held for a reviewer") {
+			t.Fatalf("%s: %s", agent, body)
+		}
+		// A session id Nia would not take is hashed, under the agent's prefix.
+		if prefix := map[string]string{"pi": "pi-", "omp": "om-"}[agent]; !strings.HasPrefix(nia.sessions[0], prefix) || strings.Contains(nia.sessions[0], "/") {
+			t.Fatalf("%s: %v", agent, nia.sessions)
+		}
+		nia.allow = true
+		if _, body := post(t, h, "/v1/hooks/"+agent, `{"hook_event_name":"tool_call","session_id":"s","tool_name":"read","tool_input":{"path":"a"}}`); body != "" {
+			t.Fatalf("%s: allowed says nothing: %s", agent, body)
+		}
+		_, body = post(t, h, "/v1/hooks/"+agent, `{"hook_event_name":"tool_result","session_id":"s","tool_name":"bash","tool_response":[{"type":"text","text":"ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}`)
+		if json.Unmarshal([]byte(body), &answer) != nil || strings.Contains(body, "ghp_aaaa") || answer["content"] == nil {
+			t.Fatalf("%s: %s", agent, body)
+		}
+		nia.ingestErr = true
+		_, body = post(t, h, "/v1/hooks/"+agent, `{"hook_event_name":"tool_result","session_id":"s","tool_name":"bash","tool_response":[{"type":"text","text":"hello"}]}`)
+		if json.Unmarshal([]byte(body), &answer) != nil || strings.Contains(body, "hello") || answer["isError"] != true {
+			t.Fatalf("%s: %s", agent, body)
+		}
+		// Unreadable: refused, in the agent's dialect.
+		if _, body := post(t, h, "/v1/hooks/"+agent, `{`); !strings.Contains(body, `"block":true`) {
+			t.Fatalf("%s: %s", agent, body)
+		}
+	}
+}
