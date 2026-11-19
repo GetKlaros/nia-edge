@@ -29,6 +29,8 @@
 //   host            adds nia-edge's MCP server of host actions
 //   local <name>    points the MCP server <name> at the one nia-edge runs in
 //                   a container (install/mcp-linux.sh)
+//   remote <name>   points it at the server hosted by its vendor that
+//                   nia-edge reaches with the token it holds
 //
 // OpenClaw names an MCP tool <server>__<tool>: nia-edge's servers are named
 // mcp__host and mcp__<name>, so that their tools reach the model as
@@ -288,14 +290,14 @@ function point(name, url) {
   return 0;
 }
 
-function local(name) {
+function local(name, kind = "local") {
   if (!NAME.test(name) || name === "host" || name.includes("__")) return 2;
   // Its command, its variables and its token are nia-edge's now: nothing of
   // the former entry stays with the agent.
   if (get(`mcp.servers.${name}`) !== undefined) unset(`mcp.servers.${name}`);
   const own = `mcp__${name}`;
   if (get(`mcp.servers.${own}`) !== undefined) unset(`mcp.servers.${own}`);
-  return point(own, `${NIA}/local/${name}/mcp`);
+  return point(own, `${NIA}/${kind}/${name}/mcp`);
 }
 
 function main(argv) {
@@ -310,6 +312,7 @@ function main(argv) {
     case "mcp": return rest.length === 0 ? mcp() : 2;
     case "host": return rest.length === 0 ? point("mcp__host", `${NIA}/host/mcp`) : 2;
     case "local": return rest.length === 1 ? local(rest[0]) : 2;
+    case "remote": return rest.length === 1 ? local(rest[0], "remote") : 2;
     default: return 2;
   }
 }

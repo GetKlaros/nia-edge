@@ -24,8 +24,11 @@ type Pinner interface {
 
 // Handler serves /remote/<name>/mcp for each server.
 type Handler struct {
-	Clients  map[string]*Client
-	Nia      Pinner
+	Clients map[string]*Client
+	Nia     Pinner
+	// Taint tells Nia that the machine's run now holds content of this
+	// source (a resource read, a prompt got): no content is sent.
+	Taint    func(ctx context.Context, session, source string) error
 	Releases *local.Releases
 	Version  string
 	Now      func() time.Time
@@ -113,7 +116,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		reply(w, msg.ID, map[string]any{
 			"protocolVersion": version,
-			"capabilities":    map[string]any{"tools": map[string]any{"listChanged": false}},
+			"capabilities":    map[string]any{"tools": map[string]any{"listChanged": false}, "resources": map[string]any{}, "prompts": map[string]any{}},
 			"serverInfo":      map[string]any{"name": "nia-remote-" + name, "version": h.Version},
 			"instructions":    "This MCP server is " + client.Endpoint.URL.Host + ", reached through nia-edge, which holds its token. Each call runs only once Nia allowed it.",
 		}, nil)
@@ -128,6 +131,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		reply(w, msg.ID, map[string]any{"tools": tools}, nil)
 	case "tools/call":
 		result, rpcErr := h.call(r.Context(), name, client, msg.Params)
+		reply(w, msg.ID, result, rpcErr)
+	case "resources/list", "resources/templates/list", "prompts/list":
+		result, rpcErr := h.relay(r.Context(), client, msg.Method, msg.Params, "")
+		reply(w, msg.ID, result, rpcErr)
+	case "resources/read", "prompts/get":
+		// What they return enters the agent's context, as a tool's output
+		// does: the run is told, then a secret in it is redacted.
+		result, rpcErr := h.relay(r.Context(), client, msg.Method, msg.Params, "mcp:"+name+":"+msg.Method)
 		reply(w, msg.ID, result, rpcErr)
 	default:
 		reply(w, msg.ID, nil, &rpcError{Code: -32601, Message: "method not found"})
@@ -164,6 +175,31 @@ func (h *Handler) visible(ctx context.Context, name string, client *Client) ([]j
 	h.pinned[name] = allowed
 	h.mu.Unlock()
 	return kept, nil
+}
+
+// relay passes a request of the resources or prompts on; with a source, its
+// result is content the run must know it holds, or it is withheld.
+func (h *Handler) relay(ctx context.Context, client *Client, method string, params json.RawMessage, source string) (any, *rpcError) {
+	result, rpcErr, err := client.Request(ctx, method, params)
+	if err != nil {
+		return nil, &rpcError{Code: -32603, Message: "[Nia agent firewall] " + err.Error()}
+	}
+	if rpcErr != nil {
+		return nil, &rpcError{Code: rpcErr.Code, Message: inspect.RedactSecrets(rpcErr.Message)}
+	}
+	var answer any
+	if json.Unmarshal(result, &answer) != nil {
+		return nil, &rpcError{Code: -32603, Message: "[Nia agent firewall] the server's answer cannot be read"}
+	}
+	if source != "" {
+		if h.Taint == nil {
+			return nil, &rpcError{Code: -32603, Message: "[Nia agent firewall] Nia cannot record what this brings, so it is withheld"}
+		}
+		if err := h.Taint(ctx, "m:"+client.Endpoint.Name, source); err != nil {
+			return nil, &rpcError{Code: -32603, Message: "[Nia agent firewall] Nia could not record what this brings, so it is withheld"}
+		}
+	}
+	return redact(answer), nil
 }
 
 func failed(text string) (any, *rpcError) {

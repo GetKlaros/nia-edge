@@ -390,14 +390,39 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 		Releases: releases,
 		Version:  version,
 	}
+	runAuthority := &local.Remote{Base: base, Key: saved.Key, Run: run, HTTP: niaclient.NewHTTPClient(30 * time.Second)}
+	remotes.Taint = func(ctx context.Context, session, source string) error {
+		return runAuthority.Ingested(ctx, session, source)
+	}
 	vendors := remotemcp.NewHTTPClient(2 * time.Minute)
+	var renewed sync.Mutex
 	for name, remote := range saved.Remote {
 		endpoint, err := remotemcp.ValidURL(remote.URL)
 		if err != nil || !mcpd.ValidName(name) || remote.Header == "" || remote.Value == "" {
 			logger.Error("an MCP server hosted by its vendor is left out: its entry cannot be used", "server", name)
 			continue
 		}
-		remotes.Clients[name] = &remotemcp.Client{Endpoint: remotemcp.Endpoint{Name: name, URL: endpoint, Header: remote.Header, Value: remote.Value}, HTTP: vendors, Version: version}
+		client := &remotemcp.Client{Endpoint: remotemcp.Endpoint{Name: name, URL: endpoint, Header: remote.Header, Value: remote.Value}, HTTP: vendors, Version: version}
+		if remote.OAuth != nil {
+			// A server nia-edge signed in with: its token renewed, and kept.
+			name := name
+			client.Renewer = &remotemcp.Renewer{HTTP: vendors, OAuth: *remote.OAuth, Save: func(access string, oauth remotemcp.OAuth) error {
+				renewed.Lock()
+				defer renewed.Unlock()
+				current, err := state.Load(statePath(*stateFile, getenv))
+				if err != nil {
+					return err
+				}
+				entry := current.Remote[name]
+				if entry == nil {
+					return errors.New("the server is no longer in the state file")
+				}
+				entry.Value = "Bearer " + access
+				entry.OAuth = &oauth
+				return state.Save(statePath(*stateFile, getenv), current)
+			}}
+		}
+		remotes.Clients[name] = client
 	}
 	if len(remotes.Clients) > 0 {
 		fmt.Fprintf(stdout, "nia-edge %s: %d MCP servers hosted by their vendor, their tokens held here\n", version, len(remotes.Clients))

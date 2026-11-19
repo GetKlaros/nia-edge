@@ -52,6 +52,20 @@ type RemoteMCP struct {
 	Header string `json:"header"`
 	// Value is that header's whole value: a secret.
 	Value string `json:"value"`
+	// OAuth, for a server nia-edge signed in with, is what renews Value.
+	OAuth *RemoteOAuth `json:"oauth,omitempty"`
+}
+
+// RemoteOAuth is what nia-edge keeps to renew a server's access token: its
+// refresh token and client secret are secrets too.
+type RemoteOAuth struct {
+	TokenEndpoint string    `json:"token_endpoint"`
+	ClientID      string    `json:"client_id"`
+	ClientSecret  string    `json:"client_secret,omitempty"`
+	RefreshToken  string    `json:"refresh_token,omitempty"`
+	ExpiresAt     time.Time `json:"expires_at,omitzero"`
+	Resource      string    `json:"resource"`
+	Scope         string    `json:"scope,omitempty"`
 }
 
 // MCPServer is one of the agent's MCP servers that run on this machine.
