@@ -29,7 +29,7 @@ private code base; this repository is public.
   sure of is `ErrUndecidable`, never a guess, and a role with a field it does
   not know is refused whole.
 - An enrolled machine's prompts stay on it: without a provider, model calls
-  are refused, unless `NIA_RELAY_MODEL_CALLS=yes` says to relay them. A call
+  are refused; they never go to Nia, which does not carry them. A call
   the signed policy in force can decide goes to Nia as its hash and the
   decision for each state of the session; its arguments go only when Nia asks
   for them (a reviewer must see them), for a dispatcher, or when the engine

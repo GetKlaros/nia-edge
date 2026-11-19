@@ -454,14 +454,11 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 	modelPath := "provider"
 	if saved.Provider == nil {
 		modelPath = "none"
-		if getenv("NIA_RELAY_MODEL_CALLS") == "yes" {
-			modelPath = "relay"
-		}
 	}
 	var handler http.Handler = relay.New(relay.Options{Nia: base, Key: saved.Key, Run: run, Status: status.get, Policy: policies.status, Logger: logger})
-	if saved.Provider == nil && getenv("NIA_RELAY_MODEL_CALLS") != "yes" {
-		// No provider on this machine: its prompts do not leave for Nia.
-		// NIA_RELAY_MODEL_CALLS=yes sends them, for a Nia that relays them.
+	if saved.Provider == nil {
+		// No provider on this machine: model calls are refused. They never go
+		// to Nia, which does not carry them.
 		relayed := handler
 		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if format, ok := local.Format(strings.TrimSuffix(r.URL.Path, "/")); ok {
