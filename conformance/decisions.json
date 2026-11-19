@@ -697,6 +697,56 @@
      ]
     }
    }
+  },
+  {
+   "name": "simulated",
+   "mode": "enforce",
+   "rule_of_two": "require_approval",
+   "destructive": "require_approval",
+   "tools": [
+    {
+     "name": "bash",
+     "when_untrusted": "require_approval",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    }
+   ],
+   "simulate": {
+    "max_deleted": 20,
+    "protected": [
+     "(^|/)\\.ssh(/|$)",
+     "(^|/)\\.gnupg(/|$)",
+     "(^|/)\\.aws(/|$)",
+     "(^|/)\\.env[^/]*$"
+    ],
+    "timeout_seconds": 60
+   }
+  },
+  {
+   "name": "simulated_strict",
+   "mode": "observe",
+   "rule_of_two": "require_approval",
+   "destructive": "require_approval",
+   "tools": [
+    {
+     "name": "bash",
+     "when_untrusted": "allow",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    }
+   ],
+   "simulate": {
+    "max_deleted": 0,
+    "protected": [
+     "^/srv/",
+     "\\.(pem|key)$"
+    ],
+    "timeout_seconds": 60
+   }
   }
  ],
  "cases": [
@@ -10377,6 +10427,74 @@
    }
   },
   {
+   "name": "observed: nia:effect {\"deleted\":3,\"paths\":[]}",
+   "role": "observed",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":3,\"paths\":[]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": null,
+    "would": {
+     "decision": "deny",
+     "reason": "tool_not_in_role"
+    }
+   }
+  },
+  {
+   "name": "observed: nia:effect {\"deleted\":3,\"paths\":[]}, exposed",
+   "role": "observed",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":3,\"paths\":[]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": null,
+    "would": {
+     "decision": "deny",
+     "reason": "tool_not_in_role"
+    }
+   }
+  },
+  {
+   "name": "observed: nia:effect {\"deleted\":3,\"paths\":[]}, tainted",
+   "role": "observed",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":3,\"paths\":[]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": null,
+    "would": {
+     "decision": "deny",
+     "reason": "tool_not_in_role"
+    }
+   }
+  },
+  {
+   "name": "observed: nia:effect {\"deleted\":3,\"paths\":[]}, tainted, exposed",
+   "role": "observed",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":3,\"paths\":[]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": null,
+    "would": {
+     "decision": "deny",
+     "reason": "tool_not_in_role"
+    }
+   }
+  },
+  {
    "name": "network: egress {\"url\":\"https://webhook.site/abc\"}",
    "role": "network",
    "tool": "egress",
@@ -11986,6 +12104,1890 @@
     "decision": "allow",
     "reason": "allowed",
     "rule": "crm_read"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[]}",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[]}, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[]}, tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[]}, tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":3,\"paths\":[\"/home/dev/projet/dist.txt\",\"/home/dev/projet/a.ts\"]}",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":3,\"paths\":[\"/home/dev/projet/dist.txt\",\"/home/dev/projet/a.ts\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":3,\"paths\":[\"/home/dev/projet/dist.txt\",\"/home/dev/projet/a.ts\"]}, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":3,\"paths\":[\"/home/dev/projet/dist.txt\",\"/home/dev/projet/a.ts\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":3,\"paths\":[\"/home/dev/projet/dist.txt\",\"/home/dev/projet/a.ts\"]}, tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":3,\"paths\":[\"/home/dev/projet/dist.txt\",\"/home/dev/projet/a.ts\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":3,\"paths\":[\"/home/dev/projet/dist.txt\",\"/home/dev/projet/a.ts\"]}, tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":3,\"paths\":[\"/home/dev/projet/dist.txt\",\"/home/dev/projet/a.ts\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":20,\"paths\":[\"/home/dev/projet\"]}",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":20,\"paths\":[\"/home/dev/projet\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":20,\"paths\":[\"/home/dev/projet\"]}, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":20,\"paths\":[\"/home/dev/projet\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":20,\"paths\":[\"/home/dev/projet\"]}, tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":20,\"paths\":[\"/home/dev/projet\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":20,\"paths\":[\"/home/dev/projet\"]}, tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":20,\"paths\":[\"/home/dev/projet\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":21,\"paths\":[\"/home/dev/projet\"]}",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":21,\"paths\":[\"/home/dev/projet\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.max_deleted"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":21,\"paths\":[\"/home/dev/projet\"]}, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":21,\"paths\":[\"/home/dev/projet\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.max_deleted"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":21,\"paths\":[\"/home/dev/projet\"]}, tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":21,\"paths\":[\"/home/dev/projet\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.max_deleted"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":21,\"paths\":[\"/home/dev/projet\"]}, tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":21,\"paths\":[\"/home/dev/projet\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.max_deleted"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":302,\"paths\":[\"/home/dev/projet\"]}",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":302,\"paths\":[\"/home/dev/projet\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.max_deleted"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":302,\"paths\":[\"/home/dev/projet\"]}, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":302,\"paths\":[\"/home/dev/projet\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.max_deleted"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":302,\"paths\":[\"/home/dev/projet\"]}, tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":302,\"paths\":[\"/home/dev/projet\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.max_deleted"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":302,\"paths\":[\"/home/dev/projet\"]}, tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":302,\"paths\":[\"/home/dev/projet\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.max_deleted"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/.ssh/id_ed25519\"]}",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/.ssh/id_ed25519\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.protected#0"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/.ssh/id_ed25519\"]}, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/.ssh/id_ed25519\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.protected#0"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/.ssh/id_ed25519\"]}, tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/.ssh/id_ed25519\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.protected#0"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/.ssh/id_ed25519\"]}, tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/.ssh/id_ed25519\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.protected#0"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":1,\"paths\":[\"/home/dev/.ssh\"]}",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":1,\"paths\":[\"/home/dev/.ssh\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.protected#0"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":1,\"paths\":[\"/home/dev/.ssh\"]}, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":1,\"paths\":[\"/home/dev/.ssh\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.protected#0"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":1,\"paths\":[\"/home/dev/.ssh\"]}, tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":1,\"paths\":[\"/home/dev/.ssh\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.protected#0"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":1,\"paths\":[\"/home/dev/.ssh\"]}, tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":1,\"paths\":[\"/home/dev/.ssh\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.protected#0"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/projet/.env.local\"]}",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/projet/.env.local\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.protected#3"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/projet/.env.local\"]}, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/projet/.env.local\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.protected#3"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/projet/.env.local\"]}, tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/projet/.env.local\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.protected#3"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/projet/.env.local\"]}, tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/projet/.env.local\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.protected#3"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/projet/.envrc/x\"]}",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/projet/.envrc/x\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/projet/.envrc/x\"]}, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/projet/.envrc/x\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/projet/.envrc/x\"]}, tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/projet/.envrc/x\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/projet/.envrc/x\"]}, tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/projet/.envrc/x\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/.aws/credentials\",\"/home/dev/x\"]}",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/.aws/credentials\",\"/home/dev/x\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.protected#2"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/.aws/credentials\",\"/home/dev/x\"]}, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/.aws/credentials\",\"/home/dev/x\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.protected#2"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/.aws/credentials\",\"/home/dev/x\"]}, tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/.aws/credentials\",\"/home/dev/x\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.protected#2"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/.aws/credentials\",\"/home/dev/x\"]}, tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/.aws/credentials\",\"/home/dev/x\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.protected#2"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/.sshkeys\"]}",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/.sshkeys\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/.sshkeys\"]}, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/.sshkeys\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/.sshkeys\"]}, tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/.sshkeys\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/.sshkeys\"]}, tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/.sshkeys\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/.gnupg\"]}",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/.gnupg\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.protected#1"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/.gnupg\"]}, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/.gnupg\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.protected#1"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/.gnupg\"]}, tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/.gnupg\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.protected#1"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/.gnupg\"]}, tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/.gnupg\"]}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.protected#1"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":1.5,\"paths\":[]}",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":1.5,\"paths\":[]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":1.5,\"paths\":[]}, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":1.5,\"paths\":[]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":1.5,\"paths\":[]}, tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":1.5,\"paths\":[]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":1.5,\"paths\":[]}, tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":1.5,\"paths\":[]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":-1,\"paths\":[]}",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":-1,\"paths\":[]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":-1,\"paths\":[]}, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":-1,\"paths\":[]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":-1,\"paths\":[]}, tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":-1,\"paths\":[]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":-1,\"paths\":[]}, tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":-1,\"paths\":[]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":\"1\",\"paths\":[]}",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":\"1\",\"paths\":[]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":\"1\",\"paths\":[]}, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":\"1\",\"paths\":[]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":\"1\",\"paths\":[]}, tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":\"1\",\"paths\":[]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":\"1\",\"paths\":[]}, tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":\"1\",\"paths\":[]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0}",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":0}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0}, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":0}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0}, tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":0}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0}, tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":0}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[1]}",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[1]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[1]}, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[1]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[1]}, tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[1]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[1]}, tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[1]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[],\"extra\":true}",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[],\"extra\":true}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[],\"extra\":true}, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[],\"extra\":true}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[],\"extra\":true}, tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[],\"extra\":true}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[],\"extra\":true}, tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[],\"extra\":true}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"deleted\":1,\"paths\":[]}",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"deleted\":1,\"paths\":[]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"deleted\":1,\"paths\":[]}, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"deleted\":1,\"paths\":[]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"deleted\":1,\"paths\":[]}, tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"deleted\":1,\"paths\":[]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"deleted\":1,\"paths\":[]}, tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"deleted\":1,\"paths\":[]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect []",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "[]",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect [], exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "[]",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect [], tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "[]",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect [], tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "[]",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect null",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "null",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect null, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "null",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect null, tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "null",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect null, tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "null",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect (no arguments)",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect (no arguments), exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect (no arguments), tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect (no arguments), tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect not json",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "not json",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect not json, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "not json",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect not json, tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "not json",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect not json, tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "not json",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"paths\":[],\"deleted\":9007199254740991}",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"paths\":[],\"deleted\":9007199254740991}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.max_deleted"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"paths\":[],\"deleted\":9007199254740991}, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"paths\":[],\"deleted\":9007199254740991}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.max_deleted"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"paths\":[],\"deleted\":9007199254740991}, tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"paths\":[],\"deleted\":9007199254740991}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.max_deleted"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"paths\":[],\"deleted\":9007199254740991}, tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"paths\":[],\"deleted\":9007199254740991}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "effect",
+    "rule": "simulate.max_deleted"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"paths\":[],\"deleted\":9007199254740992}",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"paths\":[],\"deleted\":9007199254740992}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"paths\":[],\"deleted\":9007199254740992}, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"paths\":[],\"deleted\":9007199254740992}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"paths\":[],\"deleted\":9007199254740992}, tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"paths\":[],\"deleted\":9007199254740992}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"paths\":[],\"deleted\":9007199254740992}, tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"paths\":[],\"deleted\":9007199254740992}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":1e1,\"paths\":[]}",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":1e1,\"paths\":[]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":1e1,\"paths\":[]}, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":1e1,\"paths\":[]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":1e1,\"paths\":[]}, tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":1e1,\"paths\":[]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":1e1,\"paths\":[]}, tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":1e1,\"paths\":[]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dév/projet\"]}",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dév/projet\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dév/projet\"]}, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dév/projet\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dév/projet\"]}, tainted",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dév/projet\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: nia:effect {\"deleted\":0,\"paths\":[\"/home/dév/projet\"]}, tainted, exposed",
+   "role": "simulated",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dév/projet\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated: bash {\"command\":\"rm -rf projet\"}",
+   "role": "simulated",
+   "tool": "bash",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":\"rm -rf projet\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "bash"
+   }
+  },
+  {
+   "name": "simulated: bash {\"command\":\"rm -rf projet\"}, exposed",
+   "role": "simulated",
+   "tool": "bash",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":\"rm -rf projet\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "bash"
+   }
+  },
+  {
+   "name": "simulated: bash {\"command\":\"rm -rf projet\"}, tainted",
+   "role": "simulated",
+   "tool": "bash",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":\"rm -rf projet\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "bash"
+   }
+  },
+  {
+   "name": "simulated: bash {\"command\":\"rm -rf projet\"}, tainted, exposed",
+   "role": "simulated",
+   "tool": "bash",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":\"rm -rf projet\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "bash"
+   }
+  },
+  {
+   "name": "simulated: NIA:EFFECT {\"deleted\":0,\"paths\":[]}",
+   "role": "simulated",
+   "tool": "NIA:EFFECT",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "simulated: NIA:EFFECT {\"deleted\":0,\"paths\":[]}, exposed",
+   "role": "simulated",
+   "tool": "NIA:EFFECT",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "simulated: NIA:EFFECT {\"deleted\":0,\"paths\":[]}, tainted",
+   "role": "simulated",
+   "tool": "NIA:EFFECT",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "simulated: NIA:EFFECT {\"deleted\":0,\"paths\":[]}, tainted, exposed",
+   "role": "simulated",
+   "tool": "NIA:EFFECT",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "simulated_strict: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/x\"]}",
+   "role": "simulated_strict",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/x\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated_strict: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/x\"]}, exposed",
+   "role": "simulated_strict",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/x\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated_strict: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/x\"]}, tainted",
+   "role": "simulated_strict",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/x\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated_strict: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/x\"]}, tainted, exposed",
+   "role": "simulated_strict",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/x\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated_strict: nia:effect {\"deleted\":1,\"paths\":[\"/home/dev/x\"]}",
+   "role": "simulated_strict",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":1,\"paths\":[\"/home/dev/x\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "simulate.max_deleted",
+    "would": {
+     "decision": "require_approval",
+     "reason": "effect"
+    }
+   }
+  },
+  {
+   "name": "simulated_strict: nia:effect {\"deleted\":1,\"paths\":[\"/home/dev/x\"]}, exposed",
+   "role": "simulated_strict",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":1,\"paths\":[\"/home/dev/x\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "simulate.max_deleted",
+    "would": {
+     "decision": "require_approval",
+     "reason": "effect"
+    }
+   }
+  },
+  {
+   "name": "simulated_strict: nia:effect {\"deleted\":1,\"paths\":[\"/home/dev/x\"]}, tainted",
+   "role": "simulated_strict",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":1,\"paths\":[\"/home/dev/x\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "simulate.max_deleted",
+    "would": {
+     "decision": "require_approval",
+     "reason": "effect"
+    }
+   }
+  },
+  {
+   "name": "simulated_strict: nia:effect {\"deleted\":1,\"paths\":[\"/home/dev/x\"]}, tainted, exposed",
+   "role": "simulated_strict",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":1,\"paths\":[\"/home/dev/x\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "simulate.max_deleted",
+    "would": {
+     "decision": "require_approval",
+     "reason": "effect"
+    }
+   }
+  },
+  {
+   "name": "simulated_strict: nia:effect {\"deleted\":0,\"paths\":[\"/srv/www/index.html\"]}",
+   "role": "simulated_strict",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/srv/www/index.html\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "simulate.protected#0",
+    "would": {
+     "decision": "require_approval",
+     "reason": "effect"
+    }
+   }
+  },
+  {
+   "name": "simulated_strict: nia:effect {\"deleted\":0,\"paths\":[\"/srv/www/index.html\"]}, exposed",
+   "role": "simulated_strict",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/srv/www/index.html\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "simulate.protected#0",
+    "would": {
+     "decision": "require_approval",
+     "reason": "effect"
+    }
+   }
+  },
+  {
+   "name": "simulated_strict: nia:effect {\"deleted\":0,\"paths\":[\"/srv/www/index.html\"]}, tainted",
+   "role": "simulated_strict",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/srv/www/index.html\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "simulate.protected#0",
+    "would": {
+     "decision": "require_approval",
+     "reason": "effect"
+    }
+   }
+  },
+  {
+   "name": "simulated_strict: nia:effect {\"deleted\":0,\"paths\":[\"/srv/www/index.html\"]}, tainted, exposed",
+   "role": "simulated_strict",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/srv/www/index.html\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "simulate.protected#0",
+    "would": {
+     "decision": "require_approval",
+     "reason": "effect"
+    }
+   }
+  },
+  {
+   "name": "simulated_strict: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/tls/server.key\"]}",
+   "role": "simulated_strict",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/tls/server.key\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "simulate.protected#1",
+    "would": {
+     "decision": "require_approval",
+     "reason": "effect"
+    }
+   }
+  },
+  {
+   "name": "simulated_strict: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/tls/server.key\"]}, exposed",
+   "role": "simulated_strict",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/tls/server.key\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "simulate.protected#1",
+    "would": {
+     "decision": "require_approval",
+     "reason": "effect"
+    }
+   }
+  },
+  {
+   "name": "simulated_strict: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/tls/server.key\"]}, tainted",
+   "role": "simulated_strict",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/tls/server.key\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "simulate.protected#1",
+    "would": {
+     "decision": "require_approval",
+     "reason": "effect"
+    }
+   }
+  },
+  {
+   "name": "simulated_strict: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/tls/server.key\"]}, tainted, exposed",
+   "role": "simulated_strict",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/tls/server.key\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "simulate.protected#1",
+    "would": {
+     "decision": "require_approval",
+     "reason": "effect"
+    }
+   }
+  },
+  {
+   "name": "simulated_strict: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/.ssh/id_ed25519\"]}",
+   "role": "simulated_strict",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/.ssh/id_ed25519\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated_strict: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/.ssh/id_ed25519\"]}, exposed",
+   "role": "simulated_strict",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/.ssh/id_ed25519\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated_strict: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/.ssh/id_ed25519\"]}, tainted",
+   "role": "simulated_strict",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/.ssh/id_ed25519\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated_strict: nia:effect {\"deleted\":0,\"paths\":[\"/home/dev/.ssh/id_ed25519\"]}, tainted, exposed",
+   "role": "simulated_strict",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[\"/home/dev/.ssh/id_ed25519\"]}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "simulate"
+   }
+  },
+  {
+   "name": "simulated_strict: nia:effect {\"deleted\":0,\"paths\":[],\"x\":1}",
+   "role": "simulated_strict",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[],\"x\":1}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "simulate",
+    "would": {
+     "decision": "deny",
+     "reason": "ambiguous_arguments"
+    }
+   }
+  },
+  {
+   "name": "simulated_strict: nia:effect {\"deleted\":0,\"paths\":[],\"x\":1}, exposed",
+   "role": "simulated_strict",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[],\"x\":1}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "simulate",
+    "would": {
+     "decision": "deny",
+     "reason": "ambiguous_arguments"
+    }
+   }
+  },
+  {
+   "name": "simulated_strict: nia:effect {\"deleted\":0,\"paths\":[],\"x\":1}, tainted",
+   "role": "simulated_strict",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[],\"x\":1}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "simulate",
+    "would": {
+     "decision": "deny",
+     "reason": "ambiguous_arguments"
+    }
+   }
+  },
+  {
+   "name": "simulated_strict: nia:effect {\"deleted\":0,\"paths\":[],\"x\":1}, tainted, exposed",
+   "role": "simulated_strict",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[],\"x\":1}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "simulate",
+    "would": {
+     "decision": "deny",
+     "reason": "ambiguous_arguments"
+    }
    }
   }
  ]

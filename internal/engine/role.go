@@ -55,6 +55,16 @@ type Role struct {
 	// Host is the role's catalogue of host actions, as the server wrote it;
 	// nil when it has none. The hostd package reads it.
 	Host json.RawMessage
+	// Simulate, when set, simulates the agent's shell commands: their effect
+	// is the call EffectTool. Nil when the role does not.
+	Simulate *Simulate
+}
+
+// Simulate is how a role judges the effect of a simulated command.
+type Simulate struct {
+	MaxDeleted int64
+	Protected  []pathPattern
+	Timeout    int
 }
 
 // Tool is one tool rule of a role. Name may hold `*`.
@@ -107,7 +117,12 @@ type roleJSON struct {
 	RuleOfTwo   string          `json:"rule_of_two"`
 	Destructive string          `json:"destructive"`
 	Host        json.RawMessage `json:"host"`
-	Tools       []struct {
+	Simulate    *struct {
+		MaxDeleted     *int64   `json:"max_deleted"`
+		Protected      []string `json:"protected"`
+		TimeoutSeconds *int     `json:"timeout_seconds"`
+	} `json:"simulate"`
+	Tools []struct {
 		Name          string `json:"name"`
 		WhenUntrusted string `json:"when_untrusted"`
 		Output        string `json:"output"`
@@ -169,6 +184,17 @@ func ParseRole(raw json.RawMessage) (*Role, error) {
 		return nil, errors.New("engine: the role has a mode or a decision this nia-edge does not know")
 	}
 	role := &Role{Name: in.Name, Observe: in.Mode == "observe", RuleOfTwo: in.RuleOfTwo, Destructive: in.Destructive, Host: in.Host}
+	if in.Simulate != nil {
+		s := in.Simulate
+		if s.MaxDeleted == nil || *s.MaxDeleted < 0 || s.TimeoutSeconds == nil || *s.TimeoutSeconds < 1 || *s.TimeoutSeconds > 600 || s.Protected == nil {
+			return nil, errors.New("engine: the role's simulation has a value this nia-edge does not know")
+		}
+		role.Simulate = &Simulate{MaxDeleted: *s.MaxDeleted, Timeout: *s.TimeoutSeconds}
+		for _, source := range s.Protected {
+			pattern, err := compileJS(source)
+			role.Simulate.Protected = append(role.Simulate.Protected, pathPattern{pattern: pattern, unread: err})
+		}
+	}
 	for _, t := range in.Tools {
 		if t.Name == "" || !utf8.ValidString(t.Name) || !oneOf(t.WhenUntrusted, Allow, RequireApproval, Deny) || !oneOf(t.Output, "untrusted", "trusted") || !oneOf(t.Effect, "none", "external", "destructive") {
 			return nil, fmt.Errorf("engine: the rule of tool %q has a value this nia-edge does not know", t.Name)
@@ -275,13 +301,19 @@ func (r *Role) Decide(tool string, tainted bool, rawArguments string, exposed bo
 	if err != nil {
 		return Decision{}, err
 	}
-	decided, err := r.enforced(rule, tainted, rawArguments, duplicate)
-	if err != nil {
-		return Decision{}, err
-	}
-	decided = r.stricter(rule, tainted, exposed, decided)
-	if decided, err = categorized(rule, tainted, rawArguments, decided); err != nil {
-		return Decision{}, err
+	var decided Decision
+	if tool == EffectTool {
+		if decided, err = r.effect(rawArguments, duplicate); err != nil {
+			return Decision{}, err
+		}
+	} else {
+		if decided, err = r.enforced(rule, tainted, rawArguments, duplicate); err != nil {
+			return Decision{}, err
+		}
+		decided = r.stricter(rule, tainted, exposed, decided)
+		if decided, err = categorized(rule, tainted, rawArguments, decided); err != nil {
+			return Decision{}, err
+		}
 	}
 	if !r.Observe || decided.Decision == Allow {
 		return decided, nil

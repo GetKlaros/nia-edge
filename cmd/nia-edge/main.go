@@ -53,6 +53,7 @@ import (
 	"github.com/GetKlaros/nia-edge/internal/policy"
 	"github.com/GetKlaros/nia-edge/internal/relay"
 	"github.com/GetKlaros/nia-edge/internal/remotemcp"
+	"github.com/GetKlaros/nia-edge/internal/simulate"
 	"github.com/GetKlaros/nia-edge/internal/state"
 )
 
@@ -74,6 +75,10 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdin i
 	}
 	var err error
 	switch args[0] {
+	case simulate.ChildCommand:
+		return simulate.Child()
+	case "simulate":
+		return simulateCommand(ctx, args[1:], getenv, stdout, stderr)
 	case "enroll":
 		err = enroll(ctx, args[1:], getenv, stdin, stdout, stderr)
 	case "run":
@@ -511,16 +516,21 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 	// Codex): decided here as the model path decides, with or without a
 	// provider on this machine.
 	toolHooks := &hooks.Handler{
-		Nia:      decisions.Authority{Authority: &local.Remote{Base: base, Key: saved.Key, Run: run, HTTP: niaclient.NewHTTPClient(time.Duration(30+wait) * time.Second), Wait: wait}, Log: decisionLog, Path: "hook"},
-		Rules:    policies.rules,
-		Releases: releases,
-		Logger:   logger,
+		Nia:         decisions.Authority{Authority: &local.Remote{Base: base, Key: saved.Key, Run: run, HTTP: niaclient.NewHTTPClient(time.Duration(30+wait) * time.Second), Wait: wait}, Log: decisionLog, Path: "hook"},
+		Rules:       policies.rules,
+		Releases:    releases,
+		Simulations: &hooks.Tickets{},
+		Logger:      logger,
 	}
 	// The agent's MCP server of host actions, on nia-edge's own address.
 	agentRoutes := handler
 	handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if hooks.Route(r.URL.Path) != "" && r.URL.RawPath == "" {
 			toolHooks.ServeHTTP(w, r)
+			return
+		}
+		if hooks.SimulationRoute(r.URL.Path) && r.URL.RawPath == "" {
+			toolHooks.ServeSimulation(w, r)
 			return
 		}
 		if r.URL.Path == "/host/mcp" && r.URL.RawPath == "" {

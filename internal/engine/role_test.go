@@ -35,6 +35,10 @@ func expectedUndecided(role, tool, arguments string, tainted bool) bool {
 		// A punycode host, read by the category rule that applies in any session.
 		return tool == "egress" && strings.Contains(arguments, "xn--")
 	}
+	if role == "simulated" && tool == EffectTool {
+		// A fraction or an exponent: JavaScript's Number decides whether it is whole.
+		return strings.Contains(arguments, `"deleted":1.5`) || strings.Contains(arguments, `"deleted":1e1`)
+	}
 	if role != "edges" {
 		return false
 	}
