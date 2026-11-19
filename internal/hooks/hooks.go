@@ -1,5 +1,5 @@
 // Package hooks answers the tool hooks of the coding agents that run their
-// own tools (Claude Code, Codex, Gemini CLI, and Pi and Oh My Pi through
+// own tools (Claude Code, Codex, Gemini CLI, and Pi, Oh My Pi and OpenCode through
 // nia-edge's extension): before a tool runs, Nia decides it; after, the
 // session is told it holds a result of that tool.
 //
@@ -42,6 +42,9 @@ const (
 	// (tool_call, tool_result).
 	Pi  Agent = "pi"
 	Omp Agent = "omp"
+	// OpenCode speaks it too, from nia-edge's plugin (tool.execute.before
+	// and after, sent as tool_call and tool_result).
+	OpenCode Agent = "opencode"
 )
 
 // Route returns the agent whose hooks a path receives, or "".
@@ -57,6 +60,8 @@ func Route(path string) Agent {
 		return Pi
 	case "/v1/hooks/omp":
 		return Omp
+	case "/v1/hooks/opencode":
+		return OpenCode
 	}
 	return ""
 }
@@ -88,7 +93,7 @@ var sessionPattern = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,120}$`)
 // path's: cc- or cx- and the agent's own id, or its hash when Nia would not
 // take it as it is.
 func session(agent Agent, id string) string {
-	prefix := map[Agent]string{ClaudeCode: "cc-", Codex: "cx-", GeminiCLI: "gm-", Pi: "pi-", Omp: "om-"}[agent]
+	prefix := map[Agent]string{ClaudeCode: "cc-", Codex: "cx-", GeminiCLI: "gm-", Pi: "pi-", Omp: "om-", OpenCode: "oc-"}[agent]
 	if sessionPattern.MatchString(id) {
 		return prefix + id
 	}
@@ -161,7 +166,7 @@ func Refusal(agent Agent, event, reason string) any {
 		// BeforeTool: the call is not run. AfterTool: the reason replaces
 		// the output the model gets.
 		return map[string]any{"decision": "deny", "reason": reason}
-	case Pi, Omp:
+	case Pi, Omp, OpenCode:
 		if after {
 			return map[string]any{"content": []any{map[string]any{"type": "text", "text": reason}}, "isError": true}
 		}
@@ -224,7 +229,7 @@ func withhold(agent Agent, hook payload, reason string, redact bool) any {
 			text = string(encoded)
 		}
 		return map[string]any{"decision": "deny", "reason": text + "\n[" + reason + ".]"}
-	case Pi, Omp:
+	case Pi, Omp, OpenCode:
 		if !redact {
 			return Refusal(agent, "after", reason)
 		}

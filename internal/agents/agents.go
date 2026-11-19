@@ -115,7 +115,7 @@ var Kinds = []Kind{
 		Read:    readCodex,
 	},
 	{
-		Name: "opencode", Files: []string{".config/opencode/opencode.json", ".config/opencode/opencode.jsonc"},
+		Name: "opencode", Files: []string{".config/opencode/opencode.json", ".config/opencode/opencode.jsonc"}, Installer: "nia-edge agents onboard opencode",
 		Process: func(args []string) bool { return base(args, "opencode") },
 		Read:    readOpenCode,
 	},
