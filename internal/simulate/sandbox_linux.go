@@ -287,7 +287,7 @@ func Child() int {
 		status.Write(append(line, '\n'))
 	}
 	fail := func(err error) int {
-		say(map[string]any{"error": err.Error(), "denied": errors.Is(err, syscall.EPERM)})
+		say(map[string]any{"error": err.Error(), "denied": errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EACCES)})
 		return 125
 	}
 	var config childConfig
