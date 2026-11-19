@@ -41,7 +41,10 @@ private code base; this repository is public.
   read as the server reads it, a secret in the model's answer, or Nia out of
   reach refuse it. A provider-run tool is decided before the request leaves
   and removed from it unless Nia allows it. Prompts, tool results and model text
-  are never sent to Nia or logged; the provider key is in the state file
+  are never sent to Nia or logged. Before each call nia-edge asks Nia
+  whether the key's budget allows it, and after it reports the tokens the
+  provider counted; with a budget, a call it cannot count or report is not
+  released. The provider key is in the state file
   only, never shown, never accepted on the command line, never sent anywhere
   but to the provider.
 - The firewall lets the agent's user reach nia-edge and its own services on

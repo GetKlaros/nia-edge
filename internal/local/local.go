@@ -65,6 +65,22 @@ type Authority interface {
 	DecideHashed(ctx context.Context, session string, call Hashed) (verdict Verdict, needsArguments bool, err error)
 }
 
+// Budgets is the key's budget, kept by Nia: whether a model call may be
+// made, and what one used. Only token counts are sent, never content.
+type Budgets interface {
+	Check(ctx context.Context, session, model string) (Budget, error)
+	Used(ctx context.Context, session, model string, usage turn.Usage) error
+}
+
+// Budget answers whether a model call may be made. Metered is true when the
+// key has a budget: then what each call used must reach Nia.
+type Budget struct {
+	Allowed bool
+	Metered bool
+	// Message tells the agent why a call was not made.
+	Message string
+}
+
 // Hashed is a call decided on this machine, as Nia receives it.
 type Hashed struct {
 	Tool string
@@ -108,6 +124,9 @@ type Handler struct {
 	// plan_review), sent with an apply of that plan when Nia must show it
 	// to a reviewer; nil, or a nil answer, sends none.
 	Review func(ctx context.Context, plan string) json.RawMessage
+	// Budgets asks Nia before each model call and tells it what the call
+	// used; nil checks no budget.
+	Budgets Budgets
 	// MaxRequest and MaxResponse bound what is read; zero means 4 MiB and 16 MiB.
 	MaxRequest, MaxResponse int64
 	Logger                  *slog.Logger
@@ -225,6 +244,33 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			rewritten = true
 		}
 	}
+	// The key's budget: a call past it is not made, and is held for a
+	// reviewer by Nia; a call that cannot be counted is not released.
+	metered := false
+	if h.Budgets != nil {
+		model, _, _ := body.Get("model").Text()
+		budget, err := h.Budgets.Check(r.Context(), session, model)
+		if err != nil {
+			h.log("no budget answer", "error", err.Error())
+			Refuse(w, format, http.StatusServiceUnavailable, "nia_unavailable", "Nia could not be reached, so nothing was sent to the model")
+			return
+		}
+		if !budget.Allowed {
+			h.log("model call held", "reason", "budget")
+			message := budget.Message
+			if message == "" {
+				message = "This agent reached its budget."
+			}
+			streaming, _ := body.Get("stream").Truth()
+			synthetic, syntheticType := syntheticText(format, streaming, model, "[Nia agent firewall] No model call was made: "+message)
+			release(w, http.StatusOK, syntheticType, synthetic)
+			return
+		}
+		metered = budget.Metered
+		if turn.AskUsage(format, body) {
+			rewritten = true
+		}
+	}
 	outbound := raw
 	if rewritten {
 		outbound = []byte(body.JSON())
@@ -246,6 +292,22 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	answerText, err := turn.Decode(answer)
+	if h.Budgets != nil {
+		model, _, _ := body.Get("model").Text()
+		usage, counted := turn.ReadUsage(format, strings.Contains(strings.ToLower(contentType), "text/event-stream"), answerText)
+		switch {
+		case counted:
+			if err := h.Budgets.Used(r.Context(), session, model, usage); err != nil && metered {
+				h.log("usage not recorded", "error", err.Error())
+				Refuse(w, format, http.StatusServiceUnavailable, "nia_unavailable", "Nia could not record what this call used, so its answer was not released")
+				return
+			}
+		case metered:
+			h.log("model response refused", "reason", "no usage")
+			Refuse(w, format, http.StatusBadGateway, "usage_unknown", "The provider did not say what this call used, so it cannot be counted against the agent's budget")
+			return
+		}
+	}
 	var output turn.Output
 	if err == nil {
 		output, err = turn.ReadOutput(format, strings.Contains(strings.ToLower(contentType), "text/event-stream"), answerText)
@@ -627,6 +689,38 @@ func (n *Remote) post(ctx context.Context, path, session string, body any, timeo
 	}
 	if err := json.Unmarshal(raw, answer); err != nil {
 		return fmt.Errorf("Nia's answer is not what was expected: %w", err)
+	}
+	return nil
+}
+
+// Check asks Nia whether the key may make a model call now.
+func (n *Remote) Check(ctx context.Context, session, model string) (Budget, error) {
+	var answer struct {
+		Allowed *bool  `json:"allowed"`
+		Reason  string `json:"reason"`
+		Message string `json:"message"`
+		Budget  string `json:"budget"`
+	}
+	if err := n.post(ctx, "/v1/model/check", session, map[string]any{"model": model}, 15*time.Second, &answer); err != nil {
+		return Budget{}, err
+	}
+	if answer.Allowed == nil {
+		return Budget{}, errors.New("Nia's answer holds no decision")
+	}
+	return Budget{Allowed: *answer.Allowed, Metered: answer.Budget != "" || !*answer.Allowed, Message: answer.Message}, nil
+}
+
+// Used tells Nia the tokens a model call used.
+func (n *Remote) Used(ctx context.Context, session, model string, usage turn.Usage) error {
+	var answer struct {
+		Recorded bool `json:"recorded"`
+	}
+	body := map[string]any{"model": model, "input_tokens": usage.InputTokens, "cached_input_tokens": usage.CachedInputTokens, "output_tokens": usage.OutputTokens}
+	if err := n.post(ctx, "/v1/model/usage", session, body, 15*time.Second, &answer); err != nil {
+		return err
+	}
+	if !answer.Recorded {
+		return errors.New("Nia did not record the usage")
 	}
 	return nil
 }

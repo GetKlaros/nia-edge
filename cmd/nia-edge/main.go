@@ -480,13 +480,15 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 		if err != nil {
 			return err
 		}
+		remote := &local.Remote{Base: base, Key: saved.Key, Run: run, HTTP: niaclient.NewHTTPClient(time.Duration(30+wait) * time.Second), Wait: wait}
 		model := &local.Handler{
 			Provider:      providerURL,
 			Key:           saved.Provider.Key,
 			Anthropic:     saved.Provider.Format == "anthropic",
 			SessionHeader: providerSessionHeader(saved.Provider, providerURL),
 			HTTP:          local.NewProviderClient(15 * time.Minute),
-			Nia:           &local.Remote{Base: base, Key: saved.Key, Run: run, HTTP: niaclient.NewHTTPClient(time.Duration(30+wait) * time.Second), Wait: wait},
+			Nia:           remote,
+			Budgets:       remote,
 			Rules:         policies.rules,
 			Releases:      releases,
 			Review:        planReview(&hostd.Client{Socket: hostSocket}),
