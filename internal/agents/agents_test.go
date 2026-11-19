@@ -152,3 +152,33 @@ func TestNothingFound(t *testing.T) {
 		t.Fatal("no /etc/passwd must be an error")
 	}
 }
+
+func TestGeminiOmpAndPi(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "/etc/passwd", "carol:x:1003:1003::/home/carol:/bin/bash\n")
+	write(t, root, "/etc/group", "carol:x:1003:\n")
+	write(t, root, "/home/carol/.gemini/settings.json", `{"mcpServers":{"github":{"httpUrl":"https://x"},"fs":{"command":"npx"}}}`)
+	write(t, root, "/home/carol/.omp/agent/config.yml", "model: x\n")
+	write(t, root, "/home/carol/.pi/agent/settings.json", `{}`)
+	write(t, root, "/proc/7/status", "Name:\tomp\nUid:\t1003\t1003\t1003\t1003\n")
+	write(t, root, "/proc/7/cmdline", "/home/carol/.local/bin/omp\x00")
+	write(t, root, "/proc/8/status", "Name:\tnode\nUid:\t1003\t1003\t1003\t1003\n")
+	write(t, root, "/proc/8/cmdline", "node\x00/usr/lib/node_modules/@mariozechner/pi-coding-agent/dist/cli.js\x00")
+	found, err := Find(Options{Root: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]Agent{}
+	for _, agent := range found {
+		got[agent.Kind] = agent
+	}
+	if len(found) != 3 || got["gemini-cli"].Settings.MCPServers != 2 || got["gemini-cli"].Running {
+		t.Fatalf("%+v", found)
+	}
+	if !got["omp"].Running || !got["pi"].Running || got["omp"].Settings.MCPServers != -1 {
+		t.Fatalf("%+v", found)
+	}
+	if !strings.Contains(got["omp"].Next, "no installer for omp yet") {
+		t.Fatalf("%s", got["omp"].Next)
+	}
+}

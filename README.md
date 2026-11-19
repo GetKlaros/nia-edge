@@ -159,7 +159,7 @@ sudo nia-edge agents        # or -json
 ```
 
 lists the agents installed under every account (Hermes, OpenClaw, Codex,
-OpenCode, Claude Code): whether one runs, how many MCP servers it declares,
+OpenCode, Claude Code, Gemini CLI, Oh My Pi, Pi): whether one runs, how many MCP servers it declares,
 whether its model is nia-edge, how it is protected (confined, governed or
 none), the groups that would go around it, and what to do next. It reads
 files and `/proc`, follows no link, prints no secret, changes and decides
