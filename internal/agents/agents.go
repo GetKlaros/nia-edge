@@ -118,6 +118,30 @@ var Kinds = []Kind{
 		Read:    readOpenCode,
 	},
 	{
+		// Gemini CLI (@google/gemini-cli): ~/.gemini/settings.json, binary gemini.
+		Name: "gemini-cli", Files: []string{".gemini/settings.json"},
+		Process: func(args []string) bool {
+			return base(args, "gemini") || (len(args) > 1 && strings.Contains(args[1], "/@google/gemini-cli/"))
+		},
+		Read: readGemini,
+	},
+	{
+		// Oh My Pi (@oh-my-pi/pi-coding-agent): ~/.omp/agent/config.yml, binary omp.
+		Name: "omp", Files: []string{".omp/agent/config.yml", ".omp/agent/config.yaml", ".omp/agent/settings.json"},
+		Process: func(args []string) bool {
+			return base(args, "omp") || (len(args) > 1 && strings.Contains(args[1], "/@oh-my-pi/pi-coding-agent/"))
+		},
+		Read: unread,
+	},
+	{
+		// Pi (@mariozechner/pi-coding-agent): ~/.pi/agent/settings.json, binary pi.
+		Name: "pi", Files: []string{".pi/agent/settings.json", ".pi/agent/models.json", ".pi/agent/auth.json"},
+		Process: func(args []string) bool {
+			return len(args) > 1 && strings.Contains(args[1], "/@mariozechner/pi-coding-agent/")
+		},
+		Read: unread,
+	},
+	{
 		Name: "claude-code", Files: []string{".claude.json", ".claude/settings.json"}, Installer: "nia-edge agents onboard claude-code",
 		Process: func(args []string) bool { return base(args, "claude") },
 		Read:    readClaude,
@@ -447,6 +471,18 @@ func readOpenClaw(data []byte) Config {
 		}
 	}
 	return c
+}
+
+// unread is for a configuration nia-edge does not read yet.
+func unread([]byte) Config { return Config{MCPServers: -1, Model: "unknown"} }
+
+func readGemini(data []byte) Config {
+	config, ok := jsonc(data)
+	if !ok {
+		return Config{MCPServers: -1, Model: "unknown"}
+	}
+	// Gemini CLI calls Google's API unless told otherwise outside this file.
+	return Config{MCPServers: len(object(config["mcpServers"])), Model: "unknown"}
 }
 
 func readOpenCode(data []byte) Config {
