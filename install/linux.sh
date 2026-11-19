@@ -12,9 +12,21 @@
 #
 # The last step runs "nia-edge doctor" as the agent's user and fails if that
 # user still has a way out.
+#
+#   sudo NIA_URL=… NIA_ENROLL_TOKEN=… install/linux.sh --governed
+#
+# installs and enrolls nia-edge without an agent's user to close: for the
+# agents that keep running where they are and hand their tool calls to Nia
+# through their hooks (nia-edge agents onboard claude-code|codex). No network
+# rule, no proof of isolation: such an agent is governed, not confined.
 set -eu
 
-AGENT_USER=${1:?usage: install/linux.sh <agent-user>}
+AGENT_USER=${1:?usage: install/linux.sh <agent-user> | --governed}
+GOVERNED=0
+if [ "$AGENT_USER" = --governed ]; then
+  GOVERNED=1
+  AGENT_USER=
+fi
 BINARY=${NIA_EDGE_BINARY:-./nia-edge}
 HERE=$(cd "$(dirname "$0")" && pwd)
 STATE_DIR=/var/lib/nia-edge
@@ -28,9 +40,10 @@ fail() { echo "install: $1" >&2; exit "${2:-2}"; }
 [ -f "$HERE/firewall-linux.sh" ] || fail "firewall-linux.sh must be next to this script"
 [ -x "$BINARY" ] || fail "no nia-edge binary at $BINARY (build it, or set NIA_EDGE_BINARY)"
 "$BINARY" version >/dev/null || fail "$BINARY does not run on this machine"
-command -v nft >/dev/null || fail "nftables is required (for instance: apt install nftables)"
+[ "$GOVERNED" -eq 1 ] || command -v nft >/dev/null || fail "nftables is required (for instance: apt install nftables)"
 command -v systemctl >/dev/null || fail "systemd is required"
 command -v runuser >/dev/null || fail "runuser (util-linux) is required"
+if [ "$GOVERNED" -eq 0 ]; then
 [ "$AGENT_USER" != root ] || fail "the agent cannot run as root"
 [ "$AGENT_USER" != nia-edge ] || fail "the agent cannot run as nia-edge: that user holds the key"
 [ "$AGENT_USER" != nia-mcp ] || fail "the agent cannot run as nia-mcp: that user runs the MCP servers"
@@ -42,6 +55,7 @@ for group in docker sudo wheel admin adm lxd libvirt nia-edge; do
     fail "$AGENT_USER is in group $group, which goes around the network rule or reads the key" 3
   fi
 done
+fi
 
 # 2. nia-edge under its own user. Its state directory holds the key.
 id nia-edge >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin nia-edge
@@ -54,7 +68,8 @@ install -d -o nia-edge -g nia-edge -m 0700 "$STATE_DIR"
 # user holds no secret and has no network; its containers have their own
 # range of user ids.
 MCP=0
-if command -v podman >/dev/null && command -v newuidmap >/dev/null; then
+# A governed machine has no network rule, so no closed user for MCP servers.
+if [ "$GOVERNED" -eq 0 ] && command -v podman >/dev/null && command -v newuidmap >/dev/null; then
   MCP=1
   id nia-mcp >/dev/null 2>&1 || useradd --system --home-dir /var/lib/nia-mcp --no-create-home --shell /usr/sbin/nologin nia-mcp
   if ! grep -q '^nia-mcp:' /etc/subuid || ! grep -q '^nia-mcp:' /etc/subgid; then
@@ -68,7 +83,7 @@ fi
 # 3. Settings of the service. No secret here: the key is in the state file.
 host=$(hostname | tr -c 'A-Za-z0-9._\n-' '-')
 cat > /etc/nia-edge.env <<ENV
-NIA_SESSION=${NIA_SESSION:-$AGENT_USER.$host}
+NIA_SESSION=${NIA_SESSION:-${AGENT_USER:-governed}.$host}
 EDGE_APPROVAL_WAIT=${EDGE_APPROVAL_WAIT:-0}
 EDGE_ALLOW_PRIVATE=${EDGE_ALLOW_PRIVATE:-}
 ENV
@@ -165,7 +180,8 @@ UNIT
 fi
 
 # 4. The network rule, loaded again at every boot, before the network is up.
-cat > /etc/systemd/system/nia-agent-firewall.service <<UNIT
+# A governed machine has no agent's user to close.
+[ "$GOVERNED" -eq 1 ] || cat > /etc/systemd/system/nia-agent-firewall.service <<UNIT
 [Unit]
 Description=Leave $AGENT_USER no other way out than nia-edge
 Before=network-pre.target
@@ -197,11 +213,31 @@ else
 fi
 
 systemctl daemon-reload
-systemctl enable nia-agent-firewall.service nia-edge.service nia-hostd.service
-systemctl restart nia-agent-firewall.service nia-hostd.service nia-edge.service
+if [ "$GOVERNED" -eq 1 ]; then
+  systemctl enable nia-edge.service nia-hostd.service
+  systemctl restart nia-hostd.service nia-edge.service
+else
+  systemctl enable nia-agent-firewall.service nia-edge.service nia-hostd.service
+  systemctl restart nia-agent-firewall.service nia-hostd.service nia-edge.service
+fi
 if [ "$MCP" -eq 1 ]; then
   systemctl enable nia-mcp.service
   systemctl restart nia-mcp.service
+fi
+# What agents this machine has: the report the heartbeat carries to Nia.
+"$BIN" agents >/dev/null 2>&1 || true
+
+if [ "$GOVERNED" -eq 1 ]; then
+  for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+    "$BIN" health >/dev/null 2>&1 && break
+    sleep 1
+  done
+  "$BIN" health >/dev/null 2>&1 || fail "nia-edge did not start, or cannot reach Nia: journalctl -u nia-edge" 4
+  echo
+  echo "Done. nia-edge runs on this machine. Hand an agent's tool calls to Nia:"
+  echo "  sudo nia-edge agents                       # what is installed, and how it stands"
+  echo "  sudo nia-edge agents onboard claude-code   # or codex"
+  exit 0
 fi
 
 # 6. The agent's environment: its model and every connection through nia-edge.

@@ -31,6 +31,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -40,6 +41,7 @@ import (
 	"github.com/GetKlaros/nia-edge/internal/doctor"
 	"github.com/GetKlaros/nia-edge/internal/egress"
 	"github.com/GetKlaros/nia-edge/internal/engine"
+	"github.com/GetKlaros/nia-edge/internal/hooks"
 	"github.com/GetKlaros/nia-edge/internal/hostd"
 	"github.com/GetKlaros/nia-edge/internal/hostmcp"
 	"github.com/GetKlaros/nia-edge/internal/local"
@@ -64,7 +66,7 @@ func main() {
 
 func run(ctx context.Context, args []string, getenv func(string) string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: nia-edge enroll|provider|run|hostd|mcp|agents|doctor|health|version")
+		fmt.Fprintln(stderr, "usage: nia-edge enroll|provider|run|hostd|mcp|agents|hook|doctor|health|version")
 		return 2
 	}
 	var err error
@@ -80,7 +82,9 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdin i
 	case "mcp":
 		err = mcpCommand(ctx, args[1:], getenv, stdin, stdout, stderr)
 	case "agents":
-		err = agentsCommand(args[1:], stdout, stderr)
+		err = agentsCommand(args[1:], getenv, stdout, stderr)
+	case "hook":
+		err = hookCommand(args[1:], getenv, stdin, stdout, stderr)
 	case "doctor":
 		return check(ctx, args[1:], getenv, stdout, stderr)
 	case "health":
@@ -453,9 +457,21 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 		})
 		fmt.Fprintf(stdout, "nia-edge %s: model calls go from this machine to %s; Nia decides the tool calls\n", version, providerURL.Host)
 	}
+	// The tool hooks of the agents that run their own tools (Claude Code,
+	// Codex): decided here as the model path decides, with or without a
+	// provider on this machine.
+	toolHooks := &hooks.Handler{
+		Nia:    &local.Remote{Base: base, Key: saved.Key, Run: run, HTTP: niaclient.NewHTTPClient(time.Duration(30+wait) * time.Second), Wait: wait},
+		Rules:  policies.rules,
+		Logger: logger,
+	}
 	// The agent's MCP server of host actions, on nia-edge's own address.
 	agentRoutes := handler
 	handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if hooks.Route(r.URL.Path) != "" && r.URL.RawPath == "" {
+			toolHooks.ServeHTTP(w, r)
+			return
+		}
 		if r.URL.Path == "/host/mcp" && r.URL.RawPath == "" {
 			host.ServeHTTP(w, r)
 			return
@@ -538,7 +554,11 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 	beats := make(chan struct{})
 	go func() {
 		defer close(beats)
-		heartbeat(ctx, &niaclient.Client{Base: base, HTTP: niaclient.NewHTTPClient(15 * time.Second)}, saved.Key, modelPath, status, policies, journalAnchor(&hostd.Client{Socket: hostSocket}), logger)
+		agentsReport := getenv("EDGE_AGENTS_REPORT")
+		if agentsReport == "" {
+			agentsReport = defaultReport
+		}
+		heartbeat(ctx, &niaclient.Client{Base: base, HTTP: niaclient.NewHTTPClient(15 * time.Second)}, saved.Key, modelPath, status, policies, journalAnchor(&hostd.Client{Socket: hostSocket}), agentsReport, logger)
 	}()
 	go func() { served <- server.Serve(listener) }()
 
@@ -890,10 +910,13 @@ func journalAnchor(host *hostd.Client) func(context.Context, int64) *niaclient.J
 // heartbeat reports to Nia until ctx ends, and keeps the signed policy
 // fresh. A failure is logged and tried again at the next beat: the relay
 // keeps running, and Nia refuses the calls of a key it no longer accepts.
-func heartbeat(ctx context.Context, client *niaclient.Client, key, modelPath string, status *machineStatus, policies *keeper, journal func(context.Context, int64) *niaclient.Journal, logger *slog.Logger) {
+func heartbeat(ctx context.Context, client *niaclient.Client, key, modelPath string, status *machineStatus, policies *keeper, journal func(context.Context, int64) *niaclient.Journal, agentsReport string, logger *slog.Logger) {
 	interval := 30 * time.Second
 	last := ""
 	var anchorAt int64
+	// The agents found on the machine go to a Nia that said it takes them:
+	// an older Nia refuses a heartbeat with a field it does not know.
+	acceptsAgents := false
 	for {
 		digest := ""
 		if current := policies.valid(time.Now()); current != nil {
@@ -904,9 +927,15 @@ func heartbeat(ctx context.Context, client *niaclient.Client, key, modelPath str
 		if journal != nil {
 			reported.Journal = journal(ctx, anchorAt)
 		}
+		if acceptsAgents {
+			if found := readReport(agentsReport); found != nil {
+				reported.Agents, _ = json.Marshal(found)
+			}
+		}
 		beat, err := client.Heartbeat(ctx, key, reported, digest)
 		if err == nil {
 			anchorAt = beat.JournalSeq
+			acceptsAgents = slices.Contains(beat.Accepts, "agents")
 		}
 		now := "active"
 		var refused *niaclient.Refused

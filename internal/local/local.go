@@ -308,17 +308,30 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // decide answers for one proposed call: decided here when the policy in force
 // can, so that its arguments stay on this machine, else by Nia.
 func (h *Handler) decide(ctx context.Context, session, tool, arguments string) (Verdict, error) {
-	if h.Rules != nil {
-		if rules := h.Rules(); rules != nil {
-			if call, ok := decideHere(rules, tool, arguments); ok {
-				verdict, needsArguments, err := h.Nia.DecideHashed(ctx, session, call)
+	return Decide(ctx, h.Nia, h.Rules, session, tool, arguments, func() []json.RawMessage { return h.reviews(ctx, tool, arguments) })
+}
+
+// Decide answers for one proposed call as the model path does: decided on
+// this machine when the policy in force can, so that Nia receives its hash
+// and the decision for each state of the session, else by Nia from its
+// arguments (with reviews, if any, for its reviewer). Only an explicit
+// "allow" allows.
+func Decide(ctx context.Context, nia Authority, rules func() *Rules, session, tool, arguments string, reviews func() []json.RawMessage) (Verdict, error) {
+	if rules != nil {
+		if in := rules(); in != nil {
+			if call, ok := decideHere(in, tool, arguments); ok {
+				verdict, needsArguments, err := nia.DecideHashed(ctx, session, call)
 				if err != nil || !needsArguments {
 					return verdict, err
 				}
 			}
 		}
 	}
-	return h.Nia.Decide(ctx, session, tool, arguments, h.reviews(ctx, tool, arguments))
+	var attached []json.RawMessage
+	if reviews != nil {
+		attached = reviews()
+	}
+	return nia.Decide(ctx, session, tool, arguments, attached)
 }
 
 // applyTool is the host apply, as the model names it.

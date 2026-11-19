@@ -50,7 +50,15 @@ private code base; this repository is public.
   saying so, and run its terminal (OpenClaw: every sandboxed tool, exec never
   on the host, no tool that changes its configuration) in a rootless
   container without network or host directory. `nia-edge agents` only
-  reports.
+  reports; what it reports decides nothing.
+- An agent governed by its hooks (Claude Code, Codex) gets them in the
+  machine's managed configuration, which its users cannot turn off: before a
+  tool runs nia-edge decides it as the model path does (hash and decisions,
+  arguments only when Nia asks), and "allow" answers nothing, so the agent's
+  own permissions still apply; a hold is a deny. nia-edge out of reach, a
+  hook it cannot read or a decision it cannot obtain refuse the call, and
+  `nia-edge hook` answers deny whatever fails. Onboarding saves each file
+  before it changes it, and restore puts it back byte for byte.
 - nia-hostd is the only part that runs as root. It serves the nia-edge user
   alone (peer credentials), verifies the signed policy itself, and runs only
   the actions of the role's catalogue, by name, with fixed programs and

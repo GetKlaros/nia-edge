@@ -71,7 +71,7 @@ func TestFind(t *testing.T) {
 	if bob.Kind != "codex" || bob.Running || bob.Settings.MCPServers != 2 || strings.Join(bob.Groups, ",") != "docker" {
 		t.Fatalf("bob: %+v", bob)
 	}
-	if !strings.HasPrefix(bob.Next, "no installer for codex") {
+	if bob.Next != "sudo nia-edge agents onboard codex: Nia decides each tool call" || bob.Governed != "" {
 		t.Fatalf("bob: %+v", bob)
 	}
 	if hermes.Kind != "hermes" || !hermes.Confined || hermes.Settings.MCPServers != 2 || hermes.Settings.Model != "unknown" || len(hermes.Groups) != 0 {

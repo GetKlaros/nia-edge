@@ -160,12 +160,61 @@ sudo nia-edge agents        # or -json
 
 lists the agents installed under every account (Hermes, OpenClaw, Codex,
 OpenCode, Claude Code): whether one runs, how many MCP servers it declares,
-whether its model is nia-edge, whether its user is the one nia-edge's
-firewall closes, the groups that would go around it, and what to do next
-(for Hermes and OpenClaw, the installer below with `--from <user>`). It reads
+whether its model is nia-edge, how it is protected (confined, governed or
+none), the groups that would go around it, and what to do next. It reads
 files and `/proc`, follows no link, prints no secret, changes and decides
 nothing: `nia-edge doctor`, run as the agent's user, is the proof, and Nia
 the judge.
+
+Run as root on an enrolled machine, it also leaves its report in
+`/var/lib/nia-edge/agents.json` (names and counts, no path, no secret), and
+the next heartbeat carries it to a Nia that says it accepts it: the console's
+Agents page shows every machine's agents, unprotected first, with the
+command to run. A report decides nothing.
+
+## Govern Claude Code and Codex
+
+Claude Code and Codex run their own tools: nia-edge does not move them, it
+hands each of their tool calls to Nia through their hooks, in the machine's
+managed configuration, for every user of the machine.
+
+```bash
+sudo NIA_URL=… NIA_ENROLL_TOKEN=… install/linux.sh --governed   # nia-edge, no network rule
+sudo nia-edge agents onboard claude-code -dry-run                 # what would change
+sudo nia-edge agents onboard claude-code                          # or codex
+sudo nia-edge agents status codex
+sudo nia-edge agents restore codex                                # exactly as it was
+```
+
+- Claude Code: HTTP hooks to nia-edge in
+  `/etc/claude-code/managed-settings.json`, with `"onFailure": "block"`
+  (Claude Code 2.1.295 or later): nia-edge out of reach blocks the call. A
+  user's own `disableAllHooks` does not turn managed hooks off. `-model` also
+  sends its model calls to nia-edge (`ANTHROPIC_BASE_URL`; nia-edge needs an
+  `anthropic` provider).
+- Codex: command hooks (`nia-edge hook codex`) in
+  `/etc/codex/requirements.toml`, which Codex trusts and a user cannot turn
+  off; the requirements pin `[features] hooks = true`, which a user's
+  configuration would otherwise turn off. Codex lets a call through when its
+  hook fails: `nia-edge hook` answers `deny` whatever fails, within the
+  hook's timeout.
+- Before a tool runs, nia-edge decides it as the model path does: with the
+  signed policy in force, Nia receives the call's hash and the decision for
+  each state of the session, never its arguments. `allow` answers nothing,
+  so the agent's own permission rules still apply; a hold is a `deny`, never
+  put to the person at the terminal. After it ran, the session learns it
+  holds a result of that tool; a secret in the output is redacted before
+  the model sees it (Codex: an MCP tool's output is redacted, another tool's
+  turn stops).
+- Every file is saved first, beside it (`<file>.nia-edge.json`, `0600`);
+  `restore` puts it back byte for byte, or removes it if it did not exist,
+  and refuses when the file changed since nia-edge wrote it.
+
+This governs the agent, it does not confine it: its user's other programs
+reach the network as before, and root on the machine can remove the hooks.
+For an agent that must not go around Nia, use the confined installers below.
+Tested by the server's `npm run e2e:devagents`, with the real Claude Code and
+Codex.
 
 ## Install an OpenClaw agent on Linux
 
