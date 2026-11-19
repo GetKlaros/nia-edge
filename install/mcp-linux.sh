@@ -49,12 +49,15 @@ hermes_local() {
   cp "$HERE/hermes-config.py" "$helper_dir/"
   chmod 0644 "$helper_dir/hermes-config.py"
   python=
-  for candidate in $(find "$home/.hermes" "$home/.local" -maxdepth 8 \( -name python -o -name python3 \) -path '*/bin/*' 2>/dev/null); do
-    if runuser -u "$AGENT" -- "$candidate" -I -c 'import hermes_cli.config' >/dev/null 2>&1; then
+  while IFS= read -r candidate; do
+    [ -n "$candidate" ] || continue
+    if runuser -u "$AGENT" -- "$candidate" -I -c 'import hermes_cli.config' </dev/null >/dev/null 2>&1; then
       python=$candidate
       break
     fi
-  done
+  done <<EOF
+$(find "$home/.hermes" "$home/.local" -maxdepth 8 \( -name python -o -name python3 \) -path '*/bin/*' 2>/dev/null)
+EOF
   [ -n "$python" ] || fail "cannot find Hermes' Python for $AGENT"
   runuser -u "$AGENT" -- env HOME="$home" HERMES_HOME="$home/.hermes" "$python" -I "$helper_dir/hermes-config.py" "${2:-local}" "$1" >/dev/null ||
     fail "Hermes' configuration could not point $1 at nia-edge"
