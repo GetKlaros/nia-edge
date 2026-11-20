@@ -176,6 +176,12 @@ func (c *Client) Heartbeat(ctx context.Context, key string, report Report, polic
 	return &answer, nil
 }
 
+// Inventory sends what the machine found on itself (internal/inventory), as
+// written, to a Nia that said it takes it. Nia shows it; it decides nothing.
+func (c *Client) Inventory(ctx context.Context, key string, inventory json.RawMessage) error {
+	return c.post(ctx, "/edge/v1/inventory", key, inventory, http.StatusNoContent, nil)
+}
+
 // SignedPolicy fetches the policy this machine is to apply, signed. It is not
 // verified here: policy.Open does that, with the key pinned at enrollment.
 func (c *Client) SignedPolicy(ctx context.Context, key string) (policy.Signed, error) {
@@ -230,6 +236,9 @@ func (c *Client) call(ctx context.Context, method, path, bearer string, body any
 			refused.Code, refused.Message = envelope.Error.Code, envelope.Error.Message
 		}
 		return refused
+	}
+	if answer == nil {
+		return nil
 	}
 	if err := json.Unmarshal(raw, answer); err != nil {
 		return fmt.Errorf("Nia's answer is not what was expected: %w", err)

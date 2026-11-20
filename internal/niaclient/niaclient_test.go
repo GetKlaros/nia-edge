@@ -155,3 +155,25 @@ func TestParseBaseURL(t *testing.T) {
 		}
 	}
 }
+
+func TestInventoryIsSentAsWrittenAndTakesNoAnswer(t *testing.T) {
+	raw := []byte(`{"scanned_at":"2026-11-20T10:00:00Z","services":[],"etc":[],"truncated":false}`)
+	c := client(t, func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if r.Method != http.MethodPost || r.URL.Path != "/edge/v1/inventory" || r.Header.Get("Authorization") != "Bearer nia_key" || string(body) != string(raw) {
+			t.Errorf("request %s %s %s", r.Method, r.URL.Path, body)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	if err := c.Inventory(context.Background(), "nia_key", raw); err != nil {
+		t.Fatal(err)
+	}
+	refusing := client(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, `{"error":{"code":"invalid_request","message":"no"}}`)
+	})
+	var refused *Refused
+	if err := refusing.Inventory(context.Background(), "nia_key", raw); !errors.As(err, &refused) || refused.Code != "invalid_request" {
+		t.Fatalf("got %v", err)
+	}
+}

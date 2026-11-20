@@ -17,6 +17,8 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -982,6 +984,9 @@ func heartbeat(ctx context.Context, client *niaclient.Client, key, modelPath str
 	// The agents found on the machine go to a Nia that said it takes them:
 	// an older Nia refuses a heartbeat with a field it does not know.
 	acceptsAgents := false
+	// The inventory goes once per scan, to a Nia that takes it.
+	acceptsInventory := false
+	sentInventory := ""
 	for {
 		digest := ""
 		if current := policies.valid(time.Now()); current != nil {
@@ -1001,6 +1006,21 @@ func heartbeat(ctx context.Context, client *niaclient.Client, key, modelPath str
 		if err == nil {
 			anchorAt = beat.JournalSeq
 			acceptsAgents = slices.Contains(beat.Accepts, "agents")
+			acceptsInventory = slices.Contains(beat.Accepts, "inventory")
+		}
+		if err == nil && acceptsInventory {
+			if raw := readInventory(defaultInventory); raw != nil {
+				sum := sha256.Sum256(raw)
+				if digest := hex.EncodeToString(sum[:]); digest != sentInventory {
+					if sendErr := client.Inventory(ctx, key, raw); sendErr == nil {
+						sentInventory = digest
+					} else if ctx.Err() == nil {
+						logger.Warn("the machine's inventory was not taken", "error", sendErr.Error())
+						// Not again until the next scan.
+						sentInventory = digest
+					}
+				}
+			}
 		}
 		now := "active"
 		var refused *niaclient.Refused
