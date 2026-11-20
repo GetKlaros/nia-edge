@@ -60,7 +60,10 @@ fi
 
 # 2. nia-edge under its own user. Its state directory holds the key.
 id nia-edge >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin nia-edge
-install -o root -g root -m 0755 "$BINARY" "$BIN"
+# Run again with the installed binary itself: it stays as it is.
+if [ "$(readlink -f "$BINARY")" != "$BIN" ]; then
+  install -o root -g root -m 0755 "$BINARY" "$BIN"
+fi
 install -d -o root -g root -m 0755 "$LIB"
 install -o root -g root -m 0755 "$HERE/firewall-linux.sh" "$LIB/firewall-linux.sh"
 # Simulated commands (a role with simulate) need user namespaces: where
