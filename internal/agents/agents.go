@@ -178,6 +178,7 @@ func Find(o Options) ([]Agent, error) {
 		}
 	}
 	processes := running(o.path("/proc"))
+	taken := takenOver(o.path(TakenOverFile))
 	var found []Agent
 	for _, u := range users {
 		if u.home == "" || u.home == "/" || u.home == "/nonexistent" {
@@ -227,6 +228,9 @@ func Find(o Options) ([]Agent, error) {
 					}
 				}
 				agent.Next = next(kind, agent)
+				if by := taken[kind.Name+" "+u.name]; by != "" && !agent.Confined && agent.Governed == "" {
+					agent.Next = "taken over by " + by + ", behind nia-edge: once it works, move " + filepath.Join(u.home, filepath.Dir(file)) + " aside (it still holds its keys)"
+				}
 				found = append(found, agent)
 				break
 			}
@@ -239,6 +243,24 @@ func Find(o Options) ([]Agent, error) {
 		return found[i].Kind < found[j].Kind
 	})
 	return found, nil
+}
+
+// TakenOverFile lists the agents an installer copied to a user of their own:
+// "<kind> <from> <to>" per line, written as root.
+const TakenOverFile = "/var/lib/nia-edge/taken-over"
+
+func takenOver(path string) map[string]string {
+	taken := map[string]string{}
+	data, err := readLimited(path)
+	if err != nil {
+		return taken
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if fields := strings.Fields(line); len(fields) == 3 {
+			taken[fields[0]+" "+fields[1]] = fields[2]
+		}
+	}
+	return taken
 }
 
 func next(kind Kind, a Agent) string {

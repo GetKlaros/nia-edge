@@ -124,7 +124,10 @@ It needs systemd, nftables and rootless Podman (Debian, Ubuntu:
    and `config.yaml` to nia-edge's state file, and is never printed. A
    provider Hermes signs in to by itself (OAuth: Nous Portal, Codex…), or
    one that does not speak chat completions, cannot be taken over: the script
-   stops and asks for `NIA_PROVIDER_URL`;
+   stops and asks for `NIA_PROVIDER_URL`. Every other model key Hermes'
+   provider registry knows (OpenRouter, DeepSeek…) leaves the agent's `.env`
+   too: its side tasks fall back to the provider nia-edge holds. The keys
+   left (a tool's) are named: each needs an `egress` rule;
 3. creates the user `hermes`, with subordinate ids and a user manager that
    runs without a login, and installs Hermes there with its official
    installer;
@@ -149,14 +152,24 @@ allows): it reads, deletes and sends nothing outside its container. Without
 the container (`terminal.backend local`), the same script deletes the agent's
 own files, but still nobody else's and still sends nothing.
 
-The messaging gateway (Telegram…) is not installed by this script: its host
-needs an `egress` rule in the role first.
+The messaging gateway (Telegram…) is prepared, not started: a systemd user
+service reads no profile, so a drop-in gives `hermes-gateway.service` the
+proxy of nia-edge, and `TELEGRAM_PROXY` (which Hermes prefers to the generic
+ones) is added when the `.env` has a bot. The script then says what is left:
+an `egress` rule for `api.telegram.org`, stopping the original's gateway
+(Telegram serves one poller per bot), `hermes gateway install && hermes
+gateway start` as `hermes`. The original is recorded as taken over
+(`/var/lib/nia-edge/taken-over`): `nia-edge agents` says so, and to move it
+aside once the confined one works.
 
 ## Find the agents of a machine
 
 ```bash
 sudo nia-edge agents        # or -json
 ```
+
+The installer runs it every hour too (`nia-edge-agents.timer`, as root,
+without network, writing only the report the heartbeat carries).
 
 lists the agents installed under every account (Hermes, OpenClaw, Codex,
 OpenCode, Claude Code, Gemini CLI, Oh My Pi, Pi): whether one runs, how many MCP servers it declares,

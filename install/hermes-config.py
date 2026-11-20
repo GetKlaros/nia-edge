@@ -10,6 +10,10 @@ Run as the agent, with Hermes' Python, -I, and HERMES_HOME set. One argument
             or config.yaml (not an OAuth token Hermes renews itself)
   scrub     removes that key from the agent's .env and config.yaml, and fails
             if it is still there
+  modelkeys removes from the agent's .env every model provider's key that
+            Hermes knows (its provider registry, and OpenRouter's): nia-edge
+            holds the provider's, and Hermes' side tasks fall back to it.
+            Prints the names removed, never a value
   mcp       sends the network of every MCP server Hermes starts itself
             through nia-edge's proxy: Hermes gives such a server only a few
             variables and its own env, so the agent's proxy does not reach it.
@@ -134,6 +138,35 @@ def local(name: str, kind: str = "local") -> int:
     return 0
 
 
+def modelkeys() -> int:
+    from hermes_cli.auth import PROVIDER_REGISTRY
+
+    names = {"OPENROUTER_API_KEY"}
+    for provider in PROVIDER_REGISTRY.values():
+        names.update(getattr(provider, "api_key_env_vars", ()) or ())
+    path = os.path.join(os.environ["HERMES_HOME"], ".env")
+    try:
+        with open(path, encoding="utf-8") as handle:
+            lines = handle.read().splitlines(keepends=True)
+    except FileNotFoundError:
+        return 0
+    kept, removed = [], []
+    for line in lines:
+        name = line.split("=", 1)[0].strip().removeprefix("export ").strip() if "=" in line else ""
+        if name in names:
+            removed.append(name)
+            continue
+        kept.append(line)
+    if removed:
+        temporary = path + ".nia"
+        with open(temporary, "w", encoding="utf-8") as handle:
+            handle.write("".join(kept))
+        os.chmod(temporary, os.stat(path).st_mode & 0o777)
+        os.replace(temporary, path)
+    out.write(" ".join(sorted(set(removed))) + "\n")
+    return 0
+
+
 def main(mode: str, *rest: str) -> int:
     if mode in ("local", "remote") and len(rest) == 1:
         return local(rest[0], mode)
@@ -143,6 +176,8 @@ def main(mode: str, *rest: str) -> int:
         return mcp()
     if mode == "host":
         return host()
+    if mode == "modelkeys":
+        return modelkeys()
     home = os.environ["HERMES_HOME"]
     from hermes_cli.env_loader import load_hermes_dotenv
     from hermes_cli.runtime_provider import resolve_runtime_provider
