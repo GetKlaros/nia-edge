@@ -230,8 +230,12 @@ if [ "$TAKE_OVER" -eq 1 ]; then
   say "took over the provider of $FROM's Hermes ($provider_name, $NIA_PROVIDER_URL): its key is nia-edge's now, $AGENT's files no longer hold it ($FROM's own copy is left as it is)"
 fi
 if [ -n "$FROM" ]; then
+  # Every other model key leaves too: nia-edge holds the provider's, and
+  # Hermes' side tasks fall back to it. Hermes' own registry names them.
+  removed=$(hermes_provider modelkeys 2>/dev/null) || fail "cannot remove the model keys from $AGENT's .env"
+  [ -z "$removed" ] || say "removed the model keys from $AGENT's .env: $removed"
   keys=$(grep -E '^[A-Z0-9_]*(API_KEY|_TOKEN|_SECRET)=' "$AGENT_HOME/.hermes/.env" 2>/dev/null | cut -d= -f1 | tr '\n' ' ' || true)
-  [ -z "$keys" ] || say "$AGENT's .env holds: $keys- the agent can read these; a model key is not needed there: nia-edge holds the provider's"
+  [ -z "$keys" ] || say "$AGENT's .env still holds: $keys- the agent can read these: keep only the tools it uses, each needs an egress rule"
 fi
 
 # 5. The model through nia-edge; the terminal and the file tools in a
@@ -251,7 +255,7 @@ hermes_provider host >/dev/null 2>&1 ||
   fail "$AGENT's Hermes already has an MCP server named host: rename it, the host actions take that name"
 rm -rf "$helper_dir"
 if [ -n "$elsewhere" ]; then
-  say "these MCP servers of $AGENT run a command $AGENT may not reach; copy it under $AGENT_HOME or /opt and point the server at it:"
+  say "these MCP servers of $AGENT run a command $AGENT may not reach; run each in a container (sudo sh mcp-linux.sh add <name> <image archive> -- <command>) or copy it under $AGENT_HOME:"
   printf '%s\n' "$elsewhere" | sed 's/^/install:   /'
 fi
 [ -z "${HERMES_MODEL:-}" ] || set_hermes model.default "$HERMES_MODEL"
@@ -301,6 +305,30 @@ grep -q 'XDG_RUNTIME_DIR' "$PROFILE" 2>/dev/null || {
   chown "$AGENT:$AGENT" "$PROFILE"
 }
 
+# The messaging gateway runs as a systemd user service, which reads no
+# profile: its network goes through nia-edge's proxy by a drop-in, and
+# Telegram's by TELEGRAM_PROXY, which Hermes prefers to the generic ones.
+DROPIN=$AGENT_HOME/.config/systemd/user/hermes-gateway.service.d
+as_agent "mkdir -p '$DROPIN' && printf '%s\n' '[Service]' \
+  'Environment=HTTPS_PROXY=http://127.0.0.1:3128 HTTP_PROXY=http://127.0.0.1:3128 https_proxy=http://127.0.0.1:3128 http_proxy=http://127.0.0.1:3128' \
+  'Environment=NO_PROXY=127.0.0.1,localhost no_proxy=127.0.0.1,localhost NODE_USE_ENV_PROXY=1' > '$DROPIN/nia-edge.conf'" ||
+  fail "cannot give $AGENT's gateway the proxy of nia-edge"
+TELEGRAM=0
+if grep -q '^TELEGRAM_BOT_TOKEN=.' "$AGENT_HOME/.hermes/.env" 2>/dev/null; then
+  TELEGRAM=1
+  grep -q '^TELEGRAM_PROXY=' "$AGENT_HOME/.hermes/.env" ||
+    as_agent "printf '%s\n' 'TELEGRAM_PROXY=http://127.0.0.1:3128' >> \"\$HOME/.hermes/.env\"" ||
+    fail "cannot point $AGENT's Telegram at nia-edge's proxy"
+fi
+# What was taken over, for nia-edge agents: the original is said to be
+# superseded, not merely unprotected.
+if [ -n "$FROM" ]; then
+  mkdir -p /var/lib/nia-edge
+  touch /var/lib/nia-edge/taken-over
+  grep -qx "hermes $FROM $AGENT" /var/lib/nia-edge/taken-over || printf 'hermes %s %s\n' "$FROM" "$AGENT" >> /var/lib/nia-edge/taken-over
+  chmod 0644 /var/lib/nia-edge/taken-over
+fi
+
 # 7. nia-edge, the firewall rule and the proof that the agent has no way out.
 # The hermes command talks to its own gateway on the loopback: the rule
 # lets the agent reach its own services there, never another user's.
@@ -331,5 +359,14 @@ echo
 echo "Done. $AGENT runs Hermes: sudo -iu $AGENT hermes"
 echo "  - its terminal and file tools run in $IMAGE, without network or host directory;"
 echo "  - its model and every connection go through nia-edge, decided by Nia."
-echo "  The messaging gateway (Telegram...) is not installed by this script: it needs"
-echo "  an egress rule for its host in the role first."
+if [ "$TELEGRAM" -eq 1 ]; then
+  echo
+  echo "Telegram, prepared (its network through nia-edge). To start it:"
+  echo "  1. in the role's egress tool, allow api.telegram.org (and trust it when the bot answers you alone);"
+  [ -z "$FROM" ] || echo "  2. stop $FROM's gateway (one bot, one poller): sudo -iu $FROM hermes gateway stop"
+  echo "  3. sudo -iu $AGENT, then: hermes gateway install && hermes gateway start"
+  [ -z "$FROM" ] || echo "  Once it answers, move $FROM's ~/.hermes aside: it still holds the bot's token and its keys."
+else
+  echo "  The messaging gateway (Telegram...) needs an egress rule for its host in the role first,"
+  echo "  then: sudo -iu $AGENT, hermes gateway install && hermes gateway start."
+fi

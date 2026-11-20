@@ -182,3 +182,25 @@ func TestGeminiOmpAndPi(t *testing.T) {
 		t.Fatalf("%s", got["omp"].Next)
 	}
 }
+
+func TestTakenOver(t *testing.T) {
+	root := machine(t)
+	// alice's OpenClaw was copied to a user of its own: said so, with what to do.
+	if err := os.MkdirAll(filepath.Join(root, filepath.Dir(TakenOverFile)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, TakenOverFile), []byte("openclaw alice openclaw\nhermes nobody hermes\nbroken line\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	found, err := Find(Options{Root: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(found[0].Next, "taken over by openclaw, behind nia-edge: once it works, move /home/alice/.openclaw aside") {
+		t.Fatalf("alice: %+v", found[0])
+	}
+	// The confined one is not affected.
+	if found[2].Next != "behind nia-edge: prove it with sudo -u hermes nia-edge doctor" {
+		t.Fatalf("hermes: %+v", found[2])
+	}
+}

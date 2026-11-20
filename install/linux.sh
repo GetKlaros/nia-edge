@@ -222,7 +222,37 @@ else
     runuser -u nia-edge -- env -i PATH=/usr/bin:/bin "$BIN" enroll -url "$NIA_URL" -state "$STATE"
 fi
 
+# What agents this machine has, every hour: the report the heartbeat carries
+# to Nia. Root reads every home, changes nothing but the report, no network.
+cat > /etc/systemd/system/nia-edge-agents.service <<UNIT
+[Unit]
+Description=nia-edge: the agents found on this machine, for Nia
+
+[Service]
+Type=oneshot
+ExecStart=$BIN agents
+StandardOutput=null
+PrivateNetwork=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/nia-edge
+UNIT
+cat > /etc/systemd/system/nia-edge-agents.timer <<UNIT
+[Unit]
+Description=nia-edge: report the agents found on this machine every hour
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1h
+
+[Install]
+WantedBy=timers.target
+UNIT
+
 systemctl daemon-reload
+systemctl enable --now nia-edge-agents.timer
 if [ "$GOVERNED" -eq 1 ]; then
   systemctl enable nia-edge.service nia-hostd.service
   systemctl restart nia-hostd.service nia-edge.service
