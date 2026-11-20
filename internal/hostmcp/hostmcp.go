@@ -60,10 +60,11 @@ var tools = map[string]tool{
 	"service_reload":  {hostd.ServiceReload, "service", "services", "Reload the configuration of a service of the machine.", false, false},
 	"package_install": {hostd.PackageInstall, "package", "packages", "Install a package from the machine's package sources.", false, false},
 	"sync":            {hostd.Sync, "pair", "sync", "Copy a source directory into its destination, as the pair defines them.", false, true},
-	"dry_run": {hostd.DryRunAction, "script", "etc", "Run a shell script against a copy of the machine's /etc, in a container without network or privilege, " +
-		"and get the list of the files it would create, change or delete. The machine is not changed. Files the agent may not read are decoys there. " +
-		"Everything outside /etc is read only, and /root, /home, /var, /tmp are empty.", true, false},
-	"apply": {hostd.ApplyAction, "plan", "etc", "Write a dry run's plan to the machine's /etc, exactly as the dry run left it, without running the script again. " +
+	"dry_run": {hostd.DryRunAction, "script", "etc", "Run a shell script against a copy of the machine's /etc and of the directories the role lists (a site in /srv/www, an app in /opt/app), " +
+		"in a container without network or privilege, and get the list of the files it would create, change or delete. The machine is not changed. " +
+		"Files the agent may not read are decoys there. Everything else is read only, and /root, /home, /tmp and the rest of /var are empty. " +
+		"A file of a listed directory may not be made executable.", true, false},
+	"apply": {hostd.ApplyAction, "plan", "etc", "Write a dry run's plan to the machine, exactly as the dry run left it, without running the script again. " +
 		"Refused when the machine changed since the dry run. The configurations it touches are checked (nginx -t, visudo -c, sshd -t...) " +
 		"and the former files are put back when a check fails.", false, true},
 }
@@ -226,7 +227,7 @@ func (h *Handler) call(ctx context.Context, params json.RawMessage) (map[string]
 		return failed("[Nia agent firewall] The role in force has no host catalogue: no host action runs.")
 	}
 	if t.kind == "etc" {
-		if catalogue.Etc == nil {
+		if catalogue.Etc == nil && len(catalogue.Dirs) == 0 {
 			return failed("[Nia agent firewall] The role's catalogue allows no dry run.")
 		}
 	} else if allowed := names(catalogue, t.kind); !slices.Contains(allowed, value) {
@@ -298,7 +299,7 @@ func DescribeReport(raw string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Dry run, plan %s. The machine was not changed.\n", r.Plan)
 	if len(r.Changes) == 0 {
-		b.WriteString("No change to /etc.\n")
+		b.WriteString("No change.\n")
 	}
 	for _, c := range r.Changes {
 		switch c.Kind {

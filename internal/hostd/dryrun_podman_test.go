@@ -160,3 +160,61 @@ func TestPodmanGuards(t *testing.T) {
 		t.Errorf("stricter refused: %q", details(r))
 	}
 }
+
+// TestPodmanDryRunDirs layers a catalogue directory beside /etc, for real:
+// the rest of its top-level directory stays an empty tmpfs, its secrets are
+// decoys, and the apply writes the plan into it.
+func TestPodmanDryRunDirs(t *testing.T) {
+	if os.Getenv("NIA_PODMAN_TEST") != "yes" {
+		t.Skip("NIA_PODMAN_TEST=yes runs this, as root, where podman is installed")
+	}
+	const www = "/srv/nia-test-www"
+	os.MkdirAll(www, 0o755)
+	os.MkdirAll("/srv/nia-test-other", 0o755)
+	defer os.RemoveAll(www)
+	defer os.RemoveAll("/srv/nia-test-other")
+	os.WriteFile(www+"/index.html", []byte("v1\n"), 0o644)
+	os.WriteFile(www+"/.env", []byte("DB_PASSWORD=hunter2\n"), 0o600)
+	os.WriteFile("/srv/nia-test-other/private", []byte("other\n"), 0o644)
+	role := `{"name":"vps","mode":"enforce","rule_of_two":"require_approval","destructive":"require_approval","tools":[],"host":{"dirs":["` + www + `"]}}`
+	s, _, _ := machine(t, role)
+	scratch := t.TempDir()
+	s.ScratchRoot, s.BackupRoot = scratch, t.TempDir()
+	s.Sandbox = Podman{Root: scratch + "/podman", RunRoot: scratch + "/podman-run"}
+	script := strings.Join([]string{
+		"echo v2 > " + www + "/index.html",
+		"echo new > " + www + "/new.html",
+		"cat " + www + "/.env",
+		"echo escape-sibling; ls -A /srv/nia-test-other 2>&1; touch /srv/nia-test-other/x 2>&1",
+		"echo escape-var; ls -A /var 2>&1 | head -3",
+		"true",
+	}, "\n")
+	resp := s.Do(context.Background(), Request{Action: DryRunAction, Script: script})
+	r := report(t, resp)
+	t.Logf("report: %s", resp.Output)
+	got := kinds(r)
+	if got[www+"/index.html"] != "modified" || got[www+"/new.html"] != "created" || len(r.Changes) != 2 {
+		t.Errorf("changes: %v", got)
+	}
+	if strings.Contains(r.Output, "hunter2") || !contains(r.SecretsCopied, www+"/.env") {
+		t.Errorf("the directory's secret: output %q, copied %v", r.Output, r.SecretsCopied)
+	}
+	if strings.Contains(r.Output, "private") {
+		t.Errorf("a sibling directory was visible: %q", r.Output)
+	}
+	// The decoy printed makes the plan not applicable; apply a clean one.
+	clean := s.Do(context.Background(), Request{Action: DryRunAction, Script: "echo v2 > " + www + "/index.html"})
+	cr := report(t, clean)
+	if ok, why := cr.Applicable(); !ok {
+		t.Fatalf("not applicable: %s", why)
+	}
+	if applied := s.Do(context.Background(), Request{Action: ApplyAction, Name: cr.Plan}); !applied.OK {
+		t.Fatalf("apply: %+v", applied)
+	}
+	if data, _ := os.ReadFile(www + "/index.html"); string(data) != "v2\n" {
+		t.Errorf("index.html: %q", data)
+	}
+	if data, _ := os.ReadFile(www + "/.env"); string(data) != "DB_PASSWORD=hunter2\n" {
+		t.Errorf(".env: %q", data)
+	}
+}

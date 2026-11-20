@@ -16,6 +16,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/GetKlaros/nia-edge/internal/hostd"
 )
 
 // The bounds Nia reads a report within; past them it is truncated.
@@ -47,8 +49,21 @@ type Inventory struct {
 	ScannedAt time.Time `json:"scanned_at"`
 	Services  []Service `json:"services"`
 	Etc       []Entry   `json:"etc"`
-	Truncated bool      `json:"truncated"`
+	// Dirs are directories outside /etc a role's plans may change
+	// (hostd.ClosedDir lets them), for the console to offer.
+	Dirs      []string `json:"dirs"`
+	Truncated bool     `json:"truncated"`
 }
+
+// MaxDirs bounds the directories listed.
+const MaxDirs = 200
+
+// dirRoots are where an admin keeps sites, apps and their data, and how deep
+// their directories are listed.
+var dirRoots = []struct {
+	path  string
+	depth int
+}{{"/srv", 2}, {"/opt", 1}, {"/var/www", 2}, {"/var/lib", 1}}
 
 // What Nia accepts; anything else is left out rather than sent and refused.
 var (
@@ -59,7 +74,7 @@ var (
 // Collect lists the services (with systemctl, a fixed program, when there is
 // one) and the names under root's /etc. root is "" for this machine.
 func Collect(ctx context.Context, root string) Inventory {
-	out := Inventory{ScannedAt: time.Now().UTC().Truncate(time.Second), Services: []Service{}, Etc: []Entry{}}
+	out := Inventory{ScannedAt: time.Now().UTC().Truncate(time.Second), Services: []Service{}, Etc: []Entry{}, Dirs: []string{}}
 	if root == "" {
 		if raw, err := systemctl(ctx); err == nil {
 			out.Services, out.Truncated = ParseUnits(raw)
@@ -68,7 +83,50 @@ func Collect(ctx context.Context, root string) Inventory {
 	etc, truncated := Etc(filepath.Join(root, "/etc"))
 	out.Etc = etc
 	out.Truncated = out.Truncated || truncated
+	dirs, truncated := Dirs(root)
+	out.Dirs = dirs
+	out.Truncated = out.Truncated || truncated
 	return out
+}
+
+// Dirs lists, under root, the directories of dirRoots a plan may change:
+// never through a symbolic link, never a closed one.
+func Dirs(root string) ([]string, bool) {
+	dirs := []string{}
+	var walk func(p string, depth int) bool
+	walk = func(p string, depth int) bool {
+		info, err := os.Lstat(filepath.Join(root, p))
+		if err != nil || !info.IsDir() {
+			return true
+		}
+		if hostd.ClosedDir(p) == "" && readable(p) {
+			if len(dirs) == MaxDirs {
+				return false
+			}
+			dirs = append(dirs, p)
+		}
+		if depth == 0 {
+			return true
+		}
+		entries, err := os.ReadDir(filepath.Join(root, p))
+		if err != nil {
+			return true
+		}
+		for _, entry := range entries {
+			if entry.IsDir() && entry.Type()&fs.ModeSymlink == 0 && !strings.HasPrefix(entry.Name(), ".") {
+				if !walk(p+"/"+entry.Name(), depth-1) {
+					return false
+				}
+			}
+		}
+		return true
+	}
+	for _, r := range dirRoots {
+		if !walk(r.path, r.depth) {
+			return dirs, true
+		}
+	}
+	return dirs, false
 }
 
 func systemctl(ctx context.Context) ([]byte, error) {

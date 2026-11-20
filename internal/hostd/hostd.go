@@ -111,6 +111,9 @@ type Server struct {
 	// EtcRoot, ScratchRoot and BackupRoot are /etc, where dry runs keep their
 	// layers and where applies save what they replace; tests set others.
 	EtcRoot, ScratchRoot, BackupRoot string
+	// DirsRoot is where tests put the catalogue's directories; empty is the
+	// machine's root.
+	DirsRoot string
 	// DryTimeout bounds a dry run; zero is two minutes.
 	DryTimeout time.Duration
 	// Installed reports whether a check's program is installed; nil looks.
@@ -198,8 +201,8 @@ func (s *Server) Do(ctx context.Context, req Request) Response {
 		return s.dryRun(ctx, catalogue, req)
 	}
 	if req.Action == ApplyAction {
-		if catalogue.Etc == nil {
-			return Response{Error: "this role's catalogue allows no dry run, so no apply (no etc)"}
+		if catalogue.Etc == nil && len(catalogue.Dirs) == 0 {
+			return Response{Error: "this role's catalogue allows no dry run, so no apply (no etc, no dirs)"}
 		}
 		return s.apply(ctx, req)
 	}

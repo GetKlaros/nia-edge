@@ -13,6 +13,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -36,10 +37,19 @@ type saved struct {
 }
 
 // backup is what an apply saved, and what it wrote: a restore puts back the
-// first only where the machine still holds the second.
+// first only where the machine still holds the second. Saved and After are
+// /etc's in a backup made before nia-edge 0.8; Trees holds every tree since.
 type backup struct {
-	Saved []saved `json:"saved"`
+	Saved []saved `json:"saved,omitempty"`
 	// After is the base of each changed path once applied.
+	After map[string]string `json:"after,omitempty"`
+	Trees []treeBackup      `json:"trees,omitempty"`
+}
+
+// treeBackup is what an apply saved and wrote in one tree.
+type treeBackup struct {
+	Mount string            `json:"mount"`
+	Saved []saved           `json:"saved"`
 	After map[string]string `json:"after"`
 }
 
@@ -82,11 +92,64 @@ func (s *Server) installed(program string) bool {
 	return false
 }
 
-func rel(etcPath string) string {
-	return strings.TrimPrefix(strings.TrimPrefix(etcPath, "/etc"), "/")
+// opened is one tree of a plan, open for an apply or a restore.
+type opened struct {
+	tree    tree
+	root    *os.Root
+	changes []Change
+	saved   *backup
+	dir     string
 }
 
-// apply writes plan id. Called with s.mu held.
+// openTrees opens the trees a list of changes touches, each change in the
+// one that holds it. A catalogue directory is checked again: it must still
+// be reached without a symbolic link.
+func (s *Server) openTrees(trees []tree, changes []Change) ([]*opened, error) {
+	var out []*opened
+	byMount := map[string]*opened{}
+	fail := func(err error) ([]*opened, error) {
+		for _, o := range out {
+			o.root.Close()
+		}
+		return nil, err
+	}
+	for _, c := range changes {
+		t, _, ok := treeOf(trees, c.Path)
+		if !ok {
+			return fail(fmt.Errorf("%s is in no directory this plan may change", c.Path))
+		}
+		o := byMount[t.Mount]
+		if o == nil {
+			lower := t.Lower
+			if t.Mount != "/etc" {
+				checked, err := s.openDir(t.Mount)
+				if err != nil {
+					return fail(err)
+				}
+				lower = checked
+			}
+			root, err := os.OpenRoot(lower)
+			if err != nil {
+				return fail(err)
+			}
+			o = &opened{tree: tree{Mount: t.Mount, Lower: lower, Upper: t.Upper, Work: t.Work}, root: root}
+			byMount[t.Mount] = o
+			out = append(out, o)
+		}
+		o.changes = append(o.changes, c)
+	}
+	return out, nil
+}
+
+// relIn is p relative to the tree mounted at mount.
+func relIn(mount, p string) string {
+	if p == mount {
+		return "."
+	}
+	return strings.TrimPrefix(p, mount+"/")
+}
+
+// apply writes plan id, tree by tree. Called with s.mu held.
 func (s *Server) apply(ctx context.Context, req Request) Response {
 	s.expirePlans()
 	p, ok := s.plans[req.Name]
@@ -96,57 +159,82 @@ func (s *Server) apply(ctx context.Context, req Request) Response {
 	if ok, why := p.report.Applicable(); !ok {
 		return Response{Error: "this plan cannot be applied: " + why}
 	}
-	root, err := os.OpenRoot(s.etcRoot())
+	trees, err := s.openTrees(p.trees, p.report.Changes)
 	if err != nil {
 		return Response{Error: err.Error()}
 	}
-	defer root.Close()
-	changes := p.report.Changes
-	upper := filepath.Join(p.scratch, "upper")
+	defer func() {
+		for _, o := range trees {
+			o.root.Close()
+		}
+	}()
 	// The machine must hold what the run saw, and the layer what it reported.
-	for _, c := range changes {
-		base, err := baseIn(root, rel(c.Path))
-		if err != nil {
-			return Response{Error: c.Path + ": " + err.Error()}
-		}
-		if base != c.Base {
-			return Response{Error: c.Path + " changed on the machine since the dry run: run it again"}
-		}
-		if c.Type == "file" && c.Kind != "metadata" {
-			data, err := os.ReadFile(filepath.Join(upper, rel(c.Path)))
-			sum := sha256.Sum256(data)
-			if err != nil || hex.EncodeToString(sum[:]) != c.SHA256 {
-				return Response{Error: c.Path + ": the plan's layer does not hold what it reported"}
+	for _, o := range trees {
+		for _, c := range o.changes {
+			name := relIn(o.tree.Mount, c.Path)
+			base, err := baseIn(o.root, name)
+			if err != nil {
+				return Response{Error: c.Path + ": " + err.Error()}
+			}
+			if base != c.Base {
+				return Response{Error: c.Path + " changed on the machine since the dry run: run it again"}
+			}
+			if c.Type == "file" && c.Kind != "metadata" {
+				data, err := os.ReadFile(filepath.Join(o.tree.Upper, name))
+				sum := sha256.Sum256(data)
+				if err != nil || hex.EncodeToString(sum[:]) != c.SHA256 {
+					return Response{Error: c.Path + ": the plan's layer does not hold what it reported"}
+				}
 			}
 		}
 	}
 	id := newID()
 	dir := filepath.Join(s.backupRoot(), id)
-	b, err := s.save(root, changes, dir)
-	if err != nil {
-		os.RemoveAll(dir)
-		return Response{Error: "the former files cannot be saved, so nothing was written: " + err.Error()}
+	for i, o := range trees {
+		o.dir = filepath.Join(dir, fmt.Sprintf("tree%d", i))
+		b, err := s.save(o.root, o.tree.Mount, o.changes, o.dir)
+		if err != nil {
+			os.RemoveAll(dir)
+			return Response{Error: "the former files cannot be saved, so nothing was written: " + err.Error()}
+		}
+		o.saved = b
 	}
 	entry := Entry{ID: id, At: s.now().UTC(), Action: ApplyAction, Name: req.Name, Call: req.Call}
 	var output strings.Builder
 	failure := ""
-	if err := write(root, upper, changes); err != nil {
-		failure = "writing: " + err.Error()
-	} else {
-		for _, c := range changes {
-			b.After[c.Path], _ = baseIn(root, rel(c.Path))
+	written := 0
+	for _, o := range trees {
+		written++
+		if err := write(o.root, o.tree.Mount, o.tree.Upper, o.changes); err != nil {
+			failure = "writing: " + err.Error()
+			break
 		}
-		failure = s.check(ctx, changes, &output)
+		for _, c := range o.changes {
+			o.saved.After[c.Path], _ = baseIn(o.root, relIn(o.tree.Mount, c.Path))
+		}
+	}
+	if failure == "" {
+		failure = s.check(ctx, p.report.Changes, &output)
 	}
 	if failure != "" {
-		if err := restore(root, dir, b.Saved); err != nil {
-			entry.Error = failure + "; putting the former files back failed: " + err.Error() + " (backup " + dir + ")"
+		var errs []string
+		for _, o := range trees[:written] {
+			if err := restore(o.root, o.tree.Mount, o.dir, o.saved.Saved); err != nil {
+				errs = append(errs, err.Error())
+			}
+		}
+		if len(errs) > 0 {
+			entry.Error = failure + "; putting the former files back failed: " + strings.Join(errs, "; ") + " (backup " + dir + ")"
 		} else {
 			entry.Error = failure + "; the former files are back"
 		}
 	} else {
-		manifest, _ := json.Marshal(b)
-		if err := os.WriteFile(filepath.Join(dir, "manifest.json"), manifest, 0o600); err != nil {
+		manifest := backup{}
+		for _, o := range trees {
+			manifest.Trees = append(manifest.Trees, treeBackup{Mount: o.tree.Mount, Saved: o.saved.Saved, After: o.saved.After})
+		}
+		raw, _ := json.Marshal(manifest)
+		if err := os.WriteFile(filepath.Join(dir, "manifest.json"), raw, 0o600); err != nil {
 			entry.Error = "applied, but its backup cannot be kept: " + err.Error()
 		} else {
 			entry.Undo = &Request{Action: RestoreAction, Name: id}
@@ -218,7 +306,7 @@ func baseIn(root *os.Root, name string) (string, error) {
 
 // save keeps every path the plan changes as it is, a deleted directory with
 // all it holds, in dir.
-func (s *Server) save(root *os.Root, changes []Change, dir string) (*backup, error) {
+func (s *Server) save(root *os.Root, mount string, changes []Change, dir string) (*backup, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
@@ -271,13 +359,13 @@ func (s *Server) save(root *os.Root, changes []Change, dir string) (*backup, err
 				return err
 			}
 		default:
-			return fmt.Errorf("/etc/%s is neither a file, a directory nor a symlink", name)
+			return fmt.Errorf("%s is neither a file, a directory nor a symlink", path.Join(mount, name))
 		}
 		b.Saved = append(b.Saved, one)
 		return nil
 	}
 	for _, c := range changes {
-		name := rel(c.Path)
+		name := relIn(mount, c.Path)
 		if c.Kind == "deleted" || c.Kind == "modified" && c.Type != "dir" {
 			if err := keep(name); err != nil {
 				return nil, err
@@ -312,7 +400,7 @@ func (s *Server) save(root *os.Root, changes []Change, dir string) (*backup, err
 
 // write applies the changes: directories first, then files and links, then
 // owners and modes, then deletions, deepest first.
-func write(root *os.Root, upper string, changes []Change) error {
+func write(root *os.Root, mount, upper string, changes []Change) error {
 	ordered := append([]Change{}, changes...)
 	rank := func(c Change) int {
 		switch {
@@ -336,7 +424,7 @@ func write(root *os.Root, upper string, changes []Change) error {
 		return ordered[i].Path < ordered[j].Path
 	})
 	for _, c := range ordered {
-		name := rel(c.Path)
+		name := relIn(mount, c.Path)
 		var err error
 		switch {
 		case c.Kind == "deleted":
@@ -477,7 +565,7 @@ func fileMode(mode uint32) fs.FileMode {
 }
 
 // restore puts the saved paths back, the last changed first.
-func restore(root *os.Root, dir string, list []saved) error {
+func restore(root *os.Root, mount, dir string, list []saved) error {
 	var errs []error
 	// Created paths first go away, deepest first; then what existed comes
 	// back, shallowest first.
@@ -513,7 +601,7 @@ func restore(root *os.Root, dir string, list []saved) error {
 			}
 		}
 		if err != nil {
-			errs = append(errs, fmt.Errorf("/etc/%s: %w", one.Rel, err))
+			errs = append(errs, fmt.Errorf("%s: %w", path.Join(mount, one.Rel), err))
 		}
 	}
 	return errors.Join(errs...)
@@ -533,21 +621,65 @@ func (s *Server) restoreEntry(target Entry) Entry {
 		entry.Error = "the backup cannot be read: " + fmt.Sprint(err)
 		return entry
 	}
-	root, err := os.OpenRoot(s.etcRoot())
-	if err != nil {
-		entry.Error = err.Error()
-		return entry
+	trees := b.Trees
+	if len(trees) == 0 {
+		// A backup from before nia-edge 0.8: /etc's alone.
+		trees = []treeBackup{{Mount: "/etc", Saved: b.Saved, After: b.After}}
 	}
-	defer root.Close()
-	for path, after := range b.After {
-		now, err := baseIn(root, rel(path))
-		if err != nil || now != after {
-			entry.Error = path + " changed since the apply: nothing was put back"
+	type restoring struct {
+		tree treeBackup
+		root *os.Root
+		dir  string
+	}
+	var open []restoring
+	defer func() {
+		for _, r := range open {
+			r.root.Close()
+		}
+	}()
+	for i, t := range trees {
+		lower := s.etcRoot()
+		if t.Mount != "/etc" {
+			if why := ClosedDir(t.Mount); why != "" {
+				entry.Error = t.Mount + ": " + why
+				return entry
+			}
+			checked, err := s.openDir(t.Mount)
+			if err != nil {
+				entry.Error = err.Error()
+				return entry
+			}
+			lower = checked
+		}
+		root, err := os.OpenRoot(lower)
+		if err != nil {
+			entry.Error = err.Error()
 			return entry
 		}
+		treeDir := dir
+		if len(b.Trees) > 0 {
+			treeDir = filepath.Join(dir, fmt.Sprintf("tree%d", i))
+		}
+		open = append(open, restoring{tree: t, root: root, dir: treeDir})
 	}
-	if err := restore(root, dir, b.Saved); err != nil {
-		entry.Error = err.Error()
+	// Nothing is put back unless every tree still holds what the apply wrote.
+	for _, r := range open {
+		for p, after := range r.tree.After {
+			now, err := baseIn(r.root, relIn(r.tree.Mount, p))
+			if err != nil || now != after {
+				entry.Error = p + " changed since the apply: nothing was put back"
+				return entry
+			}
+		}
+	}
+	var errs []string
+	for _, r := range open {
+		if err := restore(r.root, r.tree.Mount, r.dir, r.tree.Saved); err != nil {
+			errs = append(errs, err.Error())
+		}
+	}
+	if len(errs) > 0 {
+		entry.Error = strings.Join(errs, "; ")
 		return entry
 	}
 	entry.OK = true
@@ -595,37 +727,44 @@ func (s *Server) planReview(id string) Response {
 		return Response{Error: err.Error()}
 	}
 	review := Review{Plan: id, Changes: string(changes), Files: []ReviewFile{}}
-	root, err := os.OpenRoot(s.etcRoot())
+	trees, err := s.openTrees(p.trees, p.report.Changes)
 	if err != nil {
 		return Response{Error: err.Error()}
 	}
-	defer root.Close()
+	defer func() {
+		for _, o := range trees {
+			o.root.Close()
+		}
+	}()
 	total := len(changes)
-	for _, c := range p.report.Changes {
-		if c.Type != "file" || c.Kind == "metadata" || c.Kind == "deleted" {
-			continue
-		}
-		file := ReviewFile{Path: c.Path}
-		if data, err := os.ReadFile(filepath.Join(p.scratch, "upper", rel(c.Path))); err == nil {
-			file.After = showable(data)
-		}
-		if strings.HasPrefix(c.Base, "sha256:") {
-			if data, err := root.ReadFile(rel(c.Path)); err == nil {
-				file.Before = showable(data)
+	for _, o := range trees {
+		for _, c := range o.changes {
+			if c.Type != "file" || c.Kind == "metadata" || c.Kind == "deleted" {
+				continue
 			}
-		}
-		size := 0
-		for _, text := range []*string{file.Before, file.After} {
-			if text != nil {
-				size += len(*text)
+			name := relIn(o.tree.Mount, c.Path)
+			file := ReviewFile{Path: c.Path}
+			if data, err := os.ReadFile(filepath.Join(o.tree.Upper, name)); err == nil {
+				file.After = showable(data)
 			}
-		}
-		if total+size > reviewTotalLimit {
-			continue
-		}
-		total += size
-		if file.Before != nil || file.After != nil {
-			review.Files = append(review.Files, file)
+			if strings.HasPrefix(c.Base, "sha256:") {
+				if data, err := o.root.ReadFile(name); err == nil {
+					file.Before = showable(data)
+				}
+			}
+			size := 0
+			for _, text := range []*string{file.Before, file.After} {
+				if text != nil {
+					size += len(*text)
+				}
+			}
+			if total+size > reviewTotalLimit {
+				continue
+			}
+			total += size
+			if file.Before != nil || file.After != nil {
+				review.Files = append(review.Files, file)
+			}
 		}
 	}
 	text, err := json.Marshal(review)

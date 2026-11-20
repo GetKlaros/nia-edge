@@ -94,12 +94,21 @@ type SandboxSpec struct {
 	// Root is the machine's root, read only; Etc the /etc it layers over.
 	Root, Etc   string
 	Upper, Work string
+	// Dirs are the catalogue's directories outside /etc, each layered the
+	// same way at its Target.
+	Dirs []Layer
 	// Masked are directories seen as empty tmpfs, MaskedFiles files seen as
 	// /dev/null.
 	Masked, MaskedFiles []string
 	Script              string
 	Timeout             time.Duration
 	PathVariable        string
+}
+
+// Layer is a directory a dry run sees as an overlay: Lower, read only, at
+// Target, its changes in Upper.
+type Layer struct {
+	Lower, Target, Upper, Work string
 }
 
 // Change is one path a dry run changed.
@@ -127,6 +136,8 @@ type Change struct {
 type Report struct {
 	Plan    string   `json:"plan"`
 	Changes []Change `json:"changes"`
+	// Dirs are the directories outside /etc the run could change.
+	Dirs []string `json:"dirs,omitempty"`
 	// Protected lists the protected paths the run changed: none, or the
 	// plan cannot be applied.
 	Protected []string `json:"protected_changed"`
@@ -177,7 +188,13 @@ func (r *Report) Applicable() (bool, string) {
 		if c.Kind != "deleted" && c.Type != "symlink" && c.Mode&0o002 != 0 {
 			return false, c.Path + " would be writable by every user, the agent's included"
 		}
-		if c.Type == "symlink" && c.Kind != "deleted" && !linkStaysIn(c.Path, c.Target) {
+		if c.Type == "file" && c.Kind != "deleted" && c.Mode&0o111 != 0 && inDirs(c.Path, r.Dirs) != "" {
+			return false, c.Path + " would be executable: a folder outside /etc holds data, not programs a service could run as root"
+		}
+		if dir := inDirs(c.Path, r.Dirs); c.Type == "symlink" && c.Kind != "deleted" && dir != "" && !linkInsideDir(c.Path, c.Target, dir) {
+			return false, c.Path + " would point to " + c.Target + ", outside " + dir + ": a service serving it would serve what the link reaches"
+		}
+		if c.Type == "symlink" && c.Kind != "deleted" && inDirs(c.Path, r.Dirs) == "" && !linkStaysIn(c.Path, c.Target) {
 			return false, c.Path + " would point to " + c.Target + ", outside the system's trees: whoever writes there would write the configuration"
 		}
 		if c.Replaced {
@@ -189,6 +206,7 @@ func (r *Report) Applicable() (bool, string) {
 
 type plan struct {
 	report  Report
+	trees   []tree
 	scratch string
 	cleanup func()
 	made    time.Time
@@ -209,6 +227,48 @@ func (s *Server) Plans() []string {
 // linkTrees are where a symbolic link of /etc may point: trees only root
 // writes, and the few run-time files the system links to.
 var linkTrees = []string{"/etc", "/usr", "/bin", "/sbin", "/lib", "/lib32", "/lib64", "/libx32", "/dev/null", "/run/systemd", "/proc/self/mounts"}
+
+// inDirs is the directory of dirs that holds p, or "".
+func inDirs(p string, dirs []string) string {
+	for _, dir := range dirs {
+		if p == dir || strings.HasPrefix(p, dir+"/") {
+			return dir
+		}
+	}
+	return ""
+}
+
+// linkInsideDir reports whether a link at p, in dir, points inside dir.
+func linkInsideDir(p, target, dir string) bool {
+	if dir == "" || target == "" || strings.ContainsRune(target, 0) {
+		return false
+	}
+	if !path.IsAbs(target) {
+		target = path.Join(path.Dir(p), target)
+	}
+	target = path.Clean(target)
+	return target == dir || strings.HasPrefix(target, dir+"/")
+}
+
+// tree is one directory a dry run layers over: /etc, or one of the
+// catalogue's directories. Mount is its name on the machine, Lower where
+// nia-hostd reads it (another place in tests).
+type tree struct {
+	Mount, Lower, Upper, Work string
+}
+
+// treeOf is the tree that holds p, and p relative to it.
+func treeOf(trees []tree, p string) (*tree, string, bool) {
+	for i := range trees {
+		if p == trees[i].Mount {
+			return &trees[i], ".", true
+		}
+		if strings.HasPrefix(p, trees[i].Mount+"/") {
+			return &trees[i], strings.TrimPrefix(p, trees[i].Mount+"/"), true
+		}
+	}
+	return nil, "", false
+}
 
 // linkStaysIn reports whether a link at p to target points into linkTrees,
 // read as the kernel would from p's directory, without following others.

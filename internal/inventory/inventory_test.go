@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -80,5 +81,22 @@ func TestEtcBound(t *testing.T) {
 	entries, truncated := Etc(etc)
 	if !truncated || len(entries) != MaxEtc {
 		t.Fatalf("%d %v", len(entries), truncated)
+	}
+}
+
+func TestDirs(t *testing.T) {
+	root := t.TempDir()
+	for _, dir := range []string{"srv/www/site", "srv/www/.git", "opt/app/bin", "var/lib/dpkg", "var/lib/myapp", "var/www/html"} {
+		if err := os.MkdirAll(filepath.Join(root, dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink("/usr", filepath.Join(root, "srv", "usr")); err != nil {
+		t.Fatal(err)
+	}
+	dirs, truncated := Dirs(root)
+	want := []string{"/srv", "/srv/www", "/srv/www/site", "/opt", "/opt/app", "/var/www", "/var/www/html", "/var/lib/myapp"}
+	if truncated || strings.Join(dirs, " ") != strings.Join(want, " ") {
+		t.Fatalf("got %v", dirs)
 	}
 }

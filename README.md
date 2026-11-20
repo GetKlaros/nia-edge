@@ -650,6 +650,33 @@ for half an hour, in their layers. Every dry run is journaled with its plan.
 Dry runs need podman on the machine; nia-hostd's mounts stay in its own
 namespace (`PrivateMounts=yes`).
 
+#### Directories outside /etc
+
+A site, an app's files or its data live elsewhere. A role names them:
+
+```yaml
+host:
+  dirs: [/srv/www, /opt/app, /var/lib/myapp]
+```
+
+Each is layered in the dry run as `/etc` is (the rest of its top-level
+directory stays empty), its files the other users cannot read are decoys, and
+an apply writes the plan into it, saved first and put back on failure, through
+a handle that never leaves it. A plan is not applicable when a file there would
+be executable, setuid or writable by everyone, or a symbolic link would point
+out of the directory: a folder of the catalogue holds data, not programs a
+service could run as root. The directory must exist and be reached without a
+symbolic link.
+
+Some directories are closed whatever a policy says, because one file there
+runs as root at the next boot, update, login or call of a system program, or is
+not the role's to change: `/`, `/usr`, `/bin`, `/sbin`, `/lib*`, `/boot`,
+`/root`, `/home`, `/etc` (its own rules above), `/proc`, `/sys`, `/dev`,
+`/run`, `/tmp`, `/var/tmp`, `/var/log`, `/var/spool`, the package manager's,
+systemd's and nia-edge's state under `/var/lib`, and any directory that holds
+one of them (`/var`, `/var/lib`). The machine's inventory offers the others it
+finds under `/srv`, `/opt`, `/var/www` and `/var/lib`.
+
 `apply` takes a plan and writes it to the machine's `/etc` as the run left
 its layer, without running the script again:
 
