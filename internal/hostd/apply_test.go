@@ -185,7 +185,7 @@ func TestAnApplyRefusesAMachineThatMovedOrAPathOutOfEtc(t *testing.T) {
 	// The writer itself, past the checks: os.Root stops it.
 	root, _ := os.OpenRoot(etc)
 	defer root.Close()
-	err := write(root, filepath.Join(scratch, "upper"), []Change{{Path: "/etc/escape/x", Kind: "created", Type: "file", Mode: 0o644}})
+	err := write(root, "/etc", filepath.Join(scratch, "upper"), []Change{{Path: "/etc/escape/x", Kind: "created", Type: "file", Mode: 0o644}})
 	if _, statErr := os.Stat(filepath.Join(outside, "x")); statErr == nil || err == nil {
 		t.Errorf("written outside /etc: %v", err)
 	}

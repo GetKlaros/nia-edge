@@ -46,11 +46,44 @@ func (s *Server) scratchRoot() string {
 	return "/run/nia-hostd/dry"
 }
 
+// dirPath is where nia-hostd reads a catalogue directory: itself, or under
+// DirsRoot in tests.
+func (s *Server) dirPath(dir string) string {
+	if s.DirsRoot != "" {
+		return filepath.Join(s.DirsRoot, dir)
+	}
+	return dir
+}
+
+// openDir checks that a catalogue directory is a directory, reached without
+// a symbolic link anywhere on its path: a link could make it another, closed
+// one.
+func (s *Server) openDir(dir string) (string, error) {
+	real := s.dirPath(dir)
+	info, err := os.Lstat(real)
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", fmt.Errorf("%s does not exist on this machine: create it first", dir)
+	}
+	if err != nil {
+		return "", err
+	}
+	if info.Mode()&fs.ModeSymlink != 0 {
+		return "", fmt.Errorf("%s is a symbolic link", dir)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("%s is not a directory", dir)
+	}
+	if resolved, err := filepath.EvalSymlinks(real); err != nil || resolved != real {
+		return "", fmt.Errorf("%s is reached through a symbolic link", dir)
+	}
+	return real, nil
+}
+
 // dryRun runs req.Script in the sandbox and keeps its plan for an apply.
 // Called with s.mu held.
 func (s *Server) dryRun(ctx context.Context, c *Catalogue, req Request) Response {
-	if c.Etc == nil {
-		return Response{Error: "this role's catalogue allows no dry run (no etc)"}
+	if c.Etc == nil && len(c.Dirs) == 0 {
+		return Response{Error: "this role's catalogue allows no dry run (no etc, no dirs)"}
 	}
 	if s.Sandbox == nil {
 		return Response{Error: "this nia-hostd has no sandbox for dry runs"}
@@ -78,19 +111,38 @@ func (s *Server) dryRun(ctx context.Context, c *Catalogue, req Request) Response
 			os.RemoveAll(scratch)
 		}
 	}()
-	upper, work := filepath.Join(scratch, "upper"), filepath.Join(scratch, "work")
-	for _, dir := range []string{upper, work} {
-		if err := os.Mkdir(dir, 0o700); err != nil {
-			return Response{Error: "no layer: " + err.Error()}
+	// /etc is always layered (a role without etc may not change it: its
+	// changes are refused), then each of the catalogue's directories.
+	trees := []tree{{Mount: "/etc", Lower: s.etcRoot(), Upper: filepath.Join(scratch, "upper"), Work: filepath.Join(scratch, "work")}}
+	for i, dir := range c.Dirs {
+		lower, err := s.openDir(dir)
+		if err != nil {
+			return Response{Error: "nothing ran: " + err.Error()}
 		}
+		trees = append(trees, tree{Mount: dir, Lower: lower, Upper: filepath.Join(scratch, fmt.Sprintf("dir%d", i), "upper"), Work: filepath.Join(scratch, fmt.Sprintf("dir%d", i), "work")})
 	}
-	// The layer's root is /etc's, as the overlay shows it.
-	if info, err := os.Stat(s.etcRoot()); err == nil {
-		_ = os.Chmod(upper, info.Mode().Perm())
-	}
-	decoys, err := s.plantDecoys(c, upper)
-	if err != nil {
-		return Response{Error: "the secrets cannot be hidden, so nothing ran: " + err.Error()}
+	decoys := map[string][]decoy{}
+	total := 0
+	for _, t := range trees {
+		for _, dir := range []string{t.Upper, t.Work} {
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				return Response{Error: "no layer: " + err.Error()}
+			}
+		}
+		// The layer's root is the tree's, as the overlay shows it.
+		if info, err := os.Stat(t.Lower); err == nil {
+			_ = os.Chmod(t.Upper, info.Mode().Perm())
+		}
+		var secrets []string
+		if t.Mount == "/etc" && c.Etc != nil {
+			secrets = c.Etc.Secrets
+		}
+		planted, err := s.plantDecoys(t, secrets, decoyLimit-total)
+		if err != nil {
+			return Response{Error: "the secrets cannot be hidden, so nothing ran: " + err.Error()}
+		}
+		total += len(planted)
+		decoys[t.Mount] = planted
 	}
 	maskedDirs, maskedFiles, err := masks("/")
 	if err != nil {
@@ -100,13 +152,17 @@ func (s *Server) dryRun(ctx context.Context, c *Catalogue, req Request) Response
 	if s.DryTimeout > 0 {
 		timeout = s.DryTimeout
 	}
-	runCtx, cancel := context.WithTimeout(ctx, timeout+30*time.Second)
-	output, runErr := s.Sandbox.Run(runCtx, SandboxSpec{
-		Root: filepath.Join(scratch, "root"), Etc: s.etcRoot(), Upper: upper, Work: work, Masked: maskedDirs, MaskedFiles: maskedFiles,
+	spec := SandboxSpec{
+		Root: filepath.Join(scratch, "root"), Etc: trees[0].Lower, Upper: trees[0].Upper, Work: trees[0].Work, Masked: maskedDirs, MaskedFiles: maskedFiles,
 		Script: req.Script, Timeout: timeout, PathVariable: baseEnv[0],
-	})
+	}
+	for _, t := range trees[1:] {
+		spec.Dirs = append(spec.Dirs, Layer{Lower: t.Lower, Target: t.Mount, Upper: t.Upper, Work: t.Work})
+	}
+	runCtx, cancel := context.WithTimeout(ctx, timeout+30*time.Second)
+	output, runErr := s.Sandbox.Run(runCtx, spec)
 	cancel()
-	report, err := s.readLayer(c, upper, decoys, output)
+	report, err := s.readLayer(c, trees, decoys, output)
 	if err != nil {
 		return Response{Error: "the run's changes cannot be read, so there is no plan: " + err.Error(), Output: tail(output)}
 	}
@@ -126,7 +182,7 @@ func (s *Server) dryRun(ctx context.Context, c *Catalogue, req Request) Response
 		if s.plans == nil {
 			s.plans = map[string]*plan{}
 		}
-		s.plans[report.Plan] = &plan{report: report, scratch: scratch, cleanup: cleanup, made: s.now()}
+		s.plans[report.Plan] = &plan{report: report, trees: trees, scratch: scratch, cleanup: cleanup, made: s.now()}
 		s.trimPlans()
 	}
 	s.log("dry run", "plan", report.Plan, "changes", len(report.Changes), "journal", entry.ID)
@@ -134,11 +190,12 @@ func (s *Server) dryRun(ctx context.Context, c *Catalogue, req Request) Response
 	return Response{OK: true, Output: string(text), Journal: entry.ID}
 }
 
-// plantDecoys puts a decoy in the layer over every file of /etc its other
-// users cannot read, and over each secret the catalogue names: the script
-// reads a token, never the secret.
-func (s *Server) plantDecoys(c *Catalogue, upper string) ([]decoy, error) {
-	root := s.etcRoot()
+// plantDecoys puts a decoy in the tree's layer over every file its other
+// users cannot read, and over each of secrets: the script reads a token,
+// never the secret. At most limit.
+func (s *Server) plantDecoys(t tree, secrets []string, limit int) ([]decoy, error) {
+	root := t.Lower
+	upper := t.Upper
 	wanted := map[string]bool{}
 	// A directory others cannot cross makes everything under it theirs to
 	// not read, whatever the files' own modes.
@@ -172,13 +229,13 @@ func (s *Server) plantDecoys(c *Catalogue, upper string) ([]decoy, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, p := range c.Etc.Secrets {
-		rel := strings.TrimPrefix(strings.TrimPrefix(p, "/etc"), "/")
+	for _, p := range secrets {
+		rel := strings.TrimPrefix(strings.TrimPrefix(p, t.Mount), "/")
 		if info, err := os.Lstat(filepath.Join(root, rel)); err == nil && info.Mode().IsRegular() {
 			wanted[rel] = true
 		}
 	}
-	if len(wanted) > decoyLimit {
+	if len(wanted) > limit {
 		return nil, fmt.Errorf("%d secrets, more than %d", len(wanted), decoyLimit)
 	}
 	rels := make([]string, 0, len(wanted))
@@ -233,29 +290,34 @@ func (s *Server) copyDirs(root, upper, rel string) error {
 	if err := os.Mkdir(target, info.Mode().Perm()); err != nil {
 		return err
 	}
-	_ = os.Chmod(target, info.Mode().Perm())
 	st := info.Sys().(*syscall.Stat_t)
 	_ = os.Lchown(target, int(st.Uid), int(st.Gid))
+	// With its setgid and sticky bits: a copied-up directory that lost them
+	// would read as a change of mode.
+	_ = os.Chmod(target, info.Mode()&(fs.ModePerm|fs.ModeSetuid|fs.ModeSetgid|fs.ModeSticky))
 	return nil
 }
 
-// readLayer turns the overlay's upper layer into the run's report.
-func (s *Server) readLayer(c *Catalogue, upper string, decoys []decoy, output string) (Report, error) {
-	root := s.etcRoot()
-	report := Report{Changes: []Change{}, Guards: []Finding{}, Protected: []string{}, SecretsRead: []string{}, SecretsChanged: []string{}, SecretsCopied: []string{}}
-	byRel := map[string]*decoy{}
-	for i := range decoys {
-		byRel[decoys[i].rel] = &decoys[i]
+// readLayer turns the trees' upper layers into the run's report. A secret's
+// token is looked for in every tree's changes and in the output: a decoy of
+// /etc copied into another directory comes out too.
+func (s *Server) readLayer(c *Catalogue, trees []tree, decoys map[string][]decoy, output string) (Report, error) {
+	report := Report{Changes: []Change{}, Guards: []Finding{}, Protected: []string{}, SecretsRead: []string{}, SecretsChanged: []string{}, SecretsCopied: []string{}, Dirs: c.Dirs}
+	type token struct {
+		value []byte
+		path  string
 	}
-	var tokens [][]byte
-	for _, d := range decoys {
-		tokens = append(tokens, []byte(d.token))
+	var tokens []token
+	for _, t := range trees {
+		for _, d := range decoys[t.Mount] {
+			tokens = append(tokens, token{[]byte(d.token), path.Join(t.Mount, filepath.ToSlash(d.rel))})
+		}
 	}
 	copied := map[string]bool{}
 	seeTokens := func(content []byte) {
-		for i, token := range tokens {
-			if bytes.Contains(content, token) {
-				copied[decoys[i].rel] = true
+		for _, token := range tokens {
+			if bytes.Contains(content, token.value) {
+				copied[token.path] = true
 			}
 		}
 	}
@@ -271,11 +333,69 @@ func (s *Server) readLayer(c *Catalogue, upper string, decoys []decoy, output st
 		}
 		report.Changes = append(report.Changes, change)
 	}
-	err := filepath.WalkDir(upper, func(p string, d fs.DirEntry, err error) error {
+	for _, t := range trees {
+		byRel := map[string]*decoy{}
+		list := decoys[t.Mount]
+		for i := range list {
+			byRel[list[i].rel] = &list[i]
+		}
+		if err := readTree(t, byRel, &report, add, seeTokens); err != nil {
+			return report, err
+		}
+	}
+	for p := range copied {
+		report.SecretsCopied = append(report.SecretsCopied, p)
+	}
+	sort.Strings(report.SecretsCopied)
+	if c.Etc != nil {
+		for _, protected := range c.Etc.Protected {
+			for _, change := range report.Changes {
+				if change.Path == protected || strings.HasPrefix(change.Path, protected+"/") || strings.HasPrefix(protected, change.Path+"/") && (change.Replaced || change.Kind == "deleted") {
+					report.Protected = append(report.Protected, protected)
+					break
+				}
+			}
+		}
+	}
+	etc := trees[0]
+	var etcChanges []Change
+	for _, change := range report.Changes {
+		if change.Path == "/etc" || strings.HasPrefix(change.Path, "/etc/") {
+			etcChanges = append(etcChanges, change)
+		}
+	}
+	if c.Etc == nil {
+		for _, change := range etcChanges {
+			report.Guards = append(report.Guards, Finding{Guard: "writable", Path: change.Path, Detail: change.Path + ": this role's plans may not change /etc"})
+		}
+	} else {
+		report.Guards = judge(c.Etc.Permit, etcChanges, lowerView{etc.Lower}, mergedView{lower: lowerView{etc.Lower}, upper: etc.Upper})
+		if len(c.Etc.Writable) > 0 {
+			for _, change := range etcChanges {
+				inside := false
+				for _, w := range c.Etc.Writable {
+					if change.Path == w || strings.HasPrefix(change.Path, w+"/") {
+						inside = true
+					}
+				}
+				if !inside {
+					report.Guards = append(report.Guards, Finding{Guard: "writable", Path: change.Path, Detail: change.Path + " is outside the paths this role's plans may change"})
+				}
+			}
+		}
+	}
+	report.Output = tail(output)
+	return report, nil
+}
+
+// readTree adds what one tree's upper layer changed.
+func readTree(t tree, byRel map[string]*decoy, report *Report, add func(Change), seeTokens func([]byte)) error {
+	root := t.Lower
+	return filepath.WalkDir(t.Upper, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		rel, _ := filepath.Rel(upper, p)
+		rel, _ := filepath.Rel(t.Upper, p)
 		if rel == "." {
 			return nil
 		}
@@ -284,7 +404,7 @@ func (s *Server) readLayer(c *Catalogue, upper string, decoys []decoy, output st
 			return err
 		}
 		st := info.Sys().(*syscall.Stat_t)
-		etcPath := "/etc/" + filepath.ToSlash(rel)
+		etcPath := path.Join(t.Mount, filepath.ToSlash(rel))
 		lowerPath := filepath.Join(root, rel)
 		lower, lowerErr := os.Lstat(lowerPath)
 		if lowerErr != nil && !errors.Is(lowerErr, fs.ErrNotExist) {
@@ -366,41 +486,6 @@ func (s *Server) readLayer(c *Catalogue, upper string, decoys []decoy, output st
 		add(change)
 		return nil
 	})
-	if err != nil {
-		return report, err
-	}
-	for rel := range copied {
-		report.SecretsCopied = append(report.SecretsCopied, "/etc/"+filepath.ToSlash(rel))
-	}
-	sort.Strings(report.SecretsCopied)
-	if c.Etc != nil {
-		for _, protected := range c.Etc.Protected {
-			for _, change := range report.Changes {
-				if change.Path == protected || strings.HasPrefix(change.Path, protected+"/") || strings.HasPrefix(protected, change.Path+"/") && (change.Replaced || change.Kind == "deleted") {
-					report.Protected = append(report.Protected, protected)
-					break
-				}
-			}
-		}
-	}
-	if c.Etc != nil {
-		report.Guards = judge(c.Etc.Permit, report.Changes, lowerView{root}, mergedView{lower: lowerView{root}, upper: upper})
-		if len(c.Etc.Writable) > 0 {
-			for _, change := range report.Changes {
-				inside := false
-				for _, w := range c.Etc.Writable {
-					if change.Path == w || strings.HasPrefix(change.Path, w+"/") {
-						inside = true
-					}
-				}
-				if !inside {
-					report.Guards = append(report.Guards, Finding{Guard: "writable", Path: change.Path, Detail: change.Path + " is outside the paths this role's plans may change"})
-				}
-			}
-		}
-	}
-	report.Output = tail(output)
-	return report, nil
 }
 
 func lowerType(info fs.FileInfo) string {

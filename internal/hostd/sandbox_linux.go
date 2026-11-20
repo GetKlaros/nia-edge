@@ -14,8 +14,9 @@ import (
 )
 
 // Podman runs dry runs in a rootful podman container: the machine's root
-// read only and without its other mounts, /etc an overlay whose upper layer
-// is in the scratch tmpfs, no network, no capability, no new privilege.
+// read only and without its other mounts, /etc and the catalogue's
+// directories overlays whose upper layers are in the scratch tmpfs, no
+// network, no capability, no new privilege.
 type Podman struct {
 	// Binary is podman's path; empty looks in the usual places.
 	Binary string
@@ -115,6 +116,11 @@ func (p Podman) Args(spec SandboxSpec) []string {
 	}
 	for _, dir := range spec.Masked {
 		args = append(args, "--tmpfs", dir+":rw,nosuid,nodev,noexec,notmpcopyup,size=16m,mode=0755")
+	}
+	// The catalogue's directories, each an overlay like /etc, mounted after
+	// the tmpfs that hides the rest of their top-level directory.
+	for _, dir := range spec.Dirs {
+		args = append(args, "--volume", dir.Lower+":"+dir.Target+":O,upperdir="+dir.Upper+",workdir="+dir.Work)
 	}
 	for _, file := range spec.MaskedFiles {
 		args = append(args, "--volume", "/dev/null:"+file+":ro")

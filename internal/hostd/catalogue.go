@@ -5,8 +5,8 @@
 // with fixed programs and fixed arguments, whose parameters are names taken
 // from the role's catalogue: a service from a list, a package from a list, a
 // sync pair by its name. The one script an agent writes, a dry run, runs in a
-// container where /etc is a layer over the machine's and nothing else can be
-// written: what comes back is the list of its changes, never the script. What it runs is decided by the signed policy, which nia-hostd
+// container where /etc and the catalogue's directories are layers over the
+// machine's and nothing else can be written: what comes back is the list of its changes, never the script. What it runs is decided by the signed policy, which nia-hostd
 // verifies itself against the key pinned at enrollment: nia-edge, which
 // passes the requests, cannot widen it.
 package hostd
@@ -19,6 +19,7 @@ import (
 	"path"
 	"regexp"
 	"slices"
+	"strings"
 )
 
 // Catalogue is what a role lets its agent do on the machine.
@@ -31,6 +32,9 @@ type Catalogue struct {
 	Sync []SyncPair `json:"sync"`
 	// Etc allows dry runs of scripts against /etc; nil allows none.
 	Etc *EtcRules `json:"etc"`
+	// Dirs are directories outside /etc a dry run may change as it changes
+	// /etc: layered, judged, applied once. Never one of closedTrees.
+	Dirs []string `json:"dirs"`
 }
 
 // EtcRules are the rules of the dry runs.
@@ -105,6 +109,19 @@ func ParseCatalogue(raw json.RawMessage) (*Catalogue, error) {
 			return nil, fmt.Errorf("hostd: sync pair %q needs two distinct absolute directories", pair.Name)
 		}
 	}
+	if len(c.Dirs) > MaxDirs {
+		return nil, fmt.Errorf("hostd: %d directories, more than %d", len(c.Dirs), MaxDirs)
+	}
+	for i, dir := range c.Dirs {
+		if why := ClosedDir(dir); why != "" {
+			return nil, fmt.Errorf("hostd: no plan may write in %q: %s", dir, why)
+		}
+		for _, other := range c.Dirs[:i] {
+			if dir == other || strings.HasPrefix(dir, other+"/") || strings.HasPrefix(other, dir+"/") {
+				return nil, fmt.Errorf("hostd: %q and %q overlap", other, dir)
+			}
+		}
+	}
 	if c.Etc != nil {
 		for _, list := range [][]string{c.Etc.Protected, c.Etc.Secrets, c.Etc.Writable} {
 			for _, p := range list {
@@ -120,6 +137,42 @@ func ParseCatalogue(raw json.RawMessage) (*Catalogue, error) {
 		}
 	}
 	return &c, nil
+}
+
+// MaxDirs bounds a catalogue's directories.
+const MaxDirs = 16
+
+// closedTrees are where no plan writes, whatever a policy says: a single
+// file there runs as root at the next boot, update, login or call of a
+// system program (the programs and libraries, /boot, root's home, the
+// package manager's and systemd's state, nia-edge's own), or is not a file
+// (/proc, /sys, /dev, /run), or is another user's (/home), or is shared with
+// every user (/tmp). /etc has its own rules and guards. A directory that holds
+// one of them (/, /var, /var/lib) is closed too. Nia keeps the same list.
+var closedTrees = []string{
+	"/bin", "/boot", "/dev", "/etc", "/home", "/lib", "/lib32", "/lib64", "/libx32", "/lost+found",
+	"/proc", "/root", "/run", "/sbin", "/snap", "/sys", "/tmp", "/usr",
+	"/var/backups", "/var/cache/apt", "/var/lib/AccountsService", "/var/lib/apt", "/var/lib/cloud",
+	"/var/lib/containers", "/var/lib/dbus", "/var/lib/docker", "/var/lib/dpkg", "/var/lib/nia-edge",
+	"/var/lib/nia-hostd", "/var/lib/nia-mcp", "/var/lib/pam", "/var/lib/polkit-1", "/var/lib/snapd",
+	"/var/lib/sss", "/var/lib/sudo", "/var/lib/systemd", "/var/lib/ucf", "/var/lock", "/var/log",
+	"/var/mail", "/var/run", "/var/spool", "/var/tmp",
+}
+
+// ClosedDir says why no plan may write in p, or "" when one may.
+func ClosedDir(p string) string {
+	if !cleanDir(p) {
+		return "not a clean absolute directory other than /"
+	}
+	for _, tree := range closedTrees {
+		if p == tree || strings.HasPrefix(p, tree+"/") {
+			return tree + " is closed: a file there can run as root or is not the role's to change"
+		}
+		if strings.HasPrefix(tree, p+"/") {
+			return "it holds " + tree + ", which is closed"
+		}
+	}
+	return ""
 }
 
 // underEtc reports whether p is /etc or a clean absolute path under it.
