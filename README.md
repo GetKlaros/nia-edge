@@ -185,6 +185,14 @@ the next heartbeat carries it to a Nia that says it accepts it: the console's
 Agents page shows every machine's agents, unprotected first, with the
 command to run. A report decides nothing.
 
+The same scan lists the machine for the console's catalogue
+(`/var/lib/nia-edge/inventory.json`, root and the nia-edge group only): its
+systemd services by name and state (`systemctl list-units`), and the names
+under `/etc` to four levels, each marked private when other users cannot read
+it, never a file's content. It goes to Nia once per scan; the role editor
+offers them as services to allow and paths to make writable, protected or
+secret. It decides nothing either.
+
 ## Govern the coding agents
 
 Claude Code, Codex, Gemini CLI, Pi and Oh My Pi run their own tools:

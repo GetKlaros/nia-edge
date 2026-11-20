@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -9,18 +10,26 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/user"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
 
 	"github.com/GetKlaros/nia-edge/internal/agents"
+	"github.com/GetKlaros/nia-edge/internal/inventory"
 )
 
 // defaultReport is where a scan run as root leaves its report, for the
 // heartbeat to carry to Nia: a report, shown to admins, that decides nothing.
 const defaultReport = "/var/lib/nia-edge/agents.json"
+
+// defaultInventory is where the same scan leaves the machine's inventory
+// (internal/inventory): readable by root and nia-edge only, which sends it to
+// Nia, since some names under /etc are not for every user of the machine.
+const defaultInventory = "/var/lib/nia-edge/inventory.json"
 
 // agentsCommand lists the agents of every account of this machine, or
 // onboards one that runs its own tools (Claude Code, Codex) so that Nia
@@ -59,6 +68,11 @@ func agentsCommand(args []string, getenv func(string) string, stdout, stderr io.
 	}
 	if err := writeReport(*report, *root, found); err != nil {
 		fmt.Fprintln(stderr, "nia-edge agents: the report for Nia was not written:", err)
+	}
+	if *report == "" && *root == "" {
+		if err := writeInventory(context.Background(), defaultInventory); err != nil {
+			fmt.Fprintln(stderr, "nia-edge agents: the machine's inventory for Nia was not written:", err)
+		}
 	}
 	if *asJSON {
 		encoder := json.NewEncoder(stdout)
@@ -368,6 +382,68 @@ func rescan() {
 	if found, err := agents.Find(agents.Options{}); err == nil {
 		_ = writeReport("", "", found)
 	}
+	_ = writeInventory(context.Background(), defaultInventory)
+}
+
+// writeInventory lists the machine's services and the names under /etc, as
+// root, for the heartbeat to carry to Nia. Without the nia-edge group there is
+// no one to give it to: nothing is written.
+func writeInventory(ctx context.Context, path string) error {
+	if os.Geteuid() != 0 {
+		return nil
+	}
+	if _, err := os.Stat(filepath.Dir(path)); err != nil {
+		return nil
+	}
+	group, err := user.LookupGroup("nia-edge")
+	if err != nil {
+		return nil
+	}
+	gid, err := strconv.Atoi(group.Gid)
+	if err != nil {
+		return err
+	}
+	encoded, err := json.Marshal(inventory.Collect(ctx, ""))
+	if err != nil {
+		return err
+	}
+	temporary, err := os.CreateTemp(filepath.Dir(path), ".inventory.*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(temporary.Name())
+	if _, err := temporary.Write(encoded); err != nil {
+		temporary.Close()
+		return err
+	}
+	if err := temporary.Chown(0, gid); err != nil {
+		temporary.Close()
+		return err
+	}
+	if err := temporary.Chmod(0o640); err != nil {
+		temporary.Close()
+		return err
+	}
+	if err := temporary.Close(); err != nil {
+		return err
+	}
+	return os.Rename(temporary.Name(), path)
+}
+
+// readInventory reads the last inventory for the heartbeat, as it is; nil
+// when there is none or it is not one.
+func readInventory(path string) json.RawMessage {
+	raw, err := os.ReadFile(path)
+	if err != nil || len(raw) > 1<<20 {
+		return nil
+	}
+	var found inventory.Inventory
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&found) != nil || found.ScannedAt.IsZero() || len(found.Services) > inventory.MaxServices || len(found.Etc) > inventory.MaxEtc {
+		return nil
+	}
+	return raw
 }
 
 func edgeHealthy(getenv func(string) string) bool {
