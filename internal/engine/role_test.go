@@ -174,6 +174,8 @@ func TestARoleThisEngineDoesNotKnowIsRefusedWhole(t *testing.T) {
 		"an unknown field of a tool":   `{"name":"r",` + base + `,"tools":[{"name":"a","when_untrusted":"allow","output":"trusted","sensitive":false,"effect":"none","arguments":[],"rate":1}]}`,
 		"an unknown condition":         `{"name":"r",` + base + `,"tools":[{"name":"a","when_untrusted":"allow","output":"trusted","sensitive":false,"effect":"none","arguments":[{"applies":"always","decision":"deny","size":{"max":1}}]}]}`,
 		"an unknown decision":          `{"name":"r",` + base + `,"tools":[{"name":"a","when_untrusted":"ask","output":"trusted","sensitive":false,"effect":"none","arguments":[]}]}`,
+		"a clean decision of allow":    `{"name":"r",` + base + `,"tools":[{"name":"a","when_untrusted":"allow","when_clean":"allow","output":"trusted","sensitive":false,"effect":"none","arguments":[]}]}`,
+		"an unknown clean decision":    `{"name":"r",` + base + `,"tools":[{"name":"a","when_untrusted":"allow","when_clean":"ask","output":"trusted","sensitive":false,"effect":"none","arguments":[]}]}`,
 		"an unknown mode":              `{"name":"r","mode":"audit","rule_of_two":"deny","destructive":"deny","tools":[]}`,
 		"an unknown effect":            `{"name":"r",` + base + `,"tools":[{"name":"a","when_untrusted":"allow","output":"trusted","sensitive":false,"effect":"financial","arguments":[]}]}`,
 		"a rule with no condition":     `{"name":"r",` + base + `,"tools":[{"name":"a","when_untrusted":"allow","output":"trusted","sensitive":false,"effect":"none","arguments":[{"applies":"always","decision":"allow"}]}]}`,

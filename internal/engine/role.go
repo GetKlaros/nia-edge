@@ -71,8 +71,11 @@ type Simulate struct {
 type Tool struct {
 	Name          string
 	WhenUntrusted string
-	Trusted       bool
-	Sensitive     bool
+	// WhenClean is the decision of a session that read nothing untrusted:
+	// Allow when the policy does not say.
+	WhenClean string
+	Trusted   bool
+	Sensitive bool
 	// Effect is "none", "external" or "destructive".
 	Effect     string
 	arguments  []*argumentRule
@@ -123,11 +126,12 @@ type roleJSON struct {
 		TimeoutSeconds *int     `json:"timeout_seconds"`
 	} `json:"simulate"`
 	Tools []struct {
-		Name          string `json:"name"`
-		WhenUntrusted string `json:"when_untrusted"`
-		Output        string `json:"output"`
-		Sensitive     bool   `json:"sensitive"`
-		Effect        string `json:"effect"`
+		Name          string  `json:"name"`
+		WhenUntrusted string  `json:"when_untrusted"`
+		WhenClean     *string `json:"when_clean"`
+		Output        string  `json:"output"`
+		Sensitive     bool    `json:"sensitive"`
+		Effect        string  `json:"effect"`
 		Arguments     []struct {
 			Description *string           `json:"description"`
 			Applies     string            `json:"applies"`
@@ -199,7 +203,15 @@ func ParseRole(raw json.RawMessage) (*Role, error) {
 		if t.Name == "" || !utf8.ValidString(t.Name) || !oneOf(t.WhenUntrusted, Allow, RequireApproval, Deny) || !oneOf(t.Output, "untrusted", "trusted") || !oneOf(t.Effect, "none", "external", "destructive") {
 			return nil, fmt.Errorf("engine: the rule of tool %q has a value this nia-edge does not know", t.Name)
 		}
-		tool := &Tool{Name: t.Name, WhenUntrusted: t.WhenUntrusted, Trusted: t.Output == "trusted", Sensitive: t.Sensitive, Effect: t.Effect}
+		// Absent means allow; when present it is never allow (Nia leaves it out).
+		clean := Allow
+		if t.WhenClean != nil {
+			if !oneOf(*t.WhenClean, RequireApproval, Deny) {
+				return nil, fmt.Errorf("engine: the rule of tool %q has a value this nia-edge does not know", t.Name)
+			}
+			clean = *t.WhenClean
+		}
+		tool := &Tool{Name: t.Name, WhenUntrusted: t.WhenUntrusted, WhenClean: clean, Trusted: t.Output == "trusted", Sensitive: t.Sensitive, Effect: t.Effect}
 		for index, a := range t.Arguments {
 			if !oneOf(a.Applies, "always", "untrusted") || !oneOf(a.Decision, Allow, RequireApproval, Deny) || (len(a.Match) == 0 && a.Hosts == nil && a.ShellSafe == nil) {
 				return nil, fmt.Errorf("engine: argument rule %s#%d has a value this nia-edge does not know", t.Name, index)
@@ -361,8 +373,12 @@ func (r *Role) enforced(rule *Tool, tainted bool, rawArguments string, duplicate
 			return Decision{Decision: argumentRule.decision, Reason: "argument_rule", Rule: named(rule.Name + "#" + strconv.Itoa(index))}, nil
 		}
 	}
-	if tainted && rule.WhenUntrusted != Allow {
+	// The decision of every session, then the stricter one of a tainted session.
+	if tainted && strictness[rule.WhenUntrusted] > strictness[rule.WhenClean] {
 		return Decision{Decision: rule.WhenUntrusted, Reason: "untrusted_session", Rule: named(rule.Name)}, nil
+	}
+	if rule.WhenClean != Allow {
+		return Decision{Decision: rule.WhenClean, Reason: "tool_rule", Rule: named(rule.Name)}, nil
 	}
 	return Decision{Decision: Allow, Reason: "allowed", Rule: named(rule.Name)}, nil
 }

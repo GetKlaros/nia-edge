@@ -725,6 +725,66 @@
    }
   },
   {
+   "name": "reviewed",
+   "mode": "enforce",
+   "rule_of_two": "require_approval",
+   "destructive": "require_approval",
+   "tools": [
+    {
+     "name": "computer_use",
+     "when_untrusted": "allow",
+     "when_clean": "require_approval",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    },
+    {
+     "name": "wipe",
+     "when_untrusted": "require_approval",
+     "when_clean": "deny",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    },
+    {
+     "name": "send",
+     "when_untrusted": "deny",
+     "when_clean": "require_approval",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    },
+    {
+     "name": "shell",
+     "when_untrusted": "require_approval",
+     "when_clean": "require_approval",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": [
+      {
+       "applies": "always",
+       "decision": "allow",
+       "match": {
+        "command": "^ls$"
+       }
+      }
+     ]
+    },
+    {
+     "name": "read",
+     "when_untrusted": "allow",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    }
+   ]
+  },
+  {
    "name": "simulated_strict",
    "mode": "observe",
    "rule_of_two": "require_approval",
@@ -13612,6 +13672,318 @@
     "decision": "deny",
     "reason": "tool_not_in_role",
     "rule": null
+   }
+  },
+  {
+   "name": "reviewed: computer_use {\"action\":\"click\"}",
+   "role": "reviewed",
+   "tool": "computer_use",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"action\":\"click\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "tool_rule",
+    "rule": "computer_use"
+   }
+  },
+  {
+   "name": "reviewed: computer_use {\"action\":\"click\"}, exposed",
+   "role": "reviewed",
+   "tool": "computer_use",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"action\":\"click\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "tool_rule",
+    "rule": "computer_use"
+   }
+  },
+  {
+   "name": "reviewed: computer_use {\"action\":\"click\"}, tainted",
+   "role": "reviewed",
+   "tool": "computer_use",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"action\":\"click\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "tool_rule",
+    "rule": "computer_use"
+   }
+  },
+  {
+   "name": "reviewed: computer_use {\"action\":\"click\"}, tainted, exposed",
+   "role": "reviewed",
+   "tool": "computer_use",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"action\":\"click\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "tool_rule",
+    "rule": "computer_use"
+   }
+  },
+  {
+   "name": "reviewed: wipe {}",
+   "role": "reviewed",
+   "tool": "wipe",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_rule",
+    "rule": "wipe"
+   }
+  },
+  {
+   "name": "reviewed: wipe {}, exposed",
+   "role": "reviewed",
+   "tool": "wipe",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_rule",
+    "rule": "wipe"
+   }
+  },
+  {
+   "name": "reviewed: wipe {}, tainted",
+   "role": "reviewed",
+   "tool": "wipe",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_rule",
+    "rule": "wipe"
+   }
+  },
+  {
+   "name": "reviewed: wipe {}, tainted, exposed",
+   "role": "reviewed",
+   "tool": "wipe",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_rule",
+    "rule": "wipe"
+   }
+  },
+  {
+   "name": "reviewed: send {\"to\":\"a\"}",
+   "role": "reviewed",
+   "tool": "send",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"to\":\"a\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "tool_rule",
+    "rule": "send"
+   }
+  },
+  {
+   "name": "reviewed: send {\"to\":\"a\"}, exposed",
+   "role": "reviewed",
+   "tool": "send",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"to\":\"a\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "tool_rule",
+    "rule": "send"
+   }
+  },
+  {
+   "name": "reviewed: send {\"to\":\"a\"}, tainted",
+   "role": "reviewed",
+   "tool": "send",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"to\":\"a\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "send"
+   }
+  },
+  {
+   "name": "reviewed: send {\"to\":\"a\"}, tainted, exposed",
+   "role": "reviewed",
+   "tool": "send",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"to\":\"a\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "send"
+   }
+  },
+  {
+   "name": "reviewed: shell {\"command\":\"ls\"}",
+   "role": "reviewed",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "shell#0"
+   }
+  },
+  {
+   "name": "reviewed: shell {\"command\":\"ls\"}, exposed",
+   "role": "reviewed",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "shell#0"
+   }
+  },
+  {
+   "name": "reviewed: shell {\"command\":\"ls\"}, tainted",
+   "role": "reviewed",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "shell#0"
+   }
+  },
+  {
+   "name": "reviewed: shell {\"command\":\"ls\"}, tainted, exposed",
+   "role": "reviewed",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "shell#0"
+   }
+  },
+  {
+   "name": "reviewed: shell {\"command\":\"rm x\"}",
+   "role": "reviewed",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":\"rm x\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "tool_rule",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "reviewed: shell {\"command\":\"rm x\"}, exposed",
+   "role": "reviewed",
+   "tool": "shell",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":\"rm x\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "tool_rule",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "reviewed: shell {\"command\":\"rm x\"}, tainted",
+   "role": "reviewed",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":\"rm x\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "tool_rule",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "reviewed: shell {\"command\":\"rm x\"}, tainted, exposed",
+   "role": "reviewed",
+   "tool": "shell",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":\"rm x\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "tool_rule",
+    "rule": "shell"
+   }
+  },
+  {
+   "name": "reviewed: read {}",
+   "role": "reviewed",
+   "tool": "read",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "read"
+   }
+  },
+  {
+   "name": "reviewed: read {}, exposed",
+   "role": "reviewed",
+   "tool": "read",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "read"
+   }
+  },
+  {
+   "name": "reviewed: read {}, tainted",
+   "role": "reviewed",
+   "tool": "read",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "read"
+   }
+  },
+  {
+   "name": "reviewed: read {}, tainted, exposed",
+   "role": "reviewed",
+   "tool": "read",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "read"
    }
   },
   {
