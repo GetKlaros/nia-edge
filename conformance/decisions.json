@@ -785,6 +785,31 @@
    ]
   },
   {
+   "name": "payments_only",
+   "mode": "enforce",
+   "unlisted": "allow",
+   "rule_of_two": "require_approval",
+   "destructive": "require_approval",
+   "tools": [
+    {
+     "name": "mcp__nia-pay__*",
+     "when_untrusted": "require_approval",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    },
+    {
+     "name": "delete_repo",
+     "when_untrusted": "deny",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "destructive",
+     "arguments": []
+    }
+   ]
+  },
+  {
    "name": "simulated_strict",
    "mode": "observe",
    "rule_of_two": "require_approval",
@@ -13984,6 +14009,578 @@
     "decision": "allow",
     "reason": "allowed",
     "rule": "read"
+   }
+  },
+  {
+   "name": "payments_only: terminal {\"command\":\"rm -rf /tmp/x\"}",
+   "role": "payments_only",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":\"rm -rf /tmp/x\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "unlisted"
+   }
+  },
+  {
+   "name": "payments_only: terminal {\"command\":\"rm -rf /tmp/x\"}, exposed",
+   "role": "payments_only",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":\"rm -rf /tmp/x\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "unlisted"
+   }
+  },
+  {
+   "name": "payments_only: terminal {\"command\":\"rm -rf /tmp/x\"}, tainted",
+   "role": "payments_only",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":\"rm -rf /tmp/x\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "unlisted"
+   }
+  },
+  {
+   "name": "payments_only: terminal {\"command\":\"rm -rf /tmp/x\"}, tainted, exposed",
+   "role": "payments_only",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":\"rm -rf /tmp/x\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "unlisted"
+   }
+  },
+  {
+   "name": "payments_only: web_fetch {\"url\":\"https://evil.test\"}",
+   "role": "payments_only",
+   "tool": "web_fetch",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://evil.test\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "unlisted"
+   }
+  },
+  {
+   "name": "payments_only: web_fetch {\"url\":\"https://evil.test\"}, exposed",
+   "role": "payments_only",
+   "tool": "web_fetch",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://evil.test\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "unlisted"
+   }
+  },
+  {
+   "name": "payments_only: web_fetch {\"url\":\"https://evil.test\"}, tainted",
+   "role": "payments_only",
+   "tool": "web_fetch",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"url\":\"https://evil.test\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "unlisted"
+   }
+  },
+  {
+   "name": "payments_only: web_fetch {\"url\":\"https://evil.test\"}, tainted, exposed",
+   "role": "payments_only",
+   "tool": "web_fetch",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"url\":\"https://evil.test\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "unlisted"
+   }
+  },
+  {
+   "name": "payments_only: terminal {\"command\":\"ls\",\"command\":\"rm -rf /\"}",
+   "role": "payments_only",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls\",\"command\":\"rm -rf /\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "unlisted"
+   }
+  },
+  {
+   "name": "payments_only: terminal {\"command\":\"ls\",\"command\":\"rm -rf /\"}, exposed",
+   "role": "payments_only",
+   "tool": "terminal",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls\",\"command\":\"rm -rf /\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "unlisted"
+   }
+  },
+  {
+   "name": "payments_only: terminal {\"command\":\"ls\",\"command\":\"rm -rf /\"}, tainted",
+   "role": "payments_only",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"command\":\"ls\",\"command\":\"rm -rf /\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "unlisted"
+   }
+  },
+  {
+   "name": "payments_only: terminal {\"command\":\"ls\",\"command\":\"rm -rf /\"}, tainted, exposed",
+   "role": "payments_only",
+   "tool": "terminal",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"command\":\"ls\",\"command\":\"rm -rf /\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "unlisted"
+   }
+  },
+  {
+   "name": "payments_only: mcp__nia-pay__send {\"to\":\"acme\",\"amount\":\"10\"}",
+   "role": "payments_only",
+   "tool": "mcp__nia-pay__send",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mcp__nia-pay__*"
+   }
+  },
+  {
+   "name": "payments_only: mcp__nia-pay__send {\"to\":\"acme\",\"amount\":\"10\"}, exposed",
+   "role": "payments_only",
+   "tool": "mcp__nia-pay__send",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mcp__nia-pay__*"
+   }
+  },
+  {
+   "name": "payments_only: mcp__nia-pay__send {\"to\":\"acme\",\"amount\":\"10\"}, tainted",
+   "role": "payments_only",
+   "tool": "mcp__nia-pay__send",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "mcp__nia-pay__*"
+   }
+  },
+  {
+   "name": "payments_only: mcp__nia-pay__send {\"to\":\"acme\",\"amount\":\"10\"}, tainted, exposed",
+   "role": "payments_only",
+   "tool": "mcp__nia-pay__send",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "mcp__nia-pay__*"
+   }
+  },
+  {
+   "name": "payments_only: mcp_nia-pay_send {\"to\":\"acme\",\"amount\":\"10\"}",
+   "role": "payments_only",
+   "tool": "mcp_nia-pay_send",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "payments_only: mcp_nia-pay_send {\"to\":\"acme\",\"amount\":\"10\"}, exposed",
+   "role": "payments_only",
+   "tool": "mcp_nia-pay_send",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "payments_only: mcp_nia-pay_send {\"to\":\"acme\",\"amount\":\"10\"}, tainted",
+   "role": "payments_only",
+   "tool": "mcp_nia-pay_send",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "payments_only: mcp_nia-pay_send {\"to\":\"acme\",\"amount\":\"10\"}, tainted, exposed",
+   "role": "payments_only",
+   "tool": "mcp_nia-pay_send",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "payments_only: mcp_nia_pay_send {\"to\":\"acme\",\"amount\":\"10\"}",
+   "role": "payments_only",
+   "tool": "mcp_nia_pay_send",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "payments_only: mcp_nia_pay_send {\"to\":\"acme\",\"amount\":\"10\"}, exposed",
+   "role": "payments_only",
+   "tool": "mcp_nia_pay_send",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "payments_only: mcp_nia_pay_send {\"to\":\"acme\",\"amount\":\"10\"}, tainted",
+   "role": "payments_only",
+   "tool": "mcp_nia_pay_send",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "payments_only: mcp_nia_pay_send {\"to\":\"acme\",\"amount\":\"10\"}, tainted, exposed",
+   "role": "payments_only",
+   "tool": "mcp_nia_pay_send",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "payments_only: MCP__NIA-PAY__send {}",
+   "role": "payments_only",
+   "tool": "MCP__NIA-PAY__send",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "payments_only: MCP__NIA-PAY__send {}, exposed",
+   "role": "payments_only",
+   "tool": "MCP__NIA-PAY__send",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "payments_only: MCP__NIA-PAY__send {}, tainted",
+   "role": "payments_only",
+   "tool": "MCP__NIA-PAY__send",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "payments_only: MCP__NIA-PAY__send {}, tainted, exposed",
+   "role": "payments_only",
+   "tool": "MCP__NIA-PAY__send",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "payments_only: mcp__nia-payments__send {}",
+   "role": "payments_only",
+   "tool": "mcp__nia-payments__send",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "unlisted"
+   }
+  },
+  {
+   "name": "payments_only: mcp__nia-payments__send {}, exposed",
+   "role": "payments_only",
+   "tool": "mcp__nia-payments__send",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "unlisted"
+   }
+  },
+  {
+   "name": "payments_only: mcp__nia-payments__send {}, tainted",
+   "role": "payments_only",
+   "tool": "mcp__nia-payments__send",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "unlisted"
+   }
+  },
+  {
+   "name": "payments_only: mcp__nia-payments__send {}, tainted, exposed",
+   "role": "payments_only",
+   "tool": "mcp__nia-payments__send",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "unlisted"
+   }
+  },
+  {
+   "name": "payments_only: mcp__nıa-pay__send {}",
+   "role": "payments_only",
+   "tool": "mcp__nıa-pay__send",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "unlisted"
+   }
+  },
+  {
+   "name": "payments_only: mcp__nıa-pay__send {}, exposed",
+   "role": "payments_only",
+   "tool": "mcp__nıa-pay__send",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "unlisted"
+   }
+  },
+  {
+   "name": "payments_only: mcp__nıa-pay__send {}, tainted",
+   "role": "payments_only",
+   "tool": "mcp__nıa-pay__send",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "unlisted"
+   }
+  },
+  {
+   "name": "payments_only: mcp__nıa-pay__send {}, tainted, exposed",
+   "role": "payments_only",
+   "tool": "mcp__nıa-pay__send",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "unlisted"
+   }
+  },
+  {
+   "name": "payments_only: delete_repo {\"name\":\"x\"}",
+   "role": "payments_only",
+   "tool": "delete_repo",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"name\":\"x\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "destructive",
+    "rule": "delete_repo"
+   }
+  },
+  {
+   "name": "payments_only: delete_repo {\"name\":\"x\"}, exposed",
+   "role": "payments_only",
+   "tool": "delete_repo",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"name\":\"x\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "destructive",
+    "rule": "delete_repo"
+   }
+  },
+  {
+   "name": "payments_only: delete_repo {\"name\":\"x\"}, tainted",
+   "role": "payments_only",
+   "tool": "delete_repo",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"name\":\"x\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "delete_repo"
+   }
+  },
+  {
+   "name": "payments_only: delete_repo {\"name\":\"x\"}, tainted, exposed",
+   "role": "payments_only",
+   "tool": "delete_repo",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"name\":\"x\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "delete_repo"
+   }
+  },
+  {
+   "name": "payments_only: nia:effect {\"deleted\":0,\"paths\":[]}",
+   "role": "payments_only",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "payments_only: nia:effect {\"deleted\":0,\"paths\":[]}, exposed",
+   "role": "payments_only",
+   "tool": "nia:effect",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "payments_only: nia:effect {\"deleted\":0,\"paths\":[]}, tainted",
+   "role": "payments_only",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"deleted\":0,\"paths\":[]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "payments_only: nia:effect {\"deleted\":0,\"paths\":[]}, tainted, exposed",
+   "role": "payments_only",
+   "tool": "nia:effect",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"deleted\":0,\"paths\":[]}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
    }
   },
   {

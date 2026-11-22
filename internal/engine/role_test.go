@@ -177,6 +177,8 @@ func TestARoleThisEngineDoesNotKnowIsRefusedWhole(t *testing.T) {
 		"a clean decision of allow":    `{"name":"r",` + base + `,"tools":[{"name":"a","when_untrusted":"allow","when_clean":"allow","output":"trusted","sensitive":false,"effect":"none","arguments":[]}]}`,
 		"an unknown clean decision":    `{"name":"r",` + base + `,"tools":[{"name":"a","when_untrusted":"allow","when_clean":"ask","output":"trusted","sensitive":false,"effect":"none","arguments":[]}]}`,
 		"an unknown mode":              `{"name":"r","mode":"audit","rule_of_two":"deny","destructive":"deny","tools":[]}`,
+		"unlisted other than allow":    `{"name":"r",` + base + `,"unlisted":"deny","tools":[]}`,
+		"unlisted that is not a word":  `{"name":"r",` + base + `,"unlisted":true,"tools":[]}`,
 		"an unknown effect":            `{"name":"r",` + base + `,"tools":[{"name":"a","when_untrusted":"allow","output":"trusted","sensitive":false,"effect":"financial","arguments":[]}]}`,
 		"a rule with no condition":     `{"name":"r",` + base + `,"tools":[{"name":"a","when_untrusted":"allow","output":"trusted","sensitive":false,"effect":"none","arguments":[{"applies":"always","decision":"allow"}]}]}`,
 		"no decision for the role":     `{"name":"r","mode":"enforce","tools":[]}`,
