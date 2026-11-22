@@ -122,6 +122,12 @@ private code base; this repository is public.
   from it taints the run. Signed in with OAuth, it requires PKCE S256, the
   `state` it sent and the server's URL as resource; the access and refresh
   tokens are in the state file only, like the token.
+- The agent's payment key is made on the machine and kept in the state file
+  only: never with the agent, never shown, logged or sent; Nia gets its
+  public key. A payment (`nia-pay`) runs only against an unused release of
+  the model path for the same canonical arguments; it is prepared in the
+  vault, authorized only with the visa Nia signed for that operation, and
+  cancelled without one.
 - What the machine reports about itself decides nothing. nia-edge's log of
   decisions (`decisions.jsonl`, 0600, beside the state file) holds tools,
   hosts, verdicts and Nia's reasons, redacted: never a prompt, an argument

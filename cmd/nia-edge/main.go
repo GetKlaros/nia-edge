@@ -52,6 +52,7 @@ import (
 	"github.com/GetKlaros/nia-edge/internal/localmcp"
 	"github.com/GetKlaros/nia-edge/internal/mcpd"
 	"github.com/GetKlaros/nia-edge/internal/niaclient"
+	"github.com/GetKlaros/nia-edge/internal/paymcp"
 	"github.com/GetKlaros/nia-edge/internal/policy"
 	"github.com/GetKlaros/nia-edge/internal/relay"
 	"github.com/GetKlaros/nia-edge/internal/remotemcp"
@@ -379,6 +380,8 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 	// Tools of MCP servers that run here (host actions, and the agent's
 	// servers in containers): calls released by the model path.
 	releases := &local.Releases{Prefix: "mcp__"}
+	// renewed serializes the writers of the state file.
+	var renewed sync.Mutex
 	hostSocket := getenv("NIA_HOSTD_SOCKET")
 	if hostSocket == "" {
 		hostSocket = defaultHostdSocket
@@ -396,6 +399,24 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 		Host:     &hostd.Client{Socket: hostSocket},
 		Version:  version,
 	}
+	// The payment tool: the agent's payment key is made here and kept in the
+	// state file; Nia links its account and signs each payment's visa.
+	payments, err := paymentKey(statePath(*stateFile, getenv), &renewed)
+	if err != nil {
+		return err
+	}
+	niaPay := &niaclient.Client{Base: base, HTTP: niaclient.NewHTTPClient(2 * time.Minute)}
+	paying, stopPaying := context.WithCancel(context.Background())
+	defer stopPaying()
+	go reportPayment(paying, niaPay, saved.Key, statePath(*stateFile, getenv), &renewed, payments, logger)
+	pay := &paymcp.Handler{
+		Account:  payments.get,
+		Releases: releases,
+		Prefix:   "mcp__nia-pay__",
+		Chain:    &paymcp.NearChain{HTTP: niaclient.NewHTTPClient(3 * time.Minute)},
+		Visas:    niaVisas{client: niaPay, key: saved.Key, session: session, run: run},
+		Version:  version,
+	}
 	// The MCP servers hosted by their vendor: nia-edge holds their token.
 	remotes := &remotemcp.Handler{
 		Clients:  map[string]*remotemcp.Client{},
@@ -408,7 +429,6 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 		return runAuthority.Ingested(ctx, session, source)
 	}
 	vendors := remotemcp.NewHTTPClient(2 * time.Minute)
-	var renewed sync.Mutex
 	for name, remote := range saved.Remote {
 		endpoint, err := remotemcp.ValidURL(remote.URL)
 		if err != nil || !mcpd.ValidName(name) || remote.Header == "" || remote.Value == "" {
@@ -537,6 +557,10 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 		}
 		if r.URL.Path == "/host/mcp" && r.URL.RawPath == "" {
 			host.ServeHTTP(w, r)
+			return
+		}
+		if r.URL.Path == "/pay/mcp" && r.URL.RawPath == "" {
+			pay.ServeHTTP(w, r)
 			return
 		}
 		if localmcp.Route(r.URL.Path) != "" {

@@ -43,6 +43,17 @@ type State struct {
 	// through nia-edge, by name: their URL and the header that carries their
 	// token, which the agent never holds.
 	Remote map[string]*RemoteMCP `json:"remote_mcp,omitempty"`
+	// Payment is the agent's payment key, made on this machine: Nia has
+	// its public key only.
+	Payment *Payment `json:"payment,omitempty"`
+}
+
+// Payment is the agent's NEAR payment key and, once Nia linked one, its
+// account.
+type Payment struct {
+	// Seed is the ed25519 private key's seed, base64: a secret.
+	Seed    string `json:"seed"`
+	Account string `json:"account,omitempty"`
 }
 
 // RemoteMCP is an MCP server hosted by its vendor.

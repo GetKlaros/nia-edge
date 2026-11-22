@@ -196,7 +196,41 @@ func (c *Client) post(ctx context.Context, path, bearer string, body any, want i
 	return c.call(ctx, http.MethodPost, path, bearer, body, want, answer)
 }
 
+// PaymentKey reports the agent's payment public key, which Nia records once,
+// and answers the account Nia linked to it, if any.
+func (c *Client) PaymentKey(ctx context.Context, key, publicKey string) (account string, err error) {
+	var answer struct {
+		AccountID *string `json:"account_id"`
+	}
+	if err := c.post(ctx, "/edge/v1/payment-key", key, map[string]string{"public_key": publicKey}, http.StatusOK, &answer); err != nil {
+		return "", err
+	}
+	if answer.AccountID == nil {
+		return "", nil
+	}
+	return *answer.AccountID, nil
+}
+
+// Visa asks Nia for the visa of an operation the agent prepared in its
+// vault. Nia signs it only for the call its model path allowed.
+func (c *Client) Visa(ctx context.Context, key, session, run, tool string, arguments json.RawMessage, opID string) (json.RawMessage, error) {
+	var answer json.RawMessage
+	headers := map[string]string{"x-nia-session-id": session}
+	if run != "" {
+		headers["x-nia-run-id"] = run
+	}
+	body := map[string]any{"tool": tool, "arguments": arguments, "op_id": opID}
+	if err := c.callWith(ctx, http.MethodPost, "/v1/payments/visa", key, headers, body, http.StatusOK, &answer); err != nil {
+		return nil, err
+	}
+	return answer, nil
+}
+
 func (c *Client) call(ctx context.Context, method, path, bearer string, body any, want int, answer any) error {
+	return c.callWith(ctx, method, path, bearer, nil, body, want, answer)
+}
+
+func (c *Client) callWith(ctx context.Context, method, path, bearer string, headers map[string]string, body any, want int, answer any) error {
 	var payload io.Reader
 	if body != nil {
 		encoded, err := json.Marshal(body)
@@ -211,6 +245,9 @@ func (c *Client) call(ctx context.Context, method, path, bearer string, body any
 	}
 	request.Header.Set("Authorization", "Bearer "+bearer)
 	request.Header.Set("Content-Type", "application/json")
+	for name, value := range headers {
+		request.Header.Set(name, value)
+	}
 	response, err := c.HTTP.Do(request)
 	if err != nil {
 		// A *url.Error names the URL and the cause, never the headers.
