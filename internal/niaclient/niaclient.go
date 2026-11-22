@@ -211,6 +211,16 @@ func (c *Client) PaymentKey(ctx context.Context, key, publicKey string) (account
 	return *answer.AccountID, nil
 }
 
+// PaymentPlan asks Nia which vault operation a payment the agent asked for
+// is: the agent names a recipient, an amount and a reason, Nia the rest.
+func (c *Client) PaymentPlan(ctx context.Context, key string, arguments json.RawMessage) (json.RawMessage, error) {
+	var answer json.RawMessage
+	if err := c.post(ctx, "/edge/v1/payment-plan", key, map[string]any{"arguments": arguments}, http.StatusOK, &answer); err != nil {
+		return nil, err
+	}
+	return answer, nil
+}
+
 // Visa asks Nia for the visa of an operation the agent prepared in its
 // vault. Nia signs it only for the call its model path allowed.
 func (c *Client) Visa(ctx context.Context, key, session, run, tool string, arguments json.RawMessage, opID string) (json.RawMessage, error) {

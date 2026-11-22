@@ -63,7 +63,23 @@ func (f *fakeVisas) Visa(_ context.Context, tool string, arguments json.RawMessa
 	return f.answer, nil
 }
 
-const args = `{"vault":"vault.example.testnet","role":"payments","request":{"chain_id":84532,"target":"0x0101010101010101010101010101010101010101","value":"0","calldata":"0xa9059cbb","allowance_amount":"10","reference":"invoice-42","gas_limit":"60000","max_fee_per_gas":"2","max_priority_fee_per_gas":"1"}}`
+const args = `{"to":"0x1d693a4425bf7ed10fe7775e2b65b072019ffceb","amount":"0.01","reference":"invoice-42"}`
+
+// fakePlans plans as Nia would: the vault and its transaction.
+type fakePlans struct {
+	asked int
+	fail  error
+}
+
+func (f *fakePlans) Plan(_ context.Context, _ json.RawMessage) (*Payment, error) {
+	f.asked++
+	if f.fail != nil {
+		return nil, f.fail
+	}
+	return &Payment{Vault: "vault.example.testnet", Role: "payments", Request: Request{ChainID: 84532, Target: "0x036cbd53842c5426634e7929541ec2318f3dcf7e", Value: "0",
+		Calldata:        "0xa9059cbb0000000000000000000000001d693a4425bf7ed10fe7775e2b65b072019ffceb0000000000000000000000000000000000000000000000000000000000002710",
+		AllowanceAmount: "10000", Reference: "invoice-42", GasLimit: "100000", MaxFeePerGas: "1000000000", MaxPriorityFeePerGas: "1000000"}}, nil
+}
 
 func setup(account bool) (*Handler, *fakeChain, *fakeVisas, *local.Releases) {
 	chain := &fakeChain{}
@@ -77,7 +93,7 @@ func setup(account bool) (*Handler, *fakeChain, *fakeVisas, *local.Releases) {
 			}
 			return Account{ID: "agent.testnet", Key: key}, nil
 		},
-		Releases: releases, Chain: chain, Visas: visas, Version: "test", Now: func() time.Time { return now },
+		Releases: releases, Chain: chain, Plans: &fakePlans{}, Visas: visas, Version: "test", Now: func() time.Time { return now },
 	}, chain, visas, releases
 }
 
@@ -112,7 +128,7 @@ func TestItPaysOnlyTheReleasedCallOncePreparedVisaedAndAuthorized(t *testing.T) 
 		t.Fatalf("%+v", chain.calls)
 	}
 	request := chain.calls[0].args["request"].(map[string]any)
-	if len(request["target"].([]any)) != 20 || len(request["calldata"].([]any)) != 4 || request["value"] != "0" || chain.calls[0].args["role"] != "payments" {
+	if len(request["target"].([]any)) != 20 || len(request["calldata"].([]any)) != 68 || request["value"] != "0" || chain.calls[0].args["role"] != "payments" {
 		t.Fatalf("prepare args %v", chain.calls[0].args)
 	}
 	if approval := chain.calls[1].args["approval"].(map[string]any); approval["signature"] != "c2ln" {
@@ -152,16 +168,23 @@ func TestNothingIsSentWhenItCannotPay(t *testing.T) {
 		t.Fatal("asked a visa for a refused operation")
 	}
 	for _, bad := range []string{
-		`{"vault":"vault.testnet","role":"r","request":{}}`,
-		strings.Replace(args, `"value":"0"`, `"value":"-1"`, 1),
-		strings.Replace(args, `"role":"payments"`, `"role":"payments","extra":1`, 1),
-		strings.Replace(args, `0x0101010101010101010101010101010101010101`, `0x01`, 1),
+		`{"to":"0x01","amount":"1","reference":"x"}`,
+		`{"to":"0x1d693a4425bf7ed10fe7775e2b65b072019ffceb","amount":"-1","reference":"x"}`,
+		`{"to":"0x1d693a4425bf7ed10fe7775e2b65b072019ffceb","amount":"1","reference":"x","vault":"v.testnet"}`,
+		`{"to":"0x1d693a4425bf7ed10fe7775e2b65b072019ffceb","amount":"1","reference":""}`,
 	} {
 		h, chain, _, releases := setup(true)
 		releases.Release("mcp__nia_pay__pay", bad, now)
 		if result := pay(t, h, bad); result["isError"] != true || len(chain.calls) != 0 {
 			t.Fatalf("paid %s", bad)
 		}
+	}
+	// Nia names no vault for this agent: nothing is prepared.
+	h, chain, _, releases = setup(true)
+	h.Plans = &fakePlans{fail: errors.New("No vault of the organization lets this agent pay")}
+	releases.Release("mcp__nia_pay__pay", args, now)
+	if result := pay(t, h, args); result["isError"] != true || len(chain.calls) != 0 || !strings.Contains(textOf(result), "No vault") {
+		t.Fatalf("%v", result)
 	}
 }
 
