@@ -177,3 +177,30 @@ func TestInventoryIsSentAsWrittenAndTakesNoAnswer(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+func TestPaymentKeyAndVisa(t *testing.T) {
+	c := client(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer nia_k" {
+			w.WriteHeader(401)
+			return
+		}
+		switch r.URL.Path {
+		case "/edge/v1/payment-key":
+			_, _ = w.Write([]byte(`{"public_key":"ed25519:x","status":"set","account_id":"agent.testnet"}`))
+		case "/v1/payments/visa":
+			if r.Header.Get("x-nia-session-id") != "edge-a" || r.Header.Get("x-nia-run-id") != "run-1" {
+				w.WriteHeader(400)
+				return
+			}
+			_, _ = w.Write([]byte(`{"decision":"allow","approval":{"signature":"s"}}`))
+		}
+	})
+	account, err := c.PaymentKey(context.Background(), "nia_k", "ed25519:x")
+	if err != nil || account != "agent.testnet" {
+		t.Fatal(account, err)
+	}
+	raw, err := c.Visa(context.Background(), "nia_k", "edge-a", "run-1", "mcp__nia-pay__pay", json.RawMessage(`{}`), "11")
+	if err != nil || !strings.Contains(string(raw), `"allow"`) {
+		t.Fatal(string(raw), err)
+	}
+}

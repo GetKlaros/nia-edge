@@ -706,6 +706,31 @@ is what that apply writes; a plan that did not come or does not match is
 shown as not checked. These texts are `/etc` files the dry run could read:
 secrets are decoys there, and a plan that changes one is never applicable.
 
+### Payments: nia-pay
+
+nia-edge makes the agent's NEAR payment key on the machine, keeps it in the
+state file, and reports its public key to Nia, which records it once. An
+admin gives the agent an account that holds that key (on testnet, NEAR's
+faucet makes it); Nia names it back to the machine. Nia never holds the key.
+
+The agent pays through nia-edge's MCP server `http://127.0.0.1:8787/pay/mcp`,
+added to the agent as `nia-pay`: one tool, `pay` (`mcp__nia-pay__pay`), whose
+arguments are the vault, the agent's role in it and the EVM transaction of the
+vault's wallet. A call runs only against a release of the model path, once.
+nia-edge then
+
+1. calls the vault's `prepare` with the payment account: the vault checks the
+   transaction against the role and holds it as an operation;
+2. asks Nia for the operation's visa: Nia reads the operation from the vault,
+   checks it is the call it allowed, prepared by this agent's account, and
+   signs a visa for it alone;
+3. calls `authorize` with the visa, which the vault checks and accepts once,
+   and the vault has the transaction signed.
+
+Without a visa, nia-edge cancels the operation (`cancel_prepared`): its
+allowance goes back to the role. The key never leaves the machine, the agent
+never holds it, and nothing logs it.
+
 ### The agent's MCP servers: nia-mcp
 
 An MCP server the agent starts itself (`npx some-mcp`) runs as the agent's
