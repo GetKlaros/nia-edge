@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -47,8 +48,11 @@ type Would struct {
 
 // Role is a role of the policy, ready to decide.
 type Role struct {
-	Name        string
-	Observe     bool
+	Name    string
+	Observe bool
+	// Unlisted lets a tool the role does not list through, except a payment
+	// tool (PaymentTool), which must be listed.
+	Unlisted    bool
 	RuleOfTwo   string
 	Destructive string
 	Tools       []*Tool
@@ -117,6 +121,7 @@ type roleJSON struct {
 	Name        string          `json:"name"`
 	Description *string         `json:"description"`
 	Mode        string          `json:"mode"`
+	Unlisted    *string         `json:"unlisted"`
 	RuleOfTwo   string          `json:"rule_of_two"`
 	Destructive string          `json:"destructive"`
 	Host        json.RawMessage `json:"host"`
@@ -187,7 +192,11 @@ func ParseRole(raw json.RawMessage) (*Role, error) {
 	if in.Name == "" || !oneOf(in.Mode, "enforce", "observe") || !oneOf(in.RuleOfTwo, Allow, RequireApproval, Deny) || !oneOf(in.Destructive, Allow, RequireApproval, Deny) {
 		return nil, errors.New("engine: the role has a mode or a decision this nia-edge does not know")
 	}
-	role := &Role{Name: in.Name, Observe: in.Mode == "observe", RuleOfTwo: in.RuleOfTwo, Destructive: in.Destructive, Host: in.Host}
+	// Absent means refused; the server writes the field only to let through.
+	if in.Unlisted != nil && *in.Unlisted != Allow {
+		return nil, errors.New("engine: the role has an unlisted value this nia-edge does not know")
+	}
+	role := &Role{Name: in.Name, Observe: in.Mode == "observe", Unlisted: in.Unlisted != nil, RuleOfTwo: in.RuleOfTwo, Destructive: in.Destructive, Host: in.Host}
 	if in.Simulate != nil {
 		s := in.Simulate
 		if s.MaxDeleted == nil || *s.MaxDeleted < 0 || s.TimeoutSeconds == nil || *s.TimeoutSeconds < 1 || *s.TimeoutSeconds > 600 || s.Protected == nil {
@@ -319,7 +328,7 @@ func (r *Role) Decide(tool string, tainted bool, rawArguments string, exposed bo
 			return Decision{}, err
 		}
 	} else {
-		if decided, err = r.enforced(rule, tainted, rawArguments, duplicate); err != nil {
+		if decided, err = r.enforced(tool, rule, tainted, rawArguments, duplicate); err != nil {
 			return Decision{}, err
 		}
 		decided = r.stricter(rule, tainted, exposed, decided)
@@ -340,9 +349,29 @@ func (r *Role) Decide(tool string, tainted bool, rawArguments string, exposed bo
 
 func named(name string) *string { return &name }
 
-func (r *Role) enforced(rule *Tool, tainted bool, rawArguments string, duplicate bool) (Decision, error) {
+// paymentTool matches the tools of Nia's payment server, as each agent names
+// an MCP tool: mcp__nia-pay__send (Claude Code), mcp_nia-pay_send or
+// mcp_nia_pay_send (Hermes), in any case.
+var paymentTool = regexp.MustCompile(`(?i)^(mcp__nia-pay__|mcp_nia[-_]pay_)`)
+
+// PaymentTool reports whether a tool moves money: a role's unlisted never covers it.
+func PaymentTool(tool string) bool { return paymentTool.MatchString(tool) }
+
+// letThrough reports whether the role lets a tool it does not list through.
+func (r *Role) letThrough(tool string) bool {
+	return r.Unlisted && tool != EffectTool && !PaymentTool(tool)
+}
+
+func (r *Role) enforced(tool string, rule *Tool, tainted bool, rawArguments string, duplicate bool) (Decision, error) {
 	if rule == nil {
-		return Decision{Decision: Deny, Reason: "tool_not_in_role"}, nil
+		if !r.letThrough(tool) {
+			return Decision{Decision: Deny, Reason: "tool_not_in_role"}, nil
+		}
+		// Not listed and let through: still refused when two parsers could read it differently.
+		if duplicate {
+			return Decision{Decision: Deny, Reason: "ambiguous_arguments", Rule: named("unlisted")}, nil
+		}
+		return Decision{Decision: Allow, Reason: "allowed", Rule: named("unlisted")}, nil
 	}
 	// A repeated key could be read differently by the agent's executor.
 	if duplicate {
