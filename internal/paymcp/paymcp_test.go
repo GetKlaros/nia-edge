@@ -103,7 +103,7 @@ func TestItPaysOnlyTheReleasedCallOncePreparedVisaedAndAuthorized(t *testing.T) 
 	if result := pay(t, h, args); result["isError"] != true || len(chain.calls) != 0 {
 		t.Fatalf("paid without a release: %v %v", result, chain.calls)
 	}
-	releases.Release("mcp__nia-pay__pay", args, now)
+	releases.Release("mcp__nia_pay__pay", args, now)
 	result := pay(t, h, args)
 	if result["isError"] != false || !strings.Contains(textOf(result), "authorized") {
 		t.Fatalf("%v", result)
@@ -118,7 +118,7 @@ func TestItPaysOnlyTheReleasedCallOncePreparedVisaedAndAuthorized(t *testing.T) 
 	if approval := chain.calls[1].args["approval"].(map[string]any); approval["signature"] != "c2ln" {
 		t.Fatalf("authorize args %v", chain.calls[1].args)
 	}
-	if len(visas.asked) != 1 || !strings.HasPrefix(visas.asked[0], "mcp__nia-pay__pay "+strings.Repeat("11", 32)+" ") {
+	if len(visas.asked) != 1 || !strings.HasPrefix(visas.asked[0], "mcp__nia_pay__pay "+strings.Repeat("11", 32)+" ") {
 		t.Fatalf("%v", visas.asked)
 	}
 	// The release is spent.
@@ -131,7 +131,7 @@ func TestWithoutAVisaTheOperationIsCancelled(t *testing.T) {
 	for _, answer := range []*VisaAnswer{nil, {Decision: "deny", Message: "not allowed"}, {Decision: "require_approval"}} {
 		h, chain, visas, releases := setup(true)
 		visas.answer = answer
-		releases.Release("mcp__nia-pay__pay", args, now)
+		releases.Release("mcp__nia_pay__pay", args, now)
 		result := pay(t, h, args)
 		if result["isError"] != true || len(chain.calls) != 2 || chain.calls[1].method != "cancel_prepared" {
 			t.Fatalf("%v %+v", result, chain.calls)
@@ -141,13 +141,13 @@ func TestWithoutAVisaTheOperationIsCancelled(t *testing.T) {
 
 func TestNothingIsSentWhenItCannotPay(t *testing.T) {
 	h, chain, _, releases := setup(false)
-	releases.Release("mcp__nia-pay__pay", args, now)
+	releases.Release("mcp__nia_pay__pay", args, now)
 	if result := pay(t, h, args); result["isError"] != true || len(chain.calls) != 0 {
 		t.Fatal("paid without an account")
 	}
 	h, chain, visas, releases := setup(true)
 	chain.refuse = "Smart contract panicked: ERR_PERMISSION_DENIED:NoPermission"
-	releases.Release("mcp__nia-pay__pay", args, now)
+	releases.Release("mcp__nia_pay__pay", args, now)
 	if result := pay(t, h, args); result["isError"] != true || !strings.Contains(textOf(result), "ERR_PERMISSION_DENIED") || len(visas.asked) != 0 {
 		t.Fatal("asked a visa for a refused operation")
 	}
@@ -158,7 +158,7 @@ func TestNothingIsSentWhenItCannotPay(t *testing.T) {
 		strings.Replace(args, `0x0101010101010101010101010101010101010101`, `0x01`, 1),
 	} {
 		h, chain, _, releases := setup(true)
-		releases.Release("mcp__nia-pay__pay", bad, now)
+		releases.Release("mcp__nia_pay__pay", bad, now)
 		if result := pay(t, h, bad); result["isError"] != true || len(chain.calls) != 0 {
 			t.Fatalf("paid %s", bad)
 		}

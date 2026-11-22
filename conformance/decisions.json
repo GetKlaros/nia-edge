@@ -800,6 +800,14 @@
      "arguments": []
     },
     {
+     "name": "mcp__nia_pay__*",
+     "when_untrusted": "require_approval",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    },
+    {
      "name": "delete_repo",
      "when_untrusted": "deny",
      "output": "untrusted",
@@ -14321,6 +14329,58 @@
     "decision": "deny",
     "reason": "tool_not_in_role",
     "rule": null
+   }
+  },
+  {
+   "name": "payments_only: mcp__nia_pay__pay {\"to\":\"acme\",\"amount\":\"10\"}",
+   "role": "payments_only",
+   "tool": "mcp__nia_pay__pay",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mcp__nia_pay__*"
+   }
+  },
+  {
+   "name": "payments_only: mcp__nia_pay__pay {\"to\":\"acme\",\"amount\":\"10\"}, exposed",
+   "role": "payments_only",
+   "tool": "mcp__nia_pay__pay",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mcp__nia_pay__*"
+   }
+  },
+  {
+   "name": "payments_only: mcp__nia_pay__pay {\"to\":\"acme\",\"amount\":\"10\"}, tainted",
+   "role": "payments_only",
+   "tool": "mcp__nia_pay__pay",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "mcp__nia_pay__*"
+   }
+  },
+  {
+   "name": "payments_only: mcp__nia_pay__pay {\"to\":\"acme\",\"amount\":\"10\"}, tainted, exposed",
+   "role": "payments_only",
+   "tool": "mcp__nia_pay__pay",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "mcp__nia_pay__*"
    }
   },
   {

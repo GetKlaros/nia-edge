@@ -714,7 +714,8 @@ admin gives the agent an account that holds that key (on testnet, NEAR's
 faucet makes it); Nia names it back to the machine. Nia never holds the key.
 
 The agent pays through nia-edge's MCP server `http://127.0.0.1:8787/pay/mcp`,
-added to the agent as `nia-pay`: one tool, `pay` (`mcp__nia-pay__pay`), whose
+added to Hermes as `nia_pay` by `hermes-linux.sh` and by `update-linux.sh`:
+one tool, `pay` (`mcp__nia_pay__pay`, which the agent's role must list), whose
 arguments are the vault, the agent's role in it and the EVM transaction of the
 vault's wallet. A call runs only against a release of the model path, once.
 nia-edge then

@@ -412,10 +412,11 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 	pay := &paymcp.Handler{
 		Account:  payments.get,
 		Releases: releases,
-		Prefix:   "mcp__nia-pay__",
-		Chain:    &paymcp.NearChain{HTTP: niaclient.NewHTTPClient(3 * time.Minute)},
-		Visas:    niaVisas{client: niaPay, key: saved.Key, session: session, run: run},
-		Version:  version,
+		// Hermes and OpenClaw name the server nia_pay: mcp__nia_pay__pay.
+		Prefix:  "mcp__nia_pay__",
+		Chain:   &paymcp.NearChain{HTTP: niaclient.NewHTTPClient(3 * time.Minute)},
+		Visas:   niaVisas{client: niaPay, key: saved.Key, session: session, run: run},
+		Version: version,
 	}
 	// The MCP servers hosted by their vendor: nia-edge holds their token.
 	remotes := &remotemcp.Handler{

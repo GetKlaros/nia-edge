@@ -253,6 +253,9 @@ elsewhere=$(hermes_provider mcp 2>/dev/null) || fail "cannot give $AGENT's MCP s
 # The host actions of the role's catalogue, through nia-edge: mcp__host__*.
 hermes_provider host >/dev/null 2>&1 ||
   fail "$AGENT's Hermes already has an MCP server named host: rename it, the host actions take that name"
+# Payments from the company's vault, through nia-edge: mcp__nia_pay__pay.
+hermes_provider pay >/dev/null 2>&1 ||
+  fail "$AGENT's Hermes already has an MCP server named nia_pay: rename it, Nia's payment tool takes that name"
 rm -rf "$helper_dir"
 if [ -n "$elsewhere" ]; then
   say "these MCP servers of $AGENT run a command $AGENT may not reach; run each in a container (sudo sh mcp-linux.sh add <name> <image archive> -- <command>) or copy it under $AGENT_HOME:"

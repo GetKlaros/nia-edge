@@ -22,6 +22,9 @@ Run as the agent, with Hermes' Python, -I, and HERMES_HOME set. One argument
   host      adds nia-edge's MCP server of host actions, as "host": its
             tools reach the model as mcp__host__<action>, also on the
             platforms whose saved toolsets list MCP servers
+  pay       adds nia-edge's payment tool, as "nia_pay": the model sees
+            mcp__nia_pay__pay, which pays only as Nia and the company's vault
+            allow
   local <name>
             points the agent's MCP server <name> at the one nia-edge runs in
             a container (install/mcp-linux.sh): its command and its
@@ -111,11 +114,39 @@ def host() -> int:
     return 0
 
 
+PAY = {"url": "http://127.0.0.1:8787/pay/mcp", "enabled": True}
+
+
+def pay() -> int:
+    from hermes_cli.config import read_raw_config, save_config
+
+    config = read_raw_config()
+    servers = config.get("mcp_servers")
+    if not isinstance(servers, dict):
+        servers = {}
+    current = servers.get("nia_pay")
+    if isinstance(current, dict) and current.get("url") != PAY["url"]:
+        return 5
+    servers["nia_pay"] = dict(PAY)
+    config["mcp_servers"] = servers
+    known = {str(name) for name in servers if name != "nia_pay"}
+    platforms = config.get("platform_toolsets")
+    if isinstance(platforms, dict):
+        for names in platforms.values():
+            if not isinstance(names, list) or "no_mcp" in names:
+                continue
+            listed = {str(n)[4:] if str(n).startswith("mcp-") else str(n) for n in names}
+            if listed & known and not {"nia_pay", "mcp-nia_pay"} & {str(n) for n in names}:
+                names.append("nia_pay")
+    save_config(config)
+    return 0
+
+
 def local(name: str, kind: str = "local") -> int:
     import re
     from hermes_cli.config import read_raw_config, save_config
 
-    if not re.fullmatch(r"[a-z][a-z0-9_]{0,31}", name) or name == "host" or "__" in name:
+    if not re.fullmatch(r"[a-z][a-z0-9_]{0,31}", name) or name in ("host", "nia_pay") or "__" in name:
         return 2
     config = read_raw_config()
     servers = config.get("mcp_servers")
@@ -176,6 +207,8 @@ def main(mode: str, *rest: str) -> int:
         return mcp()
     if mode == "host":
         return host()
+    if mode == "pay":
+        return pay()
     if mode == "modelkeys":
         return modelkeys()
     home = os.environ["HERMES_HOME"]

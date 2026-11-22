@@ -53,7 +53,7 @@ func TestTestnetPayment(t *testing.T) {
 		"chain_id": 84532, "target": "0x036CbD53842c5426634e7929541eC2318f3dCF7e", "value": "0", "calldata": calldata,
 		"allowance_amount": envOr("NIA_E2E_ALLOWANCE", "0"), "reference": reference, "gas_limit": "60000", "max_fee_per_gas": "2000000000", "max_priority_fee_per_gas": "1000000000",
 	}})
-	releases.Release("mcp__nia-pay__pay", string(arguments), time.Now())
+	releases.Release("mcp__nia_pay__pay", string(arguments), time.Now())
 	result, rpcErr := h.call(context.Background(), json.RawMessage(`{"name":"pay","arguments":`+string(arguments)+`}`))
 	if rpcErr != nil {
 		t.Fatal(rpcErr.Message)

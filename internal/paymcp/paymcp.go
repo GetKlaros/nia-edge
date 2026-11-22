@@ -61,7 +61,7 @@ type Handler struct {
 	Account  func() (Account, error)
 	Releases *local.Releases
 	// Prefix is how the agent names this server's tools; empty is
-	// mcp__nia-pay__.
+	// mcp__nia_pay__ (the server nia_pay of Hermes and OpenClaw).
 	Prefix  string
 	Chain   Chain
 	Visas   Visas
@@ -294,7 +294,7 @@ func (h *Handler) call(ctx context.Context, params json.RawMessage) (map[string]
 	}
 	prefix := h.Prefix
 	if prefix == "" {
-		prefix = "mcp__nia-pay__"
+		prefix = "mcp__nia_pay__"
 	}
 	if h.Releases == nil || !h.Releases.Take(prefix+"pay", string(p.Arguments), h.now()) {
 		return text("[Nia agent firewall] This payment was not released by Nia: it runs only as the model proposed it and Nia allowed it, once.", true), nil
