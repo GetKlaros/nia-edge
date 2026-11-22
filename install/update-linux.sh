@@ -68,12 +68,15 @@ if [ -n "$AGENT_HOME" ] && [ -f "$AGENT_HOME/.hermes/config.yaml" ]; then
         PATH="$AGENT_HOME/.local/bin:/usr/local/bin:/usr/bin:/bin" sh -c "umask 077; cd; $1"
     }
     HERMES_PY=
-    for candidate in $(find "$AGENT_HOME/.hermes" "$AGENT_HOME/.local" -maxdepth 8 \( -name python -o -name python3 \) -path '*/bin/*' 2>/dev/null); do
+    while IFS= read -r candidate; do
+      [ -n "$candidate" ] || continue
       if as_agent "'$candidate' -I -c 'import hermes_cli.config'" </dev/null >/dev/null 2>&1; then
         HERMES_PY=$candidate
         break
       fi
-    done
+    done <<EOF_PY
+$(find "$AGENT_HOME/.hermes" "$AGENT_HOME/.local" -maxdepth 8 \( -name python -o -name python3 \) -path '*/bin/*' 2>/dev/null)
+EOF_PY
     if [ -n "$HERMES_PY" ] && as_agent "HERMES_HOME=\"\$HOME/.hermes\" '$HERMES_PY' -I '$work/hermes-config.py' pay" </dev/null >/dev/null 2>&1; then
       echo "update: $AGENT's Hermes has the payment tool (mcp__nia_pay__pay): restart its gateway to load it (sudo -iu $AGENT hermes gateway restart)"
     else
