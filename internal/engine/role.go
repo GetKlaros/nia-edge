@@ -350,9 +350,10 @@ func (r *Role) Decide(tool string, tainted bool, rawArguments string, exposed bo
 func named(name string) *string { return &name }
 
 // paymentTool matches the tools of Nia's payment server, as each agent names
-// an MCP tool: mcp__nia-pay__send (Claude Code), mcp_nia-pay_send or
-// mcp_nia_pay_send (Hermes), in any case.
-var paymentTool = regexp.MustCompile(`(?i)^(mcp__nia-pay__|mcp_nia[-_]pay_)`)
+// an MCP tool: mcp__nia-pay__pay (Claude Code), mcp__nia_pay__pay (Hermes and
+// OpenClaw, whose server names take no hyphen), mcp_nia-pay_pay or
+// mcp_nia_pay_pay elsewhere, in any case.
+var paymentTool = regexp.MustCompile(`(?i)^(mcp__nia[-_]pay__|mcp_nia[-_]pay_)`)
 
 // PaymentTool reports whether a tool moves money: a role's unlisted never covers it.
 func PaymentTool(tool string) bool { return paymentTool.MatchString(tool) }

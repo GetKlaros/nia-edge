@@ -53,6 +53,36 @@ for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
 done
 "$BIN" health || fail "nia-edge does not answer after the update: journalctl -u nia-edge" 4
 echo "update: nia-edge $before -> $("$BIN" version)"
+
+# Hermes, when this machine runs it for HERMES_USER (hermes by default): the
+# payment tool joins its MCP servers, through Hermes' own code, as the agent.
+AGENT=${HERMES_USER:-hermes}
+AGENT_HOME=$(getent passwd "$AGENT" 2>/dev/null | cut -d: -f6 || true)
+if [ -n "$AGENT_HOME" ] && [ -f "$AGENT_HOME/.hermes/config.yaml" ]; then
+  if curl -fsSL -o "$work/hermes-config.py" "$REPO/releases/download/$VERSION/hermes-config.py" &&
+    grep ' hermes-config.py$' "$work/SHA256SUMS" > "$work/expected-helper" &&
+    (cd "$work" && sha256sum -c expected-helper >/dev/null); then
+    chmod 0755 "$work" && chmod 0644 "$work/hermes-config.py"
+    as_agent() {
+      runuser -u "$AGENT" -- env HOME="$AGENT_HOME" USER="$AGENT" LOGNAME="$AGENT" \
+        PATH="$AGENT_HOME/.local/bin:/usr/local/bin:/usr/bin:/bin" sh -c "umask 077; cd; $1"
+    }
+    HERMES_PY=
+    for candidate in $(find "$AGENT_HOME/.hermes" "$AGENT_HOME/.local" -maxdepth 8 \( -name python -o -name python3 \) -path '*/bin/*' 2>/dev/null); do
+      if as_agent "'$candidate' -I -c 'import hermes_cli.config'" </dev/null >/dev/null 2>&1; then
+        HERMES_PY=$candidate
+        break
+      fi
+    done
+    if [ -n "$HERMES_PY" ] && as_agent "HERMES_HOME=\"\$HOME/.hermes\" '$HERMES_PY' -I '$work/hermes-config.py' pay" </dev/null >/dev/null 2>&1; then
+      echo "update: $AGENT's Hermes has the payment tool (mcp__nia_pay__pay): restart its gateway to load it (sudo -iu $AGENT hermes gateway restart)"
+    else
+      echo "update: could not add the payment tool to $AGENT's Hermes: an MCP server named nia_pay may already exist"
+    fi
+  else
+    echo "update: hermes-config.py of $VERSION could not be checked: $AGENT's Hermes is unchanged"
+  fi
+fi
 if ! systemctl cat nia-mcp.service >/dev/null 2>&1 && command -v podman >/dev/null; then
   echo "update: this machine has no nia-mcp yet: run install/linux.sh <agent user> of $VERSION once to add it"
 fi
