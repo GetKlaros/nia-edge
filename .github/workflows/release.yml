@@ -1,0 +1,43 @@
+name: release
+
+# Run by hand, from the Actions tab, once release-notes/<version>.md is on
+# main: tags main, builds the binaries with scripts/release.sh (reproducible)
+# and publishes them as a pre-release with their SHA256SUMS.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, for instance v0.9.0
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: local
+      GOFLAGS: -mod=readonly
+      VERSION: ${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: main
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Check the version and its notes
+        run: |
+          case "$VERSION" in v[0-9]*.[0-9]*.[0-9]*) ;; *) echo "not a version: $VERSION"; exit 1 ;; esac
+          test -f "release-notes/$VERSION.md"
+          ! git ls-remote --exit-code --tags origin "refs/tags/$VERSION"
+      - name: Tag and build
+        run: |
+          git tag "$VERSION"
+          scripts/release.sh "$VERSION"
+      - name: Publish
+        run: |
+          git push origin "refs/tags/$VERSION"
+          gh release create "$VERSION" dist/* --prerelease --verify-tag --title "nia-edge ${VERSION#v}" --notes-file "release-notes/$VERSION.md"
