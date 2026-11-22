@@ -45,11 +45,13 @@ func TestTestnetPayment(t *testing.T) {
 		Version:  "e2e",
 	}
 	reference := fmt.Sprintf("e2e-%d", time.Now().Unix())
-	to := strings.Repeat("0", 24) + "000000000000000000000000000000000000dead"
-	calldata := "0xa9059cbb" + to + fmt.Sprintf("%064x", 1)
+	// NIA_E2E_TO is the recipient (40 hex digits), NIA_E2E_ALLOWANCE what the
+	// role's allowance counts: the amount when the role has one, else 0.
+	to := strings.Repeat("0", 24) + envOr("NIA_E2E_TO", "000000000000000000000000000000000000dead")
+	calldata := "0xa9059cbb" + to + fmt.Sprintf("%064x", amountOf())
 	arguments, _ := json.Marshal(map[string]any{"vault": vault, "role": "payments", "request": map[string]any{
 		"chain_id": 84532, "target": "0x036CbD53842c5426634e7929541eC2318f3dCF7e", "value": "0", "calldata": calldata,
-		"allowance_amount": "0", "reference": reference, "gas_limit": "60000", "max_fee_per_gas": "2000000000", "max_priority_fee_per_gas": "1000000000",
+		"allowance_amount": envOr("NIA_E2E_ALLOWANCE", "0"), "reference": reference, "gas_limit": "60000", "max_fee_per_gas": "2000000000", "max_priority_fee_per_gas": "1000000000",
 	}})
 	releases.Release("mcp__nia-pay__pay", string(arguments), time.Now())
 	result, rpcErr := h.call(context.Background(), json.RawMessage(`{"name":"pay","arguments":`+string(arguments)+`}`))
@@ -57,8 +59,8 @@ func TestTestnetPayment(t *testing.T) {
 		t.Fatal(rpcErr.Message)
 	}
 	t.Log(result["content"].([]map[string]any)[0]["text"])
-	if result["isError"] != false {
-		t.Fatal("not paid")
+	if want := os.Getenv("NIA_E2E_REFUSED") == ""; (result["isError"] == false) != want {
+		t.Fatalf("paid: %v, expected %v", result["isError"] == false, want)
 	}
 }
 
@@ -74,4 +76,20 @@ func (v e2eVisas) Visa(ctx context.Context, tool string, arguments json.RawMessa
 	}
 	var answer VisaAnswer
 	return &answer, json.Unmarshal(raw, &answer)
+}
+
+func envOr(name, fallback string) string {
+	if value := os.Getenv(name); value != "" {
+		return value
+	}
+	return fallback
+}
+
+// amountOf is NIA_E2E_AMOUNT, in the token's smallest unit; 1 by default.
+func amountOf() uint64 {
+	var amount uint64 = 1
+	if _, err := fmt.Sscan(envOr("NIA_E2E_AMOUNT", "1"), &amount); err != nil {
+		return 1
+	}
+	return amount
 }
