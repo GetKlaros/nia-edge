@@ -716,17 +716,19 @@ faucet makes it); Nia names it back to the machine. Nia never holds the key.
 The agent pays through nia-edge's MCP server `http://127.0.0.1:8787/pay/mcp`,
 added to Hermes as `nia_pay` by `hermes-linux.sh` and by `update-linux.sh`:
 one tool, `pay` (`mcp__nia_pay__pay`, which the agent's role must list), whose
-arguments are the vault, the agent's role in it and the EVM transaction of the
-vault's wallet. A call runs only against a release of the model path, once.
+arguments are who receives the payment (`to`, an 0x address), how much
+(`amount`, in USDC) and why (`reference`): the agent is told to send x to y,
+nothing more. A call runs only against a release of the model path, once.
 nia-edge then
 
-1. calls the vault's `prepare` with the payment account: the vault checks the
-   transaction against the role and holds it as an operation;
-2. asks Nia for the operation's visa: Nia reads the operation from the vault,
-   checks it is the call it allowed, prepared by this agent's account, and
-   signs a visa for it alone;
-3. calls `authorize` with the visa, which the vault checks and accepts once,
-   and the vault has the transaction signed.
+1. asks Nia for the payment's plan: the vault of the organization that lets
+   the agent pay, its chain, its token and the fees;
+2. calls the vault's `prepare` with the payment account: the vault checks the
+   transaction against the rule the organization set and holds it;
+3. asks Nia for the operation's visa: Nia plans the payment again, reads the
+   operation from the vault and signs a visa only if it is that plan;
+4. calls `authorize` with the visa, which the vault checks and accepts once,
+   and the vault has the transaction signed; Nia sends it to its chain.
 
 Without a visa, nia-edge cancels the operation (`cancel_prepared`): its
 allowance goes back to the role. The key never leaves the machine, the agent

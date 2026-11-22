@@ -115,3 +115,25 @@ func (v niaVisas) Visa(ctx context.Context, tool string, arguments json.RawMessa
 	}
 	return &answer, nil
 }
+
+// niaPlans asks Nia which vault operation a payment is.
+type niaPlans struct {
+	client *niaclient.Client
+	key    string
+}
+
+func (p niaPlans) Plan(ctx context.Context, arguments json.RawMessage) (*paymcp.Payment, error) {
+	raw, err := p.client.PaymentPlan(ctx, p.key, arguments)
+	if err != nil {
+		var refused *niaclient.Refused
+		if errors.As(err, &refused) && refused.Message != "" {
+			return nil, errors.New(refused.Message)
+		}
+		return nil, err
+	}
+	var plan paymcp.Payment
+	if err := json.Unmarshal(raw, &plan); err != nil {
+		return nil, errors.New("Nia's plan cannot be read")
+	}
+	return &plan, nil
+}

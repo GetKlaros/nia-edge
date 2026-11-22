@@ -45,14 +45,9 @@ func TestTestnetPayment(t *testing.T) {
 		Version:  "e2e",
 	}
 	reference := fmt.Sprintf("e2e-%d", time.Now().Unix())
-	// NIA_E2E_TO is the recipient (40 hex digits), NIA_E2E_ALLOWANCE what the
-	// role's allowance counts: the amount when the role has one, else 0.
-	to := strings.Repeat("0", 24) + envOr("NIA_E2E_TO", "000000000000000000000000000000000000dead")
-	calldata := "0xa9059cbb" + to + fmt.Sprintf("%064x", amountOf())
-	arguments, _ := json.Marshal(map[string]any{"vault": vault, "role": "payments", "request": map[string]any{
-		"chain_id": 84532, "target": "0x036CbD53842c5426634e7929541eC2318f3dCF7e", "value": "0", "calldata": calldata,
-		"allowance_amount": envOr("NIA_E2E_ALLOWANCE", "0"), "reference": reference, "gas_limit": "60000", "max_fee_per_gas": "2000000000", "max_priority_fee_per_gas": "1000000000",
-	}})
+	to := "0x" + envOr("NIA_E2E_TO", "000000000000000000000000000000000000dead")
+	arguments, _ := json.Marshal(map[string]any{"to": to, "amount": envOr("NIA_E2E_AMOUNT", "0.000001"), "reference": reference})
+	h.Plans = e2ePlans{vault: vault}
 	releases.Release("mcp__nia_pay__pay", string(arguments), time.Now())
 	result, rpcErr := h.call(context.Background(), json.RawMessage(`{"name":"pay","arguments":`+string(arguments)+`}`))
 	if rpcErr != nil {
@@ -85,11 +80,19 @@ func envOr(name, fallback string) string {
 	return fallback
 }
 
-// amountOf is NIA_E2E_AMOUNT, in the token's smallest unit; 1 by default.
-func amountOf() uint64 {
-	var amount uint64 = 1
-	if _, err := fmt.Sscan(envOr("NIA_E2E_AMOUNT", "1"), &amount); err != nil {
-		return 1
+// e2ePlans plans as Nia does for Base Sepolia's USDC: the run has no
+// machine key to ask Nia's plan with, and Nia plans it again for the visa.
+type e2ePlans struct{ vault string }
+
+func (p e2ePlans) Plan(_ context.Context, arguments json.RawMessage) (*Payment, error) {
+	var ask Ask
+	if err := json.Unmarshal(arguments, &ask); err != nil {
+		return nil, err
 	}
-	return amount
+	whole, fraction, _ := strings.Cut(ask.Amount, ".")
+	var units uint64
+	fmt.Sscan(whole+(fraction + "000000")[:6], &units)
+	return &Payment{Vault: p.vault, Role: "payments", Request: Request{ChainID: 84532, Target: "0x036cbd53842c5426634e7929541ec2318f3dcf7e", Value: "0",
+		Calldata:        fmt.Sprintf("0xa9059cbb%064s%064x", strings.ToLower(ask.To[2:]), units),
+		AllowanceAmount: fmt.Sprint(units), Reference: ask.Reference, GasLimit: "100000", MaxFeePerGas: "1000000000", MaxPriorityFeePerGas: "1000000"}}, nil
 }

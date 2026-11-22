@@ -16,7 +16,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"math/big"
 	"net/http"
@@ -50,6 +49,11 @@ type VisaAnswer struct {
 	Approval json.RawMessage `json:"approval"`
 }
 
+// Plans asks Nia which vault operation a payment is.
+type Plans interface {
+	Plan(ctx context.Context, arguments json.RawMessage) (*Payment, error)
+}
+
 // Visas asks Nia for the visa of one prepared operation.
 type Visas interface {
 	Visa(ctx context.Context, tool string, arguments json.RawMessage, opID string) (*VisaAnswer, error)
@@ -64,6 +68,7 @@ type Handler struct {
 	// mcp__nia_pay__ (the server nia_pay of Hermes and OpenClaw).
 	Prefix  string
 	Chain   Chain
+	Plans   Plans
 	Visas   Visas
 	Version string
 	Now     func() time.Time
@@ -97,42 +102,60 @@ type Request struct {
 	MaxPriorityFeePerGas string `json:"max_priority_fee_per_gas"`
 }
 
-// Payment is the pay tool's arguments.
+// Payment is a vault operation, as Nia plans it from the tool's arguments.
 type Payment struct {
 	Vault   string  `json:"vault"`
 	Role    string  `json:"role"`
 	Request Request `json:"request"`
 }
 
-func parse(raw json.RawMessage) (*Payment, error) {
+// Ask is the pay tool's arguments: who, how much, why.
+type Ask struct {
+	To        string `json:"to"`
+	Amount    string `json:"amount"`
+	Reference string `json:"reference"`
+}
+
+var (
+	address = regexp.MustCompile(`^0x[0-9a-fA-F]{40}$`)
+	usdc    = regexp.MustCompile(`^\d{1,9}(\.\d{1,6})?$`)
+)
+
+func parse(raw json.RawMessage) (*Ask, error) {
 	decoder := json.NewDecoder(strings.NewReader(string(raw)))
 	decoder.DisallowUnknownFields()
-	var p Payment
-	if err := decoder.Decode(&p); err != nil {
-		return nil, errors.New("pay takes vault, role and request, and nothing else")
+	var ask Ask
+	if err := decoder.Decode(&ask); err != nil || decoder.More() {
+		return nil, errors.New("pay takes to, amount and reference, and nothing else")
 	}
-	if decoder.More() {
-		return nil, errors.New("pay takes one object")
+	switch {
+	case !address.MatchString(ask.To):
+		return nil, errors.New("to is the 0x address that receives the payment")
+	case !usdc.MatchString(ask.Amount):
+		return nil, errors.New("amount is in USDC, as a decimal string such as \"12.5\"")
+	case strings.TrimSpace(ask.Reference) == "" || len(ask.Reference) > 120:
+		return nil, errors.New("reference says what the payment is for")
 	}
+	return &ask, nil
+}
+
+// checkPlan refuses a plan nia-edge could not prepare as it reads.
+func checkPlan(p *Payment) error {
 	r := p.Request
 	switch {
 	case !near.ValidAccount(p.Vault):
-		return nil, errors.New("vault is a NEAR account")
+		return errors.New("the plan's vault is not a NEAR account")
 	case p.Role == "" || len(p.Role) > 64:
-		return nil, errors.New("role is the vault's role for the agent")
-	case !hexBytes.MatchString(r.Target) || len(r.Target) != 42:
-		return nil, errors.New("request.target is a 0x address")
-	case !hexBytes.MatchString(r.Calldata):
-		return nil, errors.New("request.calldata is 0x hex")
-	case r.Reference == "" || len(r.Reference) > 256:
-		return nil, errors.New("request.reference names the payment")
+		return errors.New("the plan names no role")
+	case !hexBytes.MatchString(r.Target) || len(r.Target) != 42 || !hexBytes.MatchString(r.Calldata):
+		return errors.New("the plan's transaction cannot be read")
 	}
-	for name, value := range map[string]string{"value": r.Value, "allowance_amount": r.AllowanceAmount, "gas_limit": r.GasLimit, "max_fee_per_gas": r.MaxFeePerGas, "max_priority_fee_per_gas": r.MaxPriorityFeePerGas} {
+	for _, value := range []string{r.Value, r.AllowanceAmount, r.GasLimit, r.MaxFeePerGas, r.MaxPriorityFeePerGas} {
 		if !amount.MatchString(value) {
-			return nil, fmt.Errorf("request.%s is an integer, as a string", name)
+			return errors.New("the plan's amounts cannot be read")
 		}
 	}
-	return &p, nil
+	return nil
 }
 
 // numbers writes bytes as the vault's JSON takes them: an array of numbers.
@@ -238,36 +261,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-var amountSchema = map[string]any{"type": "string", "pattern": `^\d{1,39}$`}
-
 var tool = map[string]any{
 	"name": "pay",
-	"description": "Pay from the organization's vault: one EVM transaction of the vault's wallet, which the vault checks against the role it gives you. " +
-		"For a token transfer, target is the token contract and calldata its transfer call; allowance_amount is the amount the role's allowance counts. " +
-		"Amounts are integers in the token's or the chain's smallest unit, as strings.",
+	"description": "Pay someone in USDC from the organization's vault. Give only who receives it, how much and why: " +
+		"Nia knows the vault, its chain and its fees, and the vault checks the payment against the rule the organization set " +
+		"(who may be paid, how much per day). A payment outside that rule is refused, and nothing is paid.",
 	"inputSchema": map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"vault": map[string]any{"type": "string", "description": "The vault's NEAR account."},
-			"role":  map[string]any{"type": "string", "description": "Your role in the vault."},
-			"request": map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"chain_id":                 map[string]any{"type": "integer"},
-					"target":                   map[string]any{"type": "string", "pattern": "^0x[0-9a-fA-F]{40}$"},
-					"value":                    amountSchema,
-					"calldata":                 map[string]any{"type": "string", "pattern": "^0x([0-9a-fA-F]{2})*$"},
-					"allowance_amount":         amountSchema,
-					"reference":                map[string]any{"type": "string", "description": "What the payment is for: an invoice, an order. One per payment."},
-					"gas_limit":                amountSchema,
-					"max_fee_per_gas":          amountSchema,
-					"max_priority_fee_per_gas": amountSchema,
-				},
-				"required":             []string{"chain_id", "target", "value", "calldata", "allowance_amount", "reference", "gas_limit", "max_fee_per_gas", "max_priority_fee_per_gas"},
-				"additionalProperties": false,
-			},
+			"to":        map[string]any{"type": "string", "pattern": "^0x[0-9a-fA-F]{40}$", "description": "Who receives it: an 0x address."},
+			"amount":    map[string]any{"type": "string", "pattern": `^\d{1,9}(\.\d{1,6})?$`, "description": "How much, in USDC, as a decimal: \"12.5\"."},
+			"reference": map[string]any{"type": "string", "minLength": 1, "maxLength": 120, "description": "Why: an invoice, an order. One per payment."},
 		},
-		"required":             []string{"vault", "role", "request"},
+		"required":             []string{"to", "amount", "reference"},
 		"additionalProperties": false,
 	},
 	"annotations": map[string]any{"readOnlyHint": false, "destructiveHint": true, "openWorldHint": true},
@@ -288,8 +294,7 @@ func (h *Handler) call(ctx context.Context, params json.RawMessage) (map[string]
 	if p.Name != "pay" {
 		return nil, &rpcError{Code: -32602, Message: "unknown tool " + p.Name}
 	}
-	payment, err := parse(p.Arguments)
-	if err != nil {
+	if _, err := parse(p.Arguments); err != nil {
 		return text(err.Error(), true), nil
 	}
 	prefix := h.Prefix
@@ -305,6 +310,16 @@ func (h *Handler) call(ctx context.Context, params json.RawMessage) (map[string]
 	}
 	runCtx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
+
+	// Nia knows the vault, its chain and its fees; it plans the payment again
+	// before signing a visa, so a plan changed on the way gets none.
+	payment, err := h.Plans.Plan(runCtx, p.Arguments)
+	if err != nil {
+		return text("[Nia agent firewall] Nothing was paid: "+err.Error(), true), nil
+	}
+	if err := checkPlan(payment); err != nil {
+		return text("Nothing was paid: "+err.Error(), true), nil
+	}
 
 	prepared, err := h.Chain.Call(runCtx, account, payment.Vault, near.FunctionCall{Method: "prepare", Args: prepareArgs(payment), Gas: prepareGas}, "FINAL")
 	if err != nil {
