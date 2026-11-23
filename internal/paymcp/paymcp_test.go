@@ -167,6 +167,13 @@ func TestNothingIsSentWhenItCannotPay(t *testing.T) {
 	if result := pay(t, h, args); result["isError"] != true || !strings.Contains(textOf(result), "ERR_PERMISSION_DENIED") || len(visas.asked) != 0 {
 		t.Fatal("asked a visa for a refused operation")
 	}
+	// A reference already used: said as such, and nothing is asked of Nia.
+	h, chain, visas, releases = setup(true)
+	chain.refuse = "Smart contract panicked: ERR_REFERENCE_ALREADY_USED"
+	releases.Release("mcp__nia_pay__pay", args, now)
+	if result := pay(t, h, args); result["isError"] != true || !strings.Contains(textOf(result), "was already made") || len(visas.asked) != 0 {
+		t.Fatal("a used reference was not reported as paid already")
+	}
 	for _, bad := range []string{
 		`{"to":"0x01","amount":"1","reference":"x"}`,
 		`{"to":"0x1d693a4425bf7ed10fe7775e2b65b072019ffceb","amount":"-1","reference":"x"}`,

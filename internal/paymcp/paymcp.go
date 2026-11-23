@@ -325,6 +325,10 @@ func (h *Handler) call(ctx context.Context, params json.RawMessage) (map[string]
 	if err != nil {
 		return text("The vault could not be reached, so nothing was paid: "+err.Error(), true), nil
 	}
+	if strings.Contains(prepared.Failure, "ERR_REFERENCE_ALREADY_USED") {
+		// The vault keeps one payment per reference: a retry never pays twice.
+		return text("A payment with the reference \""+payment.Request.Reference+"\" was already made from this vault, so it was not paid again. Use a new reference for a new payment.", true), nil
+	}
 	if prepared.Failure != "" || prepared.Pending {
 		return text("The vault refused the payment: "+orUnknown(prepared.Failure)+" (transaction "+prepared.Hash+"). Nothing was paid.", true), nil
 	}
