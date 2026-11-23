@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/GetKlaros/nia-edge/internal/local"
 	"github.com/GetKlaros/nia-edge/internal/near"
 	"github.com/GetKlaros/nia-edge/internal/niaclient"
 	"github.com/GetKlaros/nia-edge/internal/paymcp"
@@ -136,4 +137,19 @@ func (p niaPlans) Plan(ctx context.Context, arguments json.RawMessage) (*paymcp.
 		return nil, errors.New("Nia's plan cannot be read")
 	}
 	return &plan, nil
+}
+
+// payHandler is the payment tool: Nia plans each payment and signs its visa,
+// the vault prepares and checks it. Every part is set, or nothing is paid.
+func payHandler(payments *paymentAccount, releases *local.Releases, nia *niaclient.Client, key, session, run string) *paymcp.Handler {
+	return &paymcp.Handler{
+		Account:  payments.get,
+		Releases: releases,
+		// Hermes and OpenClaw name the server nia_pay: mcp__nia_pay__pay.
+		Prefix:  "mcp__nia_pay__",
+		Chain:   &paymcp.NearChain{HTTP: niaclient.NewHTTPClient(3 * time.Minute)},
+		Plans:   niaPlans{client: nia, key: key},
+		Visas:   niaVisas{client: nia, key: key, session: session, run: run},
+		Version: version,
+	}
 }

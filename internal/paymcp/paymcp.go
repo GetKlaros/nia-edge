@@ -297,6 +297,10 @@ func (h *Handler) call(ctx context.Context, params json.RawMessage) (map[string]
 	if _, err := parse(p.Arguments); err != nil {
 		return text(err.Error(), true), nil
 	}
+	// A part missing is a machine set up wrong: refused before the release is spent.
+	if h.Account == nil || h.Chain == nil || h.Plans == nil || h.Visas == nil {
+		return text("[Nia agent firewall] This machine's payment tool is not set up: nothing was paid.", true), nil
+	}
 	prefix := h.Prefix
 	if prefix == "" {
 		prefix = "mcp__nia_pay__"
