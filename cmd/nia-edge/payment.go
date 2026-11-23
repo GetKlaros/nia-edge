@@ -146,10 +146,21 @@ func payHandler(payments *paymentAccount, releases *local.Releases, nia *niaclie
 		Account:  payments.get,
 		Releases: releases,
 		// Hermes and OpenClaw name the server nia_pay: mcp__nia_pay__pay.
-		Prefix:  "mcp__nia_pay__",
-		Chain:   &paymcp.NearChain{HTTP: niaclient.NewHTTPClient(3 * time.Minute)},
-		Plans:   niaPlans{client: nia, key: key},
-		Visas:   niaVisas{client: nia, key: key, session: session, run: run},
-		Version: version,
+		Prefix:   "mcp__nia_pay__",
+		Chain:    &paymcp.NearChain{HTTP: niaclient.NewHTTPClient(3 * time.Minute)},
+		Plans:    niaPlans{client: nia, key: key},
+		Visas:    niaVisas{client: nia, key: key, session: session, run: run},
+		Refusals: niaRefusals{client: nia, key: key},
+		Version:  version,
 	}
+}
+
+// niaRefusals tells Nia of the vault's refusals; failing to stops nothing.
+type niaRefusals struct {
+	client *niaclient.Client
+	key    string
+}
+
+func (r niaRefusals) Refused(ctx context.Context, vault, transaction string) {
+	_ = r.client.PaymentRefused(ctx, r.key, vault, transaction)
 }

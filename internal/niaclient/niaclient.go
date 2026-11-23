@@ -221,6 +221,12 @@ func (c *Client) PaymentPlan(ctx context.Context, key string, arguments json.Raw
 	return answer, nil
 }
 
+// PaymentRefused tells Nia the vault refused the agent's call: Nia records it
+// only once NEAR shows that transaction failing, so a reviewer sees it.
+func (c *Client) PaymentRefused(ctx context.Context, key, vault, transaction string) error {
+	return c.post(ctx, "/edge/v1/payment-refused", key, map[string]string{"vault": vault, "transaction": transaction}, http.StatusOK, nil)
+}
+
 // Visa asks Nia for the visa of an operation the agent prepared in its
 // vault. Nia signs it only for the call its model path allowed.
 func (c *Client) Visa(ctx context.Context, key, session, run, tool string, arguments json.RawMessage, opID string) (json.RawMessage, error) {
