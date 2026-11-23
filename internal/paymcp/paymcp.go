@@ -59,6 +59,12 @@ type Visas interface {
 	Visa(ctx context.Context, tool string, arguments json.RawMessage, opID string) (*VisaAnswer, error)
 }
 
+// Refusals is told of a call the vault refused (its NEAR transaction), so
+// that Nia shows it; Nia checks it on the chain, and it decides nothing.
+type Refusals interface {
+	Refused(ctx context.Context, vault, transaction string)
+}
+
 // Handler serves the MCP endpoint.
 type Handler struct {
 	// Account is the agent's payment account; an error means none yet.
@@ -66,12 +72,14 @@ type Handler struct {
 	Releases *local.Releases
 	// Prefix is how the agent names this server's tools; empty is
 	// mcp__nia_pay__ (the server nia_pay of Hermes and OpenClaw).
-	Prefix  string
-	Chain   Chain
-	Plans   Plans
-	Visas   Visas
-	Version string
-	Now     func() time.Time
+	Prefix string
+	Chain  Chain
+	Plans  Plans
+	Visas  Visas
+	// Refusals, when set, hears of each refusal of the vault.
+	Refusals Refusals
+	Version  string
+	Now      func() time.Time
 }
 
 // Gas of the vault's calls: authorize also pays the MPC signature request.
@@ -329,6 +337,9 @@ func (h *Handler) call(ctx context.Context, params json.RawMessage) (map[string]
 	if err != nil {
 		return text("The vault could not be reached, so nothing was paid: "+err.Error(), true), nil
 	}
+	if prepared.Failure != "" {
+		h.refused(runCtx, payment.Vault, prepared.Hash)
+	}
 	if strings.Contains(prepared.Failure, "ERR_REFERENCE_ALREADY_USED") {
 		// The vault keeps one payment per reference: a retry never pays twice.
 		return text("A payment with the reference \""+payment.Request.Reference+"\" was already made from this vault, so it was not paid again. Use a new reference for a new payment.", true), nil
@@ -373,12 +384,23 @@ func (h *Handler) call(ctx context.Context, params json.RawMessage) (map[string]
 		return text("Operation "+opID+" has its visa, but authorize did not reach NEAR: "+err.Error(), true), nil
 	}
 	if authorized.Failure != "" {
+		h.refused(runCtx, payment.Vault, authorized.Hash)
 		return text("The vault refused to authorize operation "+opID+": "+authorized.Failure+" (transaction "+authorized.Hash+").", true), nil
 	}
 	if authorized.Pending {
 		return text("Operation "+opID+" was authorized (transaction "+authorized.Hash+"); its signature is not known yet.", false), nil
 	}
 	return text("Operation "+opID+" was authorized and signed by the vault (transaction "+authorized.Hash+").", false), nil
+}
+
+// refused tells Nia of a refusal, briefly: the payment's answer never waits on it.
+func (h *Handler) refused(ctx context.Context, vault, transaction string) {
+	if h.Refusals == nil || transaction == "" {
+		return
+	}
+	reportCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	h.Refusals.Refused(reportCtx, vault, transaction)
 }
 
 func orUnknown(s string) string {

@@ -219,3 +219,33 @@ func TestPayWithAMissingPartRefuses(t *testing.T) {
 		t.Fatal("the release was spent")
 	}
 }
+
+type fakeRefusals struct{ heard []string }
+
+func (f *fakeRefusals) Refused(_ context.Context, vault, transaction string) {
+	f.heard = append(f.heard, vault+" "+transaction)
+}
+
+// A refusal of the vault is told to Nia, with its NEAR transaction; a payment
+// that goes through is not.
+func TestVaultRefusalIsToldToNia(t *testing.T) {
+	h, chain, _, releases := setup(true)
+	refusals := &fakeRefusals{}
+	h.Refusals = refusals
+	chain.refuse = "Smart contract panicked: allowanceExceeded"
+	releases.Release("mcp__nia_pay__pay", args, now)
+	if result := pay(t, h, args); result["isError"] != true {
+		t.Fatalf("a refused payment answered %v", result)
+	}
+	if len(refusals.heard) != 1 || !strings.HasSuffix(refusals.heard[0], " h1") {
+		t.Fatalf("Nia heard %v", refusals.heard)
+	}
+	h, _, _, releases = setup(true)
+	refusals = &fakeRefusals{}
+	h.Refusals = refusals
+	releases.Release("mcp__nia_pay__pay", args, now)
+	pay(t, h, args)
+	if len(refusals.heard) != 0 {
+		t.Fatalf("a payment that went through was told as refused: %v", refusals.heard)
+	}
+}
