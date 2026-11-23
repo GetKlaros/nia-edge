@@ -205,3 +205,17 @@ func TestAPageElsewhereCannotPay(t *testing.T) {
 		t.Fatal(recorder.Code)
 	}
 }
+
+// A machine whose payment tool misses a part refuses, without a panic and
+// without spending the release.
+func TestPayWithAMissingPartRefuses(t *testing.T) {
+	h, _, _, releases := setup(true)
+	h.Plans = nil
+	releases.Release("mcp__nia_pay__pay", args, now)
+	if result := pay(t, h, args); result["isError"] != true || !strings.Contains(textOf(result), "not set up") {
+		t.Fatalf("a payment tool without plans answered %v", result)
+	}
+	if !releases.Take("mcp__nia_pay__pay", args, now) {
+		t.Fatal("the release was spent")
+	}
+}
