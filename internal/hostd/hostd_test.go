@@ -59,6 +59,8 @@ func TestRunsOnlyWhatTheCatalogueNamesWithFixedPrograms(t *testing.T) {
 		{Request{Action: ServiceRestart, Name: "nginx"}, "systemctl restart -- nginx.service"},
 		{Request{Action: ServiceReload, Name: "postgresql@16-main"}, "systemctl reload -- postgresql@16-main.service"},
 		{Request{Action: ServiceStatus, Name: "nginx"}, "systemctl status --no-pager --lines=20 -- nginx.service"},
+		{Request{Action: ServiceLogs, Name: "postgresql@16-main"}, "journalctl --no-pager --quiet --output=short-iso --lines=200 --unit=postgresql@16-main.service"},
+		{Request{Action: DiskUsage}, "df --human-readable --output=target,size,used,avail,pcent --exclude-type=tmpfs --exclude-type=devtmpfs --exclude-type=overlay --exclude-type=squashfs"},
 		{Request{Action: Sync, Name: "site"}, "rsync -a --delete -- /srv/www/ /backup/www/"},
 	} {
 		run.Calls = nil
@@ -70,6 +72,8 @@ func TestRunsOnlyWhatTheCatalogueNamesWithFixedPrograms(t *testing.T) {
 	for _, req := range []Request{
 		{Action: ServiceRestart, Name: "sshd"},
 		{Action: ServiceRestart, Name: "nginx; rm -rf /"},
+		{Action: ServiceLogs, Name: "sshd"},
+		{Action: DiskUsage, Name: "/etc"},
 		{Action: PackageInstall, Name: "netcat-traditional"},
 		{Action: Sync, Name: "/srv/www"},
 		{Action: "shell", Name: "id"},

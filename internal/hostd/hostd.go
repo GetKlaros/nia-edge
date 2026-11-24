@@ -49,14 +49,20 @@ type Response struct {
 // The actions, each with the kind of name it takes.
 const (
 	ServiceStatus  = "service_status"
+	ServiceLogs    = "service_logs"
 	ServiceRestart = "service_restart"
 	ServiceReload  = "service_reload"
 	PackageInstall = "package_install"
 	Sync           = "sync"
+	// DiskUsage takes no name: it reads the machine's file systems.
+	DiskUsage = "disk_usage"
 )
 
 // Actions lists the actions nia-hostd knows.
-var Actions = []string{ServiceStatus, ServiceRestart, ServiceReload, PackageInstall, Sync, DryRunAction, ApplyAction}
+var Actions = []string{ServiceStatus, ServiceLogs, ServiceRestart, ServiceReload, PackageInstall, Sync, DiskUsage, DryRunAction, ApplyAction}
+
+// logLines is how many lines of a service's log service_logs reads.
+const logLines = "200"
 
 // Runner runs a program. Exec runs it; tests use another.
 type Runner interface {
@@ -248,6 +254,18 @@ type run struct {
 func (s *Server) plan(ctx context.Context, c *Catalogue, req Request) ([]run, *Request, string) {
 	plain := func(argv ...string) run { return run{env: baseEnv, argv: argv} }
 	switch req.Action {
+	case ServiceLogs:
+		if !c.HasService(req.Name) {
+			return nil, nil, fmt.Sprintf("%q is not a service of this role's catalogue", req.Name)
+		}
+		// The name is a unit of the catalogue, checked against serviceName.
+		return []run{plain("journalctl", "--no-pager", "--quiet", "--output=short-iso", "--lines="+logLines, "--unit="+unit(req.Name))}, nil, ""
+	case DiskUsage:
+		if req.Name != "" {
+			return nil, nil, "disk_usage takes no name"
+		}
+		return []run{plain("df", "--human-readable", "--output=target,size,used,avail,pcent",
+			"--exclude-type=tmpfs", "--exclude-type=devtmpfs", "--exclude-type=overlay", "--exclude-type=squashfs")}, nil, ""
 	case ServiceStatus, ServiceRestart, ServiceReload:
 		if !c.HasService(req.Name) {
 			return nil, nil, fmt.Sprintf("%q is not a service of this role's catalogue", req.Name)

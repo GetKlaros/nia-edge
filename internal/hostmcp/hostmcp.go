@@ -1,5 +1,5 @@
 // Package hostmcp is the agent's way to the host actions: a small MCP server
-// on nia-edge's own address. Its tools are the five actions, always: an agent
+// on nia-edge's own address. Its tools are the host actions, always: an agent
 // that listed them once keeps them when a new catalogue is published. Each
 // call is checked against the role's catalogue in force, runs only when the
 // model path released that exact call (same tool, same canonical arguments,
@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/GetKlaros/nia-edge/internal/hostd"
+	"github.com/GetKlaros/nia-edge/internal/inspect"
 	"github.com/GetKlaros/nia-edge/internal/local"
 )
 
@@ -52,10 +53,12 @@ type tool struct {
 	readOnly, destructive bool
 }
 
-var order = []string{"service_status", "service_restart", "service_reload", "package_install", "sync", "dry_run", "apply"}
+var order = []string{"service_status", "service_logs", "disk_usage", "service_restart", "service_reload", "package_install", "sync", "dry_run", "apply"}
 
 var tools = map[string]tool{
 	"service_status":  {hostd.ServiceStatus, "service", "services", "Show the state of a service of the machine and its last log lines.", true, false},
+	"service_logs":    {hostd.ServiceLogs, "service", "services", "Read the last 200 lines of a service's log. Secrets in them are redacted.", true, false},
+	"disk_usage":      {hostd.DiskUsage, "", "none", "Show the size, use and free space of the machine's file systems.", true, false},
 	"service_restart": {hostd.ServiceRestart, "service", "services", "Restart a service of the machine.", false, true},
 	"service_reload":  {hostd.ServiceReload, "service", "services", "Reload the configuration of a service of the machine.", false, false},
 	"package_install": {hostd.PackageInstall, "package", "packages", "Install a package from the machine's package sources.", false, false},
@@ -163,6 +166,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func describe(t tool) string {
+	if t.kind == "none" {
+		return t.description + " It takes no argument."
+	}
 	if t.kind == "etc" {
 		return t.description + " The role's catalogue must allow dry runs."
 	}
@@ -179,12 +185,7 @@ func list() []map[string]any {
 		list = append(list, map[string]any{
 			"name":        name,
 			"description": describe(t),
-			"inputSchema": map[string]any{
-				"type":                 "object",
-				"properties":           map[string]any{t.param: map[string]any{"type": "string"}},
-				"required":             []string{t.param},
-				"additionalProperties": false,
-			},
+			"inputSchema": schema(t),
 			"annotations": map[string]any{
 				"readOnlyHint":    t.readOnly,
 				"destructiveHint": t.destructive,
@@ -193,6 +194,18 @@ func list() []map[string]any {
 		})
 	}
 	return list
+}
+
+func schema(t tool) map[string]any {
+	if t.param == "" {
+		return map[string]any{"type": "object", "properties": map[string]any{}, "additionalProperties": false}
+	}
+	return map[string]any{
+		"type":                 "object",
+		"properties":           map[string]any{t.param: map[string]any{"type": "string"}},
+		"required":             []string{t.param},
+		"additionalProperties": false,
+	}
 }
 
 func (h *Handler) call(ctx context.Context, params json.RawMessage) (map[string]any, *rpcError) {
@@ -215,11 +228,15 @@ func (h *Handler) call(ctx context.Context, params json.RawMessage) (map[string]
 		arguments = "{}"
 	}
 	var args map[string]any
-	if json.Unmarshal([]byte(arguments), &args) != nil || len(args) != 1 {
+	if json.Unmarshal([]byte(arguments), &args) != nil {
 		return failed(fmt.Sprintf("%s takes one argument, %q", p.Name, t.param))
 	}
-	value, ok := args[t.param].(string)
-	if !ok {
+	var value string
+	if t.param == "" {
+		if len(args) != 0 {
+			return failed(p.Name + " takes no argument")
+		}
+	} else if value, ok = args[t.param].(string); !ok || len(args) != 1 {
 		return failed(fmt.Sprintf("%s takes one argument, %q", p.Name, t.param))
 	}
 	catalogue, err := h.Catalogue()
@@ -230,6 +247,8 @@ func (h *Handler) call(ctx context.Context, params json.RawMessage) (map[string]
 		if catalogue.Etc == nil && len(catalogue.Dirs) == 0 {
 			return failed("[Nia agent firewall] The role's catalogue allows no dry run.")
 		}
+	} else if t.kind == "none" {
+		// Nothing to check against the catalogue: nia-hostd reads the machine.
 	} else if allowed := names(catalogue, t.kind); !slices.Contains(allowed, value) {
 		if len(allowed) == 0 {
 			return failed(fmt.Sprintf("[Nia agent firewall] The role's catalogue allows no %s for %s.", t.param, p.Name))
@@ -257,7 +276,8 @@ func (h *Handler) call(ctx context.Context, params json.RawMessage) (map[string]
 	if t.action == hostd.DryRunAction && resp.OK {
 		return map[string]any{"content": []map[string]any{{"type": "text", "text": DescribeReport(resp.Output)}}, "isError": false}, nil
 	}
-	text := strings.TrimSpace(resp.Output)
+	// What the machine printed goes to the model provider: no secret in it.
+	text := strings.TrimSpace(inspect.RedactSecrets(resp.Output))
 	if resp.Error != "" {
 		text = strings.TrimSpace(text + "\n" + resp.Error)
 	}

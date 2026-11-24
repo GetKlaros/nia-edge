@@ -529,9 +529,13 @@ host:
 ```
 
 nia-edge serves these as MCP tools on its own address,
-`http://127.0.0.1:8787/host/mcp` (`service_status`, `service_restart`,
-`service_reload`, `package_install`, `sync`), whose one argument must be an
-entry of that catalogue: another one is refused with the entries allowed. The
+`http://127.0.0.1:8787/host/mcp` (`service_status`, `service_logs`,
+`service_restart`, `service_reload`, `package_install`, `sync`), whose one
+argument must be an entry of that catalogue: another one is refused with the
+entries allowed. `disk_usage` takes no argument and reads the machine's file
+systems (`df`). `service_logs` reads the last 200 lines of a service's
+journal; secrets in any action's output are redacted before the agent sees
+it, and the output taints the session unless the role marks the tool trusted. The
 list is the same whatever the catalogue, so an agent that connected before a
 new catalogue was published still has every action. The Hermes installer adds
 this server as `host`, so the model sees `mcp__host__<action>`, and the role
