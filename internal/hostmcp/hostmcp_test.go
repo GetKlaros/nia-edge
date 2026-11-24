@@ -53,7 +53,7 @@ func rpc(t *testing.T, h http.Handler, body string, headers ...string) (int, map
 	return recorder.Code, answer
 }
 
-func TestItSpeaksMCPAndListsTheFiveActionsAlways(t *testing.T) {
+func TestItSpeaksMCPAndListsTheActionsAlways(t *testing.T) {
 	h, _, _ := setup()
 	if code, answer := rpc(t, h, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}`); code != 200 || answer["result"].(map[string]any)["protocolVersion"] != "2025-06-18" {
 		t.Fatalf("%d %v", code, answer)
@@ -63,7 +63,7 @@ func TestItSpeaksMCPAndListsTheFiveActionsAlways(t *testing.T) {
 	}
 	_, answer := rpc(t, h, `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`)
 	listed, _ := json.Marshal(answer["result"])
-	for _, want := range []string{`"service_status"`, `"service_restart"`, `"service_reload"`, `"package_install"`, `"sync"`, `"readOnlyHint":true`} {
+	for _, want := range []string{`"service_status"`, `"service_logs"`, `"disk_usage"`, `"service_restart"`, `"service_reload"`, `"package_install"`, `"sync"`, `"readOnlyHint":true`} {
 		if !strings.Contains(string(listed), want) {
 			t.Errorf("tools/list lacks %s: %s", want, listed)
 		}
@@ -121,6 +121,39 @@ func TestACallRunsOnlyAgainstItsReleaseOnce(t *testing.T) {
 	_, answer = rpc(t, h, call)
 	if text, _ := json.Marshal(answer); answer["result"].(map[string]any)["isError"] != true || !strings.Contains(string(text), "nothing ran") {
 		t.Errorf("%s", text)
+	}
+}
+
+type logHost struct{ asked []hostd.Request }
+
+func (l *logHost) Do(_ context.Context, req hostd.Request) (hostd.Response, error) {
+	l.asked = append(l.asked, req)
+	return hostd.Response{OK: true, Output: "2026-11-24T03:12:01 api[812]: worker stuck\nOPENAI_API_KEY=sk-proj-Qx7vR2mLp9TzK4wN8bHc3Yd\n", Journal: "j2"}, nil
+}
+
+func TestReadsLogsRedactedAndDiskUsageWithoutArgument(t *testing.T) {
+	h, _, releases := setup()
+	host := &logHost{}
+	h.Host = host
+	releases.Release("mcp__host__service_logs", `{"service":"nginx"}`, now)
+	_, answer := rpc(t, h, `{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"service_logs","arguments":{"service":"nginx"}}}`)
+	text, _ := json.Marshal(answer)
+	if answer["result"].(map[string]any)["isError"] != false || !strings.Contains(string(text), "worker stuck") || strings.Contains(string(text), "Qx7vR2mLp9TzK4wN8bHc3Yd") {
+		t.Fatalf("logs: %s", text)
+	}
+	if host.asked[0] != (hostd.Request{Action: hostd.ServiceLogs, Name: "nginx"}) {
+		t.Errorf("asked %+v", host.asked)
+	}
+	// disk_usage takes nothing; an argument is refused before anything runs.
+	releases.Release("mcp__host__disk_usage", `{"path":"/etc"}`, now)
+	_, answer = rpc(t, h, `{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"disk_usage","arguments":{"path":"/etc"}}}`)
+	if answer["result"].(map[string]any)["isError"] != true || len(host.asked) != 1 {
+		t.Fatalf("an argument: %v", answer)
+	}
+	releases.Release("mcp__host__disk_usage", `{}`, now)
+	_, answer = rpc(t, h, `{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"disk_usage","arguments":{}}}`)
+	if answer["result"].(map[string]any)["isError"] != false || len(host.asked) != 2 || host.asked[1] != (hostd.Request{Action: hostd.DiskUsage}) {
+		t.Fatalf("disk usage: %v %+v", answer, host.asked)
 	}
 }
 
