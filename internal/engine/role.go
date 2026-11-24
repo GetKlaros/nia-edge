@@ -308,8 +308,10 @@ func lineTerminator(r rune) bool {
 //
 // Unlisted tools are denied. Argument rules refine a listed tool; otherwise
 // it takes its when_untrusted decision once the session is tainted. The two
-// role-wide rules only make that stricter. An observed role releases what it
-// would have refused and says so, except arguments that are ambiguous.
+// role-wide rules only make that stricter. Under every role, a payment in a
+// tainted session waits for a human at least. An observed role releases what
+// it would have refused and says so, except arguments that are ambiguous and
+// payments, which it enforces.
 //
 // The error is canon.ErrInvalidUTF8 for text that is not UTF-8, and
 // ErrUndecidable when this engine cannot be sure of the server's answer.
@@ -335,8 +337,10 @@ func (r *Role) Decide(tool string, tainted bool, rawArguments string, exposed bo
 		if decided, err = categorized(rule, tainted, rawArguments, decided); err != nil {
 			return Decision{}, err
 		}
+		decided = paymentFloor(tool, tainted, decided)
 	}
-	if !r.Observe || decided.Decision == Allow {
+	// Money is never observed: a payment the role would hold or refuse is held or refused.
+	if !r.Observe || decided.Decision == Allow || PaymentTool(tool) {
 		return decided, nil
 	}
 	// Not a role decision: arguments two parsers may read differently are
@@ -348,6 +352,16 @@ func (r *Role) Decide(tool string, tainted bool, rawArguments string, exposed bo
 }
 
 func named(name string) *string { return &name }
+
+// paymentFloor is the floor under every role: once the session has read
+// untrusted content, a payment waits for a human at least, whatever the role
+// allows. What the agent just read may be what asks it to pay.
+func paymentFloor(tool string, tainted bool, base Decision) Decision {
+	if !tainted || base.Decision != Allow || !PaymentTool(tool) {
+		return base
+	}
+	return Decision{Decision: RequireApproval, Reason: "untrusted_session", Rule: base.Rule}
+}
 
 // paymentTool matches the tools of Nia's payment server, as each agent names
 // an MCP tool: mcp__nia-pay__pay (Claude Code), mcp__nia_pay__pay (Hermes and

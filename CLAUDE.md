@@ -125,7 +125,9 @@ private code base; this repository is public.
 - The agent's payment key is made on the machine and kept in the state file
   only: never with the agent, never shown, logged or sent; Nia gets its
   public key. A payment (`nia-pay`) runs only against an unused release of
-  the model path for the same canonical arguments; it is prepared in the
+  the model path for the same canonical arguments; once the session is
+  tainted it waits for a human whatever the role allows, and an observed
+  role enforces it; it is prepared in the
   vault, authorized only with the visa Nia signed for that operation, and
   cancelled without one.
 - What the machine reports about itself decides nothing. nia-edge's log of

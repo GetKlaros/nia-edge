@@ -818,6 +818,87 @@
    ]
   },
   {
+   "name": "treasurer",
+   "mode": "enforce",
+   "rule_of_two": "require_approval",
+   "destructive": "require_approval",
+   "tools": [
+    {
+     "name": "mcp__nia-pay__pay",
+     "when_untrusted": "allow",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    },
+    {
+     "name": "mcp__nia_pay__*",
+     "when_untrusted": "allow",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": [
+      {
+       "applies": "always",
+       "decision": "allow",
+       "match": {
+        "to": "^acme$"
+       }
+      }
+     ]
+    },
+    {
+     "name": "mcp__nia-pay__refund",
+     "when_untrusted": "deny",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    },
+    {
+     "name": "read",
+     "when_untrusted": "allow",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    }
+   ]
+  },
+  {
+   "name": "treasurer_observed",
+   "mode": "observe",
+   "rule_of_two": "require_approval",
+   "destructive": "require_approval",
+   "tools": [
+    {
+     "name": "mcp__nia-pay__pay",
+     "when_untrusted": "deny",
+     "when_clean": "require_approval",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    },
+    {
+     "name": "mcp__nia-pay__quote",
+     "when_untrusted": "allow",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    },
+    {
+     "name": "read",
+     "when_untrusted": "deny",
+     "output": "untrusted",
+     "sensitive": false,
+     "effect": "none",
+     "arguments": []
+    }
+   ]
+  },
+  {
    "name": "simulated_strict",
    "mode": "observe",
    "rule_of_two": "require_approval",
@@ -14641,6 +14722,534 @@
     "decision": "deny",
     "reason": "tool_not_in_role",
     "rule": null
+   }
+  },
+  {
+   "name": "treasurer: mcp__nia-pay__pay {\"to\":\"acme\",\"amount\":\"10\"}",
+   "role": "treasurer",
+   "tool": "mcp__nia-pay__pay",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mcp__nia-pay__pay"
+   }
+  },
+  {
+   "name": "treasurer: mcp__nia-pay__pay {\"to\":\"acme\",\"amount\":\"10\"}, exposed",
+   "role": "treasurer",
+   "tool": "mcp__nia-pay__pay",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mcp__nia-pay__pay"
+   }
+  },
+  {
+   "name": "treasurer: mcp__nia-pay__pay {\"to\":\"acme\",\"amount\":\"10\"}, tainted",
+   "role": "treasurer",
+   "tool": "mcp__nia-pay__pay",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "mcp__nia-pay__pay"
+   }
+  },
+  {
+   "name": "treasurer: mcp__nia-pay__pay {\"to\":\"acme\",\"amount\":\"10\"}, tainted, exposed",
+   "role": "treasurer",
+   "tool": "mcp__nia-pay__pay",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "mcp__nia-pay__pay"
+   }
+  },
+  {
+   "name": "treasurer: mcp__nia_pay__pay {\"to\":\"acme\",\"amount\":\"10\"}",
+   "role": "treasurer",
+   "tool": "mcp__nia_pay__pay",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "mcp__nia_pay__*#0"
+   }
+  },
+  {
+   "name": "treasurer: mcp__nia_pay__pay {\"to\":\"acme\",\"amount\":\"10\"}, exposed",
+   "role": "treasurer",
+   "tool": "mcp__nia_pay__pay",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "argument_rule",
+    "rule": "mcp__nia_pay__*#0"
+   }
+  },
+  {
+   "name": "treasurer: mcp__nia_pay__pay {\"to\":\"acme\",\"amount\":\"10\"}, tainted",
+   "role": "treasurer",
+   "tool": "mcp__nia_pay__pay",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "mcp__nia_pay__*#0"
+   }
+  },
+  {
+   "name": "treasurer: mcp__nia_pay__pay {\"to\":\"acme\",\"amount\":\"10\"}, tainted, exposed",
+   "role": "treasurer",
+   "tool": "mcp__nia_pay__pay",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "mcp__nia_pay__*#0"
+   }
+  },
+  {
+   "name": "treasurer: mcp__nia_pay__pay {\"to\":\"mallory\",\"amount\":\"2000\"}",
+   "role": "treasurer",
+   "tool": "mcp__nia_pay__pay",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"to\":\"mallory\",\"amount\":\"2000\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mcp__nia_pay__*"
+   }
+  },
+  {
+   "name": "treasurer: mcp__nia_pay__pay {\"to\":\"mallory\",\"amount\":\"2000\"}, exposed",
+   "role": "treasurer",
+   "tool": "mcp__nia_pay__pay",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"to\":\"mallory\",\"amount\":\"2000\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mcp__nia_pay__*"
+   }
+  },
+  {
+   "name": "treasurer: mcp__nia_pay__pay {\"to\":\"mallory\",\"amount\":\"2000\"}, tainted",
+   "role": "treasurer",
+   "tool": "mcp__nia_pay__pay",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"to\":\"mallory\",\"amount\":\"2000\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "mcp__nia_pay__*"
+   }
+  },
+  {
+   "name": "treasurer: mcp__nia_pay__pay {\"to\":\"mallory\",\"amount\":\"2000\"}, tainted, exposed",
+   "role": "treasurer",
+   "tool": "mcp__nia_pay__pay",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"to\":\"mallory\",\"amount\":\"2000\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "mcp__nia_pay__*"
+   }
+  },
+  {
+   "name": "treasurer: mcp__nia-pay__refund {\"id\":\"1\"}",
+   "role": "treasurer",
+   "tool": "mcp__nia-pay__refund",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"id\":\"1\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mcp__nia-pay__refund"
+   }
+  },
+  {
+   "name": "treasurer: mcp__nia-pay__refund {\"id\":\"1\"}, exposed",
+   "role": "treasurer",
+   "tool": "mcp__nia-pay__refund",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"id\":\"1\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mcp__nia-pay__refund"
+   }
+  },
+  {
+   "name": "treasurer: mcp__nia-pay__refund {\"id\":\"1\"}, tainted",
+   "role": "treasurer",
+   "tool": "mcp__nia-pay__refund",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"id\":\"1\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "mcp__nia-pay__refund"
+   }
+  },
+  {
+   "name": "treasurer: mcp__nia-pay__refund {\"id\":\"1\"}, tainted, exposed",
+   "role": "treasurer",
+   "tool": "mcp__nia-pay__refund",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"id\":\"1\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "mcp__nia-pay__refund"
+   }
+  },
+  {
+   "name": "treasurer: mcp__nia-pay__pay {\"to\":\"acme\",\"to\":\"mallory\"}",
+   "role": "treasurer",
+   "tool": "mcp__nia-pay__pay",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"to\":\"acme\",\"to\":\"mallory\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "mcp__nia-pay__pay"
+   }
+  },
+  {
+   "name": "treasurer: mcp__nia-pay__pay {\"to\":\"acme\",\"to\":\"mallory\"}, exposed",
+   "role": "treasurer",
+   "tool": "mcp__nia-pay__pay",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"to\":\"acme\",\"to\":\"mallory\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "mcp__nia-pay__pay"
+   }
+  },
+  {
+   "name": "treasurer: mcp__nia-pay__pay {\"to\":\"acme\",\"to\":\"mallory\"}, tainted",
+   "role": "treasurer",
+   "tool": "mcp__nia-pay__pay",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"to\":\"acme\",\"to\":\"mallory\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "mcp__nia-pay__pay"
+   }
+  },
+  {
+   "name": "treasurer: mcp__nia-pay__pay {\"to\":\"acme\",\"to\":\"mallory\"}, tainted, exposed",
+   "role": "treasurer",
+   "tool": "mcp__nia-pay__pay",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"to\":\"acme\",\"to\":\"mallory\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "ambiguous_arguments",
+    "rule": "mcp__nia-pay__pay"
+   }
+  },
+  {
+   "name": "treasurer: read {}",
+   "role": "treasurer",
+   "tool": "read",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "read"
+   }
+  },
+  {
+   "name": "treasurer: read {}, exposed",
+   "role": "treasurer",
+   "tool": "read",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "read"
+   }
+  },
+  {
+   "name": "treasurer: read {}, tainted",
+   "role": "treasurer",
+   "tool": "read",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "read"
+   }
+  },
+  {
+   "name": "treasurer: read {}, tainted, exposed",
+   "role": "treasurer",
+   "tool": "read",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "read"
+   }
+  },
+  {
+   "name": "treasurer_observed: mcp__nia-pay__pay {\"to\":\"acme\",\"amount\":\"10\"}",
+   "role": "treasurer_observed",
+   "tool": "mcp__nia-pay__pay",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "tool_rule",
+    "rule": "mcp__nia-pay__pay"
+   }
+  },
+  {
+   "name": "treasurer_observed: mcp__nia-pay__pay {\"to\":\"acme\",\"amount\":\"10\"}, exposed",
+   "role": "treasurer_observed",
+   "tool": "mcp__nia-pay__pay",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "tool_rule",
+    "rule": "mcp__nia-pay__pay"
+   }
+  },
+  {
+   "name": "treasurer_observed: mcp__nia-pay__pay {\"to\":\"acme\",\"amount\":\"10\"}, tainted",
+   "role": "treasurer_observed",
+   "tool": "mcp__nia-pay__pay",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "mcp__nia-pay__pay"
+   }
+  },
+  {
+   "name": "treasurer_observed: mcp__nia-pay__pay {\"to\":\"acme\",\"amount\":\"10\"}, tainted, exposed",
+   "role": "treasurer_observed",
+   "tool": "mcp__nia-pay__pay",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"to\":\"acme\",\"amount\":\"10\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "untrusted_session",
+    "rule": "mcp__nia-pay__pay"
+   }
+  },
+  {
+   "name": "treasurer_observed: mcp__nia-pay__quote {\"amount\":\"10\"}",
+   "role": "treasurer_observed",
+   "tool": "mcp__nia-pay__quote",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"amount\":\"10\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mcp__nia-pay__quote"
+   }
+  },
+  {
+   "name": "treasurer_observed: mcp__nia-pay__quote {\"amount\":\"10\"}, exposed",
+   "role": "treasurer_observed",
+   "tool": "mcp__nia-pay__quote",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"amount\":\"10\"}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "mcp__nia-pay__quote"
+   }
+  },
+  {
+   "name": "treasurer_observed: mcp__nia-pay__quote {\"amount\":\"10\"}, tainted",
+   "role": "treasurer_observed",
+   "tool": "mcp__nia-pay__quote",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"amount\":\"10\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "mcp__nia-pay__quote"
+   }
+  },
+  {
+   "name": "treasurer_observed: mcp__nia-pay__quote {\"amount\":\"10\"}, tainted, exposed",
+   "role": "treasurer_observed",
+   "tool": "mcp__nia-pay__quote",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"amount\":\"10\"}",
+   "decision": {
+    "decision": "require_approval",
+    "reason": "untrusted_session",
+    "rule": "mcp__nia-pay__quote"
+   }
+  },
+  {
+   "name": "treasurer_observed: mcp__nia-pay__send {\"to\":\"acme\"}",
+   "role": "treasurer_observed",
+   "tool": "mcp__nia-pay__send",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{\"to\":\"acme\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "treasurer_observed: mcp__nia-pay__send {\"to\":\"acme\"}, exposed",
+   "role": "treasurer_observed",
+   "tool": "mcp__nia-pay__send",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{\"to\":\"acme\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "treasurer_observed: mcp__nia-pay__send {\"to\":\"acme\"}, tainted",
+   "role": "treasurer_observed",
+   "tool": "mcp__nia-pay__send",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{\"to\":\"acme\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "treasurer_observed: mcp__nia-pay__send {\"to\":\"acme\"}, tainted, exposed",
+   "role": "treasurer_observed",
+   "tool": "mcp__nia-pay__send",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{\"to\":\"acme\"}",
+   "decision": {
+    "decision": "deny",
+    "reason": "tool_not_in_role",
+    "rule": null
+   }
+  },
+  {
+   "name": "treasurer_observed: read {}",
+   "role": "treasurer_observed",
+   "tool": "read",
+   "tainted": false,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "read"
+   }
+  },
+  {
+   "name": "treasurer_observed: read {}, exposed",
+   "role": "treasurer_observed",
+   "tool": "read",
+   "tainted": false,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "allowed",
+    "rule": "read"
+   }
+  },
+  {
+   "name": "treasurer_observed: read {}, tainted",
+   "role": "treasurer_observed",
+   "tool": "read",
+   "tainted": true,
+   "exposed": false,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "read",
+    "would": {
+     "decision": "deny",
+     "reason": "untrusted_session"
+    }
+   }
+  },
+  {
+   "name": "treasurer_observed: read {}, tainted, exposed",
+   "role": "treasurer_observed",
+   "tool": "read",
+   "tainted": true,
+   "exposed": true,
+   "arguments": "{}",
+   "decision": {
+    "decision": "allow",
+    "reason": "observed",
+    "rule": "read",
+    "would": {
+     "decision": "deny",
+     "reason": "untrusted_session"
+    }
    }
   },
   {
