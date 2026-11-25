@@ -541,6 +541,16 @@ new catalogue was published still has every action. The Hermes installer adds
 this server as `host`, so the model sees `mcp__host__<action>`, and the role
 decides each tool like any other.
 
+A job of several actions can go to a human once instead of once per action:
+the agent does its dry runs, then calls `propose_task` with a title and up to
+20 steps, each a tool of this server with its exact arguments. nia-edge checks
+each step against the catalogue and sends the task to Nia in the session the
+model path released it in, with each apply's plan and, for a package, what
+`apt-get -s` says it would pull in (shown to the reviewer, never decided on).
+Nothing runs then. Once the task is approved (one Telegram message, Approve
+all), the agent calls each step itself, and each runs once, exactly as
+listed. The role must list `mcp__host__propose_task`.
+
 After an apply or a package install, nia-hostd checks that the machine is as
 healthy as before: what answered before the change must answer after it,
 within 30 seconds. That is ssh (`127.0.0.1:22`), every service of the

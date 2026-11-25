@@ -417,6 +417,10 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 		Version:  version,
 	}
 	runAuthority := &local.Remote{Base: base, Key: saved.Key, Run: run, HTTP: niaclient.NewHTTPClient(30 * time.Second)}
+	// A task: several host actions the agent proposes for one decision.
+	host.Tasks = runAuthority
+	host.Review = planReview(&hostd.Client{Socket: hostSocket})
+	host.Simulate = hostmcp.AptSimulate
 	remotes.Taint = func(ctx context.Context, session, source string) error {
 		return runAuthority.Ingested(ctx, session, source)
 	}

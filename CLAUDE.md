@@ -85,6 +85,11 @@ private code base; this repository is public.
   domain (`nia-undo/1`) so that no policy's signature passes for one,
   living fifteen minutes at most: nia-hostd verifies it itself, nia-edge
   only passes it, and one order undoes once.
+- A task (`propose_task`) is sent to Nia only against an unused release of
+  the model path, in the session it was released in, each step checked
+  against the catalogue first; it runs nothing, and each step then runs as
+  its own call, against its own release. What `apt-get -s` says a package
+  would install is shown to the reviewer, never decided on.
 - The one script an agent writes, a dry run, runs only in a container: the
   machine's `/etc` and the catalogue's directories (`dirs`, never one of
   `closedTrees`: programs, libraries, `/boot`, `/root`, `/home`, the package

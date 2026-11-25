@@ -40,7 +40,25 @@ type Handler struct {
 	// as Releases.Prefix + tool.
 	Version string
 	Now     func() time.Time
+	// Tasks sends a task to Nia; without it, propose_task refuses.
+	Tasks Tasks
+	// Review returns the review of a dry run's plan, for a task's apply.
+	Review func(ctx context.Context, plan string) json.RawMessage
+	// Simulate says what installing a package would install, for a task's
+	// reviewer; shown, never decided on. Nil simulates nothing.
+	Simulate func(ctx context.Context, pkg string) []string
 }
+
+// Tasks is Nia's task endpoint: its decision and its message for the model.
+type Tasks interface {
+	ProposeTask(ctx context.Context, session string, body map[string]any) (decision, message string, err error)
+}
+
+// TaskTool is the tool that proposes several host actions for one decision.
+const TaskTool = "propose_task"
+
+// maxSteps bounds a task, as Nia does.
+const maxSteps = 20
 
 // Protocol versions with the initialize handshake that this server answers.
 var versions = []string{"2025-11-25", "2025-06-18", "2025-03-26"}
@@ -193,7 +211,45 @@ func list() []map[string]any {
 			},
 		})
 	}
+	list = append(list, map[string]any{
+		"name": TaskTool,
+		"description": "Propose several host actions for one human decision, instead of one approval each: install the packages, " +
+			"apply the dry runs' plans, reload the services. Do the dry runs first and list their plans. Nia decides each step as its call " +
+			"would be; once the task is approved, call each step yourself, exactly as listed: each runs once. A step the role refuses " +
+			"refuses the task. Steps are this server's tools, without " + TaskTool + ".",
+		"inputSchema": taskSchema(),
+		"annotations": map[string]any{"readOnlyHint": true, "destructiveHint": false, "openWorldHint": false},
+	})
 	return list
+}
+
+func taskSchema() map[string]any {
+	var names []string
+	for _, name := range order {
+		names = append(names, name)
+	}
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"title": map[string]any{"type": "string", "description": "What the task does, for the person who approves it.", "maxLength": 200},
+			"steps": map[string]any{
+				"type":     "array",
+				"minItems": 1,
+				"maxItems": maxSteps,
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"tool":      map[string]any{"type": "string", "enum": names},
+						"arguments": map[string]any{"type": "object", "description": "The arguments the step will be called with, exactly."},
+					},
+					"required":             []string{"tool", "arguments"},
+					"additionalProperties": false,
+				},
+			},
+		},
+		"required":             []string{"title", "steps"},
+		"additionalProperties": false,
+	}
 }
 
 func schema(t tool) map[string]any {
@@ -216,10 +272,6 @@ func (h *Handler) call(ctx context.Context, params json.RawMessage) (map[string]
 	if json.Unmarshal(params, &p) != nil {
 		return nil, &rpcError{Code: -32602, Message: "invalid params"}
 	}
-	t, ok := tools[p.Name]
-	if !ok {
-		return nil, &rpcError{Code: -32602, Message: "unknown tool " + p.Name}
-	}
 	failed := func(text string) (map[string]any, *rpcError) {
 		return map[string]any{"content": []map[string]any{{"type": "text", "text": text}}, "isError": true}, nil
 	}
@@ -227,40 +279,31 @@ func (h *Handler) call(ctx context.Context, params json.RawMessage) (map[string]
 	if arguments == "" || arguments == "null" {
 		arguments = "{}"
 	}
+	if p.Name == TaskTool {
+		text, ok := h.task(ctx, arguments)
+		if !ok {
+			return failed(text)
+		}
+		return map[string]any{"content": []map[string]any{{"type": "text", "text": text}}, "isError": false}, nil
+	}
+	t, ok := tools[p.Name]
+	if !ok {
+		return nil, &rpcError{Code: -32602, Message: "unknown tool " + p.Name}
+	}
 	var args map[string]any
 	if json.Unmarshal([]byte(arguments), &args) != nil {
-		return failed(fmt.Sprintf("%s takes one argument, %q", p.Name, t.param))
-	}
-	var value string
-	if t.param == "" {
-		if len(args) != 0 {
-			return failed(p.Name + " takes no argument")
-		}
-	} else if value, ok = args[t.param].(string); !ok || len(args) != 1 {
 		return failed(fmt.Sprintf("%s takes one argument, %q", p.Name, t.param))
 	}
 	catalogue, err := h.Catalogue()
 	if err != nil {
 		return failed("[Nia agent firewall] The role in force has no host catalogue: no host action runs.")
 	}
-	if t.kind == "etc" {
-		if catalogue.Etc == nil && len(catalogue.Dirs) == 0 {
-			return failed("[Nia agent firewall] The role's catalogue allows no dry run.")
-		}
-	} else if t.kind == "none" {
-		// Nothing to check against the catalogue: nia-hostd reads the machine.
-	} else if allowed := names(catalogue, t.kind); !slices.Contains(allowed, value) {
-		if len(allowed) == 0 {
-			return failed(fmt.Sprintf("[Nia agent firewall] The role's catalogue allows no %s for %s.", t.param, p.Name))
-		}
-		return failed(fmt.Sprintf("[Nia agent firewall] %q is not in the role's catalogue. %s accepts: %s.", value, p.Name, strings.Join(allowed, ", ")))
+	value, refusal := check(p.Name, t, args, catalogue)
+	if refusal != "" {
+		return failed(refusal)
 	}
 	// Only a call the model path released runs, once.
-	prefix := h.Prefix
-	if prefix == "" {
-		prefix = "mcp__host__"
-	}
-	if h.Releases == nil || !h.Releases.Take(prefix+p.Name, arguments, h.now()) {
+	if h.Releases == nil || !h.Releases.Take(h.prefix()+p.Name, arguments, h.now()) {
 		return failed("[Nia agent firewall] This action was not released by Nia: it runs only as the model proposed it and Nia allowed it, once.")
 	}
 	runCtx, cancel := context.WithTimeout(ctx, 35*time.Minute)
@@ -288,6 +331,118 @@ func (h *Handler) call(ctx context.Context, params json.RawMessage) (map[string]
 		text = "done"
 	}
 	return map[string]any{"content": []map[string]any{{"type": "text", "text": text}}, "isError": !resp.OK}, nil
+}
+
+func (h *Handler) prefix() string {
+	if h.Prefix == "" {
+		return "mcp__host__"
+	}
+	return h.Prefix
+}
+
+// check reads a call's one argument and checks it against the catalogue: the
+// refusal, for the model, when it is not one of the role's.
+func check(name string, t tool, args map[string]any, catalogue *hostd.Catalogue) (string, string) {
+	var value string
+	var ok bool
+	if t.param == "" {
+		if len(args) != 0 {
+			return "", name + " takes no argument"
+		}
+	} else if value, ok = args[t.param].(string); !ok || len(args) != 1 {
+		return "", fmt.Sprintf("%s takes one argument, %q", name, t.param)
+	}
+	if t.kind == "etc" {
+		if catalogue.Etc == nil && len(catalogue.Dirs) == 0 {
+			return "", "[Nia agent firewall] The role's catalogue allows no dry run."
+		}
+	} else if t.kind == "none" {
+		// Nothing to check against the catalogue: nia-hostd reads the machine.
+	} else if allowed := names(catalogue, t.kind); !slices.Contains(allowed, value) {
+		if len(allowed) == 0 {
+			return "", fmt.Sprintf("[Nia agent firewall] The role's catalogue allows no %s for %s.", t.param, name)
+		}
+		return "", fmt.Sprintf("[Nia agent firewall] %q is not in the role's catalogue. %s accepts: %s.", value, name, strings.Join(allowed, ", "))
+	}
+	return value, ""
+}
+
+// task sends a task to Nia, as the model proposed it and the model path
+// released it, in the session it was released in. Each step is checked
+// against the catalogue first; an apply carries its plan's review, and a
+// package install what the package manager says it would install. The text
+// is for the model; false when nothing was sent or Nia refused.
+func (h *Handler) task(ctx context.Context, arguments string) (string, bool) {
+	var p struct {
+		Title string `json:"title"`
+		Steps []struct {
+			Tool      string          `json:"tool"`
+			Arguments json.RawMessage `json:"arguments"`
+		} `json:"steps"`
+	}
+	decoder := json.NewDecoder(strings.NewReader(arguments))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&p) != nil || strings.TrimSpace(p.Title) == "" || len(p.Title) > 200 || len(p.Steps) == 0 || len(p.Steps) > maxSteps {
+		return fmt.Sprintf("%s takes a title (200 characters at most) and 1 to %d steps, each {\"tool\", \"arguments\"}.", TaskTool, maxSteps), false
+	}
+	catalogue, err := h.Catalogue()
+	if err != nil {
+		return "[Nia agent firewall] The role in force has no host catalogue: no host action runs.", false
+	}
+	type step struct {
+		name, value, arguments string
+		t                      tool
+	}
+	var steps []step
+	for index, item := range p.Steps {
+		t, ok := tools[item.Tool]
+		if !ok {
+			return fmt.Sprintf("Step %d: %q is not a tool of this server.", index+1, item.Tool), false
+		}
+		var args map[string]any
+		if json.Unmarshal(item.Arguments, &args) != nil || args == nil {
+			return fmt.Sprintf("Step %d: its arguments must be an object.", index+1), false
+		}
+		value, refusal := check(item.Tool, t, args, catalogue)
+		if refusal != "" {
+			return fmt.Sprintf("Step %d: %s", index+1, refusal), false
+		}
+		steps = append(steps, step{name: item.Tool, value: value, arguments: string(item.Arguments), t: t})
+	}
+	// Only a task the model path released is sent, once, in its session.
+	session, released := "", false
+	if h.Releases != nil {
+		session, released = h.Releases.TakeSession(h.prefix()+TaskTool, arguments, h.now())
+	}
+	if !released {
+		return "[Nia agent firewall] This task was not released by Nia: it is sent only as the model proposed it and Nia allowed it, once.", false
+	}
+	if session == "" || h.Tasks == nil {
+		return "[Nia agent firewall] Tasks are not available on this machine: call each step on its own.", false
+	}
+	var body []map[string]any
+	for _, s := range steps {
+		item := map[string]any{"tool": h.prefix() + s.name, "arguments": json.RawMessage(s.arguments)}
+		if s.t.action == hostd.ApplyAction && h.Review != nil {
+			if review := h.Review(ctx, s.value); review != nil {
+				item["review"] = review
+			}
+		}
+		if s.t.action == hostd.PackageInstall && h.Simulate != nil {
+			if installs := h.Simulate(ctx, s.value); len(installs) > 0 {
+				item["installs"] = installs
+			}
+		}
+		body = append(body, item)
+	}
+	decision, message, err := h.Tasks.ProposeTask(ctx, session, map[string]any{"title": strings.TrimSpace(p.Title), "steps": body})
+	if err != nil {
+		return "[Nia agent firewall] Nia could not be reached, so the task was not sent.", false
+	}
+	if message == "" {
+		message = "Nia decided: " + decision + "."
+	}
+	return "[Nia agent firewall] " + message, decision != "deny"
 }
 
 type rpcError struct {
