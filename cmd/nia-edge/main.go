@@ -641,7 +641,7 @@ func serve(ctx context.Context, args []string, getenv func(string) string, stdou
 		if agentsReport == "" {
 			agentsReport = defaultReport
 		}
-		heartbeat(ctx, &niaclient.Client{Base: base, HTTP: niaclient.NewHTTPClient(15 * time.Second)}, saved.Key, modelPath, status, policies, journalAnchor(&hostd.Client{Socket: hostSocket}), agentsReport, logger)
+		heartbeat(ctx, &niaclient.Client{Base: base, HTTP: niaclient.NewHTTPClient(15 * time.Second)}, saved.Key, modelPath, status, policies, journalAnchor(&hostd.Client{Socket: hostSocket}), hostChanges{&hostd.Client{Socket: hostSocket}}, agentsReport, logger)
 	}()
 	go func() { served <- server.Serve(listener) }()
 
@@ -993,7 +993,48 @@ func journalAnchor(host *hostd.Client) func(context.Context, int64) *niaclient.J
 // heartbeat reports to Nia until ctx ends, and keeps the signed policy
 // fresh. A failure is logged and tried again at the next beat: the relay
 // keeps running, and Nia refuses the calls of a key it no longer accepts.
-func heartbeat(ctx context.Context, client *niaclient.Client, key, modelPath string, status *machineStatus, policies *keeper, journal func(context.Context, int64) *niaclient.Journal, agentsReport string, logger *slog.Logger) {
+// hostChanges asks nia-hostd for the changes it can undo and passes it the
+// undo orders Nia signed. nia-edge reads nothing of an order: nia-hostd
+// verifies it.
+type hostChanges struct{ host *hostd.Client }
+
+func (h hostChanges) list(ctx context.Context) json.RawMessage {
+	if h.host == nil {
+		return nil
+	}
+	askCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	resp, err := h.host.Do(askCtx, hostd.Request{Action: hostd.ChangesAction})
+	if err != nil || !resp.OK || !json.Valid([]byte(resp.Output)) {
+		return nil
+	}
+	return json.RawMessage(resp.Output)
+}
+
+func (h hostChanges) undo(ctx context.Context, order policy.Signed) niaclient.UndoResult {
+	// The order's id, to report what became of it; nia-hostd reads it again
+	// once it has verified the signature.
+	var named struct {
+		OrderID string `json:"order_id"`
+	}
+	json.Unmarshal([]byte(order.Payload), &named)
+	result := niaclient.UndoResult{OrderID: named.OrderID}
+	if h.host == nil {
+		result.Error = "nia-hostd is not installed"
+		return result
+	}
+	askCtx, cancel := context.WithTimeout(ctx, 31*time.Minute)
+	defer cancel()
+	resp, err := h.host.Do(askCtx, hostd.Request{Action: hostd.UndoOrderAction, Order: &order})
+	if err != nil {
+		result.Error = err.Error()
+		return result
+	}
+	result.OK, result.Error, result.Journal = resp.OK, resp.Error, resp.Journal
+	return result
+}
+
+func heartbeat(ctx context.Context, client *niaclient.Client, key, modelPath string, status *machineStatus, policies *keeper, journal func(context.Context, int64) *niaclient.Journal, changes hostChanges, agentsReport string, logger *slog.Logger) {
 	interval := 30 * time.Second
 	last := ""
 	var anchorAt int64
@@ -1003,6 +1044,8 @@ func heartbeat(ctx context.Context, client *niaclient.Client, key, modelPath str
 	// The inventory goes once per scan, to a Nia that takes it.
 	acceptsInventory := false
 	sentInventory := ""
+	acceptsChanges := false
+	var undone []niaclient.UndoResult
 	for {
 		digest := ""
 		if current := policies.valid(time.Now()); current != nil {
@@ -1018,11 +1061,29 @@ func heartbeat(ctx context.Context, client *niaclient.Client, key, modelPath str
 				reported.Agents, _ = json.Marshal(found)
 			}
 		}
+		if acceptsChanges {
+			reported.Changes = changes.list(ctx)
+			reported.Undone = undone
+		}
 		beat, err := client.Heartbeat(ctx, key, reported, digest)
 		if err == nil {
 			anchorAt = beat.JournalSeq
 			acceptsAgents = slices.Contains(beat.Accepts, "agents")
 			acceptsInventory = slices.Contains(beat.Accepts, "inventory")
+			wasAccepting := acceptsChanges
+			acceptsChanges = slices.Contains(beat.Accepts, "changes")
+			if wasAccepting {
+				// Reported: the next heartbeat carries the next orders' results.
+				undone = nil
+			}
+			for _, order := range beat.Undo {
+				if len(undone) >= 20 {
+					break
+				}
+				result := changes.undo(ctx, order)
+				logger.Info("undo order", "order", result.OrderID, "ok", result.OK, "journal", result.Journal, "error", result.Error)
+				undone = append(undone, result)
+			}
 		}
 		if err == nil && acceptsInventory {
 			if raw := readInventory(defaultInventory); raw != nil {

@@ -37,6 +37,19 @@ type Report struct {
 	// found on the machine, shown to admins, deciding nothing. Sent only to a
 	// Nia that says it accepts it.
 	Agents json.RawMessage `json:"agents,omitempty"`
+	// Changes are the last changes nia-hostd's journal holds that can be
+	// undone, and Undone what the undo orders of the last heartbeat did:
+	// shown to admins, deciding nothing. Sent only to a Nia that takes them.
+	Changes json.RawMessage `json:"changes,omitempty"`
+	Undone  []UndoResult    `json:"undone,omitempty"`
+}
+
+// UndoResult is what one undo order did on the machine.
+type UndoResult struct {
+	OrderID string `json:"order_id"`
+	OK      bool   `json:"ok"`
+	Error   string `json:"error,omitempty"`
+	Journal string `json:"journal,omitempty"`
 }
 
 // Journal anchors nia-hostd's hash chain in Nia (hostd.Anchor).
@@ -83,6 +96,9 @@ type Beat struct {
 	JournalSeq int64 `json:"journal_seq"`
 	// Accepts names the optional reports this Nia takes in a heartbeat.
 	Accepts []string `json:"accepts"`
+	// Undo are orders a person gave through Nia to undo a change, signed:
+	// nia-edge passes them to nia-hostd, which verifies them itself.
+	Undo []policy.Signed `json:"undo,omitempty"`
 }
 
 // Refused is an answer from Nia other than success. The message is Nia's;

@@ -561,6 +561,15 @@ changed (nginx, apache2, haproxy). When the machine is less healthy, the
 former files come back and those services reload again; a package that
 broke it is removed. Either way the journal says what no longer answered.
 
+The last twenty changes that can be undone (an apply, a package nia-hostd
+installed) go to Nia with each heartbeat, and the console shows them on the
+agent's card with an **Undo** button. The order a person gives there comes
+back with the next heartbeats, signed by Nia for this machine over
+`nia-undo/1` and living ten minutes: nia-hostd checks the signature with the
+key pinned at enrollment, undoes the change once (the former files, or
+`apt-get remove`), and nia-edge reports what it did. On the machine,
+`nia-edge hostd undo <entry>` still does the same as root.
+
 - A tool call runs only against a release of the model path: the same tool
   and canonical arguments that Nia allowed in a turn, once, within ten
   minutes. Asked directly, it runs nothing.
