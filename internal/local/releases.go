@@ -20,7 +20,14 @@ type Releases struct {
 	TTL time.Duration
 
 	mu    sync.Mutex
-	items map[string][]time.Time
+	items map[string][]heldRelease
+}
+
+// heldRelease is one released call: until when it may run, and the session the
+// model path decided it in.
+type heldRelease struct {
+	until   time.Time
+	session string
 }
 
 func (r *Releases) ttl() time.Duration {
@@ -30,45 +37,57 @@ func (r *Releases) ttl() time.Duration {
 	return 10 * time.Minute
 }
 
-// Release keeps a release of the call tool(arguments).
+// Release keeps a release of the call tool(arguments), in no known session.
 func (r *Releases) Release(tool, arguments string, now time.Time) {
+	r.ReleaseIn("", tool, arguments, now)
+}
+
+// ReleaseIn keeps a release of the call tool(arguments) decided in a session.
+func (r *Releases) ReleaseIn(session, tool, arguments string, now time.Time) {
 	if hash, err := canon.ArgumentsHash(tool, arguments); err == nil {
-		r.add(hash, now)
+		r.add(hash, session, now)
 	}
 }
 
 // add keeps a release of one call.
-func (r *Releases) add(hash string, now time.Time) {
+func (r *Releases) add(hash, session string, now time.Time) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.items == nil || len(r.items) > 10_000 {
-		r.items = map[string][]time.Time{}
+		r.items = map[string][]heldRelease{}
 	}
-	r.items[hash] = append(r.items[hash], now.Add(r.ttl()))
+	r.items[hash] = append(r.items[hash], heldRelease{until: now.Add(r.ttl()), session: session})
 }
 
 // Take spends one release of the call tool(arguments), if there is one.
 func (r *Releases) Take(tool, arguments string, now time.Time) bool {
+	_, ok := r.TakeSession(tool, arguments, now)
+	return ok
+}
+
+// TakeSession spends one release of the call tool(arguments), if there is
+// one, and names the session it was decided in ("" when unknown).
+func (r *Releases) TakeSession(tool, arguments string, now time.Time) (string, bool) {
 	hash, err := canon.ArgumentsHash(tool, arguments)
 	if err != nil {
-		return false
+		return "", false
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for len(r.items[hash]) > 0 {
-		until := r.items[hash][0]
+		item := r.items[hash][0]
 		r.items[hash] = r.items[hash][1:]
-		if now.Before(until) {
-			return true
+		if now.Before(item.until) {
+			return item.session, true
 		}
 	}
 	delete(r.items, hash)
-	return false
+	return "", false
 }
 
 // record keeps the released calls of a turn that are host actions, inner
 // calls of a dispatcher included.
-func (r *Releases) record(calls []released, dispatchers engine.Dispatchers, now time.Time) {
+func (r *Releases) record(session string, calls []released, dispatchers engine.Dispatchers, now time.Time) {
 	if r == nil || r.Prefix == "" {
 		return
 	}
@@ -81,7 +100,7 @@ func (r *Releases) record(calls []released, dispatchers engine.Dispatchers, now 
 			if !strings.HasPrefix(unit.Name, r.Prefix) {
 				continue
 			}
-			r.Release(unit.Name, unit.Arguments, now)
+			r.ReleaseIn(session, unit.Name, unit.Arguments, now)
 		}
 	}
 }

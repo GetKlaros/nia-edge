@@ -148,7 +148,7 @@ func (h *Handler) before(ctx context.Context, agent Agent, conversation string, 
 	}
 	if verdict.Allowed {
 		if h.Releases != nil && strings.HasPrefix(hook.Tool, h.Releases.Prefix) && h.Releases.Prefix != "" {
-			h.Releases.Release(hook.Tool, arguments, time.Now())
+			h.Releases.ReleaseIn(conversation, hook.Tool, arguments, time.Now())
 		}
 		return h.simulated(agent, conversation, hook)
 	}

@@ -355,7 +355,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					dispatchers = rules.Dispatchers
 				}
 			}
-			h.Releases.record(calls, dispatchers, time.Now())
+			h.Releases.record(session, calls, dispatchers, time.Now())
 		}
 		release(w, status, contentType, answer)
 		return
@@ -767,6 +767,24 @@ func (n *Remote) Decide(ctx context.Context, session, tool, arguments string, re
 		err = errors.New("Nia asked again for the arguments it was sent")
 	}
 	return verdict, err
+}
+
+// ProposeTask sends a task: several host actions for one decision. Its steps'
+// arguments go with it, since a reviewer must see them. Nia's decision and
+// its message for the model come back; an answer without one is an error.
+func (n *Remote) ProposeTask(ctx context.Context, session string, body map[string]any) (string, string, error) {
+	var answer struct {
+		Decision string `json:"decision"`
+		Message  string `json:"message"`
+	}
+	if err := n.post(ctx, "/v1/tasks", session, body, 30*time.Second, &answer); err != nil {
+		return "", "", err
+	}
+	switch answer.Decision {
+	case "allow", "require_approval", "deny":
+		return answer.Decision, answer.Message, nil
+	}
+	return "", "", errors.New("Nia's answer holds no decision")
 }
 
 // DecideHashed sends a call decided on this machine: its hash, never its
