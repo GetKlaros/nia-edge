@@ -14,6 +14,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 )
 
 // failing fails the programs it names.
@@ -79,6 +80,50 @@ func nginxScript(t *testing.T) func(lower, upper string) error {
 	}
 }
 
+func TestAnApplyThatBreaksTheSiteComesBackByItself(t *testing.T) {
+	sandbox := &layer{script: nginxScript(t)}
+	s, etc, run := applyMachine(t, sandbox)
+	before := snapshot(t, etc)
+	site := &scripted{
+		before: map[string]bool{"ssh (127.0.0.1:22)": true, "service nginx": true},
+		after:  map[string]bool{"service nginx": false},
+	}
+	s.Probe, s.HealthWait = site, 10*time.Millisecond
+	run.After = func(argv []string) {
+		// nginx takes the new configuration, and stops answering.
+		if strings.Join(argv, " ") == "systemctl reload-or-restart -- nginx.service" {
+			site.mu.Lock()
+			site.changed = !site.changed
+			site.mu.Unlock()
+		}
+	}
+	r := report(t, s.Do(context.Background(), Request{Action: DryRunAction, Script: "x"}))
+	resp := s.Do(context.Background(), Request{Action: ApplyAction, Name: r.Plan})
+	if resp.OK || !strings.Contains(resp.Error, "service nginx no longer answers") || !strings.Contains(resp.Error, "the former files are back") {
+		t.Fatalf("apply: %+v", resp)
+	}
+	restored := snapshot(t, etc)
+	for rel, want := range before {
+		if restored[rel] != want {
+			t.Errorf("%s: %q, want %q", rel, restored[rel], want)
+		}
+	}
+	// Reloaded with the change, then again with the former files.
+	reloads := 0
+	for _, call := range run.Calls {
+		if strings.Join(call, " ") == "systemctl reload-or-restart -- nginx.service" {
+			reloads++
+		}
+	}
+	if reloads != 2 {
+		t.Errorf("%d reloads: %q", reloads, run.Calls)
+	}
+	entries, _ := s.Journal()
+	if last := entries[len(entries)-1]; last.OK || last.Undo != nil {
+		t.Errorf("journal %+v", last)
+	}
+}
+
 func TestAnApplyWritesThePlanExactlyChecksItAndCanBeUndone(t *testing.T) {
 	sandbox := &layer{script: nginxScript(t)}
 	s, etc, run := applyMachine(t, sandbox)
@@ -103,7 +148,9 @@ func TestAnApplyWritesThePlanExactlyChecksItAndCanBeUndone(t *testing.T) {
 	if _, ok := after["cron.d/old"]; ok {
 		t.Error("cron.d/old not deleted")
 	}
-	if len(run.Calls) != 1 || strings.Join(run.Calls[0], " ") != "nginx -t" || !strings.Contains(resp.Output, "nginx: ok") {
+	// nginx -t, then nginx takes its new configuration before the health checks.
+	if len(run.Calls) != 2 || strings.Join(run.Calls[0], " ") != "nginx -t" ||
+		strings.Join(run.Calls[1], " ") != "systemctl reload-or-restart -- nginx.service" || !strings.Contains(resp.Output, "nginx: ok") {
 		t.Errorf("checks %v, output %q", run.Calls, resp.Output)
 	}
 	// Once: the plan is spent.
@@ -111,7 +158,7 @@ func TestAnApplyWritesThePlanExactlyChecksItAndCanBeUndone(t *testing.T) {
 		t.Error("a plan applied twice")
 	}
 	// Undo puts back exactly what was there.
-	if undo := s.Undo(context.Background(), resp.Journal); !undo.OK {
+	if undo := s.Undo(context.Background(), resp.Journal); !undo.OK || !strings.Contains(undo.Output, "reload-or-restart nginx.service") {
 		t.Fatalf("undo: %+v", undo)
 	}
 	restored := snapshot(t, etc)

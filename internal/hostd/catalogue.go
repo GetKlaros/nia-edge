@@ -35,6 +35,9 @@ type Catalogue struct {
 	// Dirs are directories outside /etc a dry run may change as it changes
 	// /etc: layered, judged, applied once. Never one of closedTrees.
 	Dirs []string `json:"dirs"`
+	// Health are the checks a change must still pass when they passed
+	// before it; ssh and the catalogue's services are checked always.
+	Health []HealthCheck `json:"health"`
 }
 
 // EtcRules are the rules of the dry runs.
@@ -120,6 +123,14 @@ func ParseCatalogue(raw json.RawMessage) (*Catalogue, error) {
 			if dir == other || strings.HasPrefix(dir, other+"/") || strings.HasPrefix(other, dir+"/") {
 				return nil, fmt.Errorf("hostd: %q and %q overlap", other, dir)
 			}
+		}
+	}
+	if len(c.Health) > MaxHealth {
+		return nil, fmt.Errorf("hostd: %d health checks, more than %d", len(c.Health), MaxHealth)
+	}
+	for _, h := range c.Health {
+		if why := h.validate(); why != "" {
+			return nil, fmt.Errorf("hostd: %s", why)
 		}
 	}
 	if c.Etc != nil {

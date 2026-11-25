@@ -15,6 +15,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"syscall"
@@ -150,7 +151,7 @@ func relIn(mount, p string) string {
 }
 
 // apply writes plan id, tree by tree. Called with s.mu held.
-func (s *Server) apply(ctx context.Context, req Request) Response {
+func (s *Server) apply(ctx context.Context, catalogue *Catalogue, req Request) Response {
 	s.expirePlans()
 	p, ok := s.plans[req.Name]
 	if !ok {
@@ -188,6 +189,8 @@ func (s *Server) apply(ctx context.Context, req Request) Response {
 			}
 		}
 	}
+	// What works before the change must work after it.
+	before := s.baseline(ctx, catalogue)
 	id := newID()
 	dir := filepath.Join(s.backupRoot(), id)
 	for i, o := range trees {
@@ -216,12 +219,25 @@ func (s *Server) apply(ctx context.Context, req Request) Response {
 	if failure == "" {
 		failure = s.check(ctx, p.report.Changes, &output)
 	}
+	reloaded := []string(nil)
+	if failure == "" {
+		// A service whose configuration changed takes it now, so the health
+		// checks see what the change did.
+		reloaded = s.reloadTouched(ctx, catalogue, p.report.Changes, before, &output)
+		if names := s.healthy(ctx, before); names != nil {
+			failure = unhealthy(names).Error()
+		}
+	}
 	if failure != "" {
 		var errs []string
 		for _, o := range trees[:written] {
 			if err := restore(o.root, o.tree.Mount, o.dir, o.saved.Saved); err != nil {
 				errs = append(errs, err.Error())
 			}
+		}
+		// The services that took the change take the former files back.
+		for _, name := range reloaded {
+			s.reload(ctx, name, &output)
 		}
 		if len(errs) > 0 {
 			entry.Error = failure + "; putting the former files back failed: " + strings.Join(errs, "; ") + " (backup " + dir + ")"
@@ -241,12 +257,49 @@ func (s *Server) apply(ctx context.Context, req Request) Response {
 		}
 	}
 	entry.OK = failure == ""
+	if entry.OK {
+		entry.Reloaded = reloaded
+	}
 	s.dropPlan(req.Name)
 	if err := s.write(entry); err != nil {
 		return Response{Error: "the apply could not be written to the journal: " + err.Error(), Output: tail(output.String())}
 	}
 	s.log("apply", "plan", req.Name, "ok", entry.OK, "journal", entry.ID)
 	return Response{OK: entry.OK, Output: tail(output.String()), Error: entry.Error, Journal: entry.ID}
+}
+
+// configOf names the services that read a tree of /etc: a change there is
+// taken by reloading them.
+var configOf = map[string][]string{
+	"/etc/nginx":   {"nginx"},
+	"/etc/apache2": {"apache2"},
+	"/etc/haproxy": {"haproxy"},
+}
+
+// reloadTouched reloads the catalogue's services, active before the change,
+// whose configuration it changed, and returns those it reloaded.
+func (s *Server) reloadTouched(ctx context.Context, c *Catalogue, changes []Change, before []probe, output *strings.Builder) []string {
+	var reloaded []string
+	for prefix, names := range configOf {
+		touched := false
+		for _, change := range changes {
+			if under(change.Path, prefix) {
+				touched = true
+			}
+		}
+		if !touched {
+			continue
+		}
+		for _, name := range names {
+			if !c.HasService(name) || !slices.ContainsFunc(before, func(p probe) bool { return p.unit == unit(name) }) {
+				continue
+			}
+			s.reload(ctx, name, output)
+			reloaded = append(reloaded, name)
+		}
+	}
+	slices.Sort(reloaded)
+	return reloaded
 }
 
 // check runs the checks of the paths changed.

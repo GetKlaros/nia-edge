@@ -92,13 +92,20 @@ type DryRun struct {
 	Calls [][]string
 	// Answers maps a program to what it prints; others print nothing.
 	Answers map[string]string
+	// After, when set, is told of each program once it has run.
+	After func(argv []string)
 }
 
 func (d *DryRun) Run(_ context.Context, _ []string, argv ...string) (string, error) {
 	d.mu.Lock()
-	defer d.mu.Unlock()
 	d.Calls = append(d.Calls, argv)
-	return d.Answers[strings.Join(argv, " ")], nil
+	answer := d.Answers[strings.Join(argv, " ")]
+	after := d.After
+	d.mu.Unlock()
+	if after != nil {
+		after(argv)
+	}
+	return answer, nil
 }
 
 // The environment of what nia-hostd runs: nothing inherited.
@@ -124,8 +131,13 @@ type Server struct {
 	DryTimeout time.Duration
 	// Installed reports whether a check's program is installed; nil looks.
 	Installed func(program string) bool
-	Now       func() time.Time
-	Logger    *slog.Logger
+	// Probe checks the machine's health around a change; nil checks for real.
+	Probe Prober
+	// HealthWait is how long a change has to come back healthy; zero is
+	// healthWait.
+	HealthWait time.Duration
+	Now        func() time.Time
+	Logger     *slog.Logger
 
 	mu    sync.Mutex
 	plans map[string]*plan
@@ -149,6 +161,9 @@ type Entry struct {
 	Undo *Request `json:"undo,omitempty"`
 	// Of names the entry an undo undid.
 	Of string `json:"of,omitempty"`
+	// Reloaded are the services an apply reloaded: its undo reloads them
+	// again, so they take the former files.
+	Reloaded []string `json:"reloaded,omitempty"`
 }
 
 func (s *Server) now() time.Time {
@@ -210,7 +225,7 @@ func (s *Server) Do(ctx context.Context, req Request) Response {
 		if catalogue.Etc == nil && len(catalogue.Dirs) == 0 {
 			return Response{Error: "this role's catalogue allows no dry run, so no apply (no etc, no dirs)"}
 		}
-		return s.apply(ctx, req)
+		return s.apply(ctx, catalogue, req)
 	}
 	argvs, undo, refusal := s.plan(ctx, catalogue, req)
 	if refusal != "" {
@@ -219,6 +234,12 @@ func (s *Server) Do(ctx context.Context, req Request) Response {
 	}
 	entry := Entry{ID: newID(), At: s.now().UTC(), Action: req.Action, Name: req.Name, Call: req.Call, Undo: undo}
 	var output strings.Builder
+	// A package must leave working what worked: it can start a service that
+	// takes a port, or replace a library.
+	var before []probe
+	if req.Action == PackageInstall {
+		before = s.baseline(ctx, catalogue)
+	}
 	for _, run := range argvs {
 		timeout := 2 * time.Minute
 		if req.Action == PackageInstall || req.Action == Sync {
@@ -234,6 +255,12 @@ func (s *Server) Do(ctx context.Context, req Request) Response {
 			entry.Error = err.Error()
 			entry.Undo = nil
 			break
+		}
+	}
+	if req.Action == PackageInstall && entry.Error == "" {
+		if names := s.healthy(ctx, before); names != nil {
+			entry.Error = unhealthy(names).Error() + s.removeAfter(ctx, req.Name, &output)
+			entry.Undo = nil
 		}
 	}
 	entry.OK = entry.Error == ""
@@ -304,6 +331,22 @@ func (s *Server) plan(ctx context.Context, c *Catalogue, req Request) ([]run, *R
 	return nil, nil, fmt.Sprintf("%q is not an action of nia-hostd", req.Action)
 }
 
+// removeAfter removes a package that broke the machine, and says how it went.
+func (s *Server) removeAfter(ctx context.Context, name string, output *strings.Builder) string {
+	if !packageName.MatchString(name) {
+		return "; it was not removed"
+	}
+	apt := append(append([]string{}, baseEnv...), "DEBIAN_FRONTEND=noninteractive")
+	runCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
+	defer cancel()
+	out, err := s.Run.Run(runCtx, apt, "apt-get", "remove", "-y", "-q", "--", name)
+	output.WriteString(out)
+	if err != nil {
+		return "; removing it failed: " + err.Error()
+	}
+	return "; it was removed"
+}
+
 // Undo undoes the journal entry id when it can be undone and was not.
 func (s *Server) Undo(ctx context.Context, id string) Response {
 	s.mu.Lock()
@@ -326,10 +369,18 @@ func (s *Server) Undo(ctx context.Context, id string) Response {
 	}
 	if target.Undo != nil && target.Undo.Action == RestoreAction {
 		entry := s.restoreEntry(*target)
+		var output strings.Builder
+		if entry.OK {
+			for _, name := range target.Reloaded {
+				if serviceName.MatchString(name) {
+					s.reload(ctx, name, &output)
+				}
+			}
+		}
 		if err := s.write(entry); err != nil {
 			return Response{Error: "restore not written to the journal: " + err.Error()}
 		}
-		return Response{OK: entry.OK, Error: entry.Error, Journal: entry.ID}
+		return Response{OK: entry.OK, Output: tail(output.String()), Error: entry.Error, Journal: entry.ID}
 	}
 	if target.Undo == nil || target.Undo.Action != "package_remove" || !packageName.MatchString(target.Undo.Name) {
 		return Response{Error: "this action cannot be undone"}
