@@ -101,8 +101,12 @@ private code base; this repository is public.
 - An apply writes a plan exactly as its layer holds it, once, and only where
   the machine still holds what the dry run saw. It never leaves `/etc` and
   the catalogue's directories (no symbolic link out is followed), saves what it replaces first, checks the
-  configurations it touched with fixed programs, and puts the former files
-  back when a write or a check fails.
+  configurations it touched with fixed programs, reloads the catalogue's
+  services that read them, and puts the former files back when a write, a
+  check or the machine's health fails. Health is what passed before the
+  change: ssh on the loopback, the catalogue's active services and its
+  `health` checks (loopback only); a package install that breaks it is
+  removed.
 - The agent's MCP servers that run on the machine run in nia-mcp's rootless
   containers: one per server, from an image named by its ID and never
   pulled, without network, capability or new privilege, a read-only root,

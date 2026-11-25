@@ -11,7 +11,7 @@ func (s *Server) dryRun(context.Context, *Catalogue, Request) Response {
 // DefaultSandbox is none outside Linux.
 func DefaultSandbox() Sandbox { return nil }
 
-func (s *Server) apply(context.Context, Request) Response {
+func (s *Server) apply(context.Context, *Catalogue, Request) Response {
 	return Response{Error: "applying a plan needs Linux"}
 }
 

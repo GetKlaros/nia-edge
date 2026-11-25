@@ -541,6 +541,26 @@ new catalogue was published still has every action. The Hermes installer adds
 this server as `host`, so the model sees `mcp__host__<action>`, and the role
 decides each tool like any other.
 
+After an apply or a package install, nia-hostd checks that the machine is as
+healthy as before: what answered before the change must answer after it,
+within 30 seconds. That is ssh (`127.0.0.1:22`), every service of the
+catalogue that was active, and the catalogue's `health` checks, on the
+loopback only:
+
+```yaml
+host:
+  services: [nginx]
+  health:
+    - http: https://127.0.0.1/          # any answer under 500 is healthy
+      host: blog.example.com            # the site's name, when nginx serves several
+    - tcp: 127.0.0.1:5432
+```
+
+An apply first reloads the catalogue's services whose configuration it
+changed (nginx, apache2, haproxy). When the machine is less healthy, the
+former files come back and those services reload again; a package that
+broke it is removed. Either way the journal says what no longer answered.
+
 - A tool call runs only against a release of the model path: the same tool
   and canonical arguments that Nia allowed in a turn, once, within ten
   minutes. Asked directly, it runs nothing.

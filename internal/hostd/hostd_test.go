@@ -34,7 +34,7 @@ func machine(t *testing.T, roleJSON string) (*Server, *DryRun, ed25519.PrivateKe
 	}
 	writePolicy(t, filepath.Join(dir, "policy.json"), private, roleJSON)
 	run := &DryRun{}
-	return &Server{StatePath: filepath.Join(dir, "state.json"), PolicyPath: filepath.Join(dir, "policy.json"), JournalPath: filepath.Join(dir, "journal.jsonl"), Run: run, Now: func() time.Time { return now }}, run, private
+	return &Server{StatePath: filepath.Join(dir, "state.json"), PolicyPath: filepath.Join(dir, "policy.json"), JournalPath: filepath.Join(dir, "journal.jsonl"), Run: run, Probe: alwaysHealthy{}, Now: func() time.Time { return now }}, run, private
 }
 
 func writePolicy(t *testing.T, path string, private ed25519.PrivateKey, roleJSON string) {
@@ -233,3 +233,8 @@ func TestItReadsTheCatalogueAsTheServerWritesIt(t *testing.T) {
 		t.Error("no role of the cases has a catalogue")
 	}
 }
+
+// alwaysHealthy answers every health probe, running nothing.
+type alwaysHealthy struct{}
+
+func (alwaysHealthy) Probe(context.Context, probe) bool { return true }
