@@ -34,6 +34,9 @@ type Request struct {
 	Script string `json:"script,omitempty"`
 	// At is the entry whose hash a journal_head request asks for.
 	At int64 `json:"at,omitempty"`
+	// Order is an undo order Nia signed (undo_order): nia-hostd verifies it
+	// itself, with the key pinned at enrollment.
+	Order *policy.Signed `json:"order,omitempty"`
 }
 
 // Response is what nia-hostd answers.
@@ -164,6 +167,9 @@ type Entry struct {
 	// Reloaded are the services an apply reloaded: its undo reloads them
 	// again, so they take the former files.
 	Reloaded []string `json:"reloaded,omitempty"`
+	// Order is the undo order, signed by Nia, an undo ran for: one order
+	// undoes once.
+	Order string `json:"order,omitempty"`
 }
 
 func (s *Server) now() time.Time {
@@ -209,6 +215,12 @@ func (s *Server) Do(ctx context.Context, req Request) Response {
 	}
 	if req.Action == PlanReviewAction {
 		return s.planReview(req.Name)
+	}
+	if req.Action == ChangesAction {
+		return s.changes()
+	}
+	if req.Action == UndoOrderAction {
+		return s.undoOrder(ctx, req.Order)
 	}
 	// Nothing runs that could not be written after the last entry.
 	if _, _, err := s.chain(); err != nil {
@@ -351,6 +363,15 @@ func (s *Server) removeAfter(ctx context.Context, name string, output *strings.B
 func (s *Server) Undo(ctx context.Context, id string) Response {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.undo(ctx, id, "")
+}
+
+// undo undoes entry id, for the undo order named, if any. Called with s.mu
+// held.
+func (s *Server) undo(ctx context.Context, id, order string) Response {
+	if _, _, err := s.chain(); err != nil {
+		return Response{Error: err.Error()}
+	}
 	entries, err := s.Journal()
 	if err != nil {
 		return Response{Error: err.Error()}
@@ -369,6 +390,7 @@ func (s *Server) Undo(ctx context.Context, id string) Response {
 	}
 	if target.Undo != nil && target.Undo.Action == RestoreAction {
 		entry := s.restoreEntry(*target)
+		entry.Order = order
 		var output strings.Builder
 		if entry.OK {
 			for _, name := range target.Reloaded {
@@ -389,7 +411,7 @@ func (s *Server) Undo(ctx context.Context, id string) Response {
 	runCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 	defer cancel()
 	out, runErr := s.Run.Run(runCtx, apt, "apt-get", "remove", "-y", "-q", "--", target.Undo.Name)
-	entry := Entry{ID: newID(), At: s.now().UTC(), Action: target.Undo.Action, Name: target.Undo.Name, OK: runErr == nil, Of: id}
+	entry := Entry{ID: newID(), At: s.now().UTC(), Action: target.Undo.Action, Name: target.Undo.Name, OK: runErr == nil, Of: id, Order: order}
 	if runErr != nil {
 		entry.Error = runErr.Error()
 	}

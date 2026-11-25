@@ -79,7 +79,12 @@ private code base; this repository is public.
   host action runs only against an unused release of the model path for the
   same tool and canonical arguments. Every action is journaled, in a hash
   chain that must verify before anything runs; its head goes to Nia with
-  each heartbeat, as a report that decides nothing.
+  each heartbeat, as a report that decides nothing, and so do the last
+  changes it can undo. A change is undone from Nia only on an order Nia
+  signed for this machine with the key pinned at enrollment, over its own
+  domain (`nia-undo/1`) so that no policy's signature passes for one,
+  living fifteen minutes at most: nia-hostd verifies it itself, nia-edge
+  only passes it, and one order undoes once.
 - The one script an agent writes, a dry run, runs only in a container: the
   machine's `/etc` and the catalogue's directories (`dirs`, never one of
   `closedTrees`: programs, libraries, `/boot`, `/root`, `/home`, the package
