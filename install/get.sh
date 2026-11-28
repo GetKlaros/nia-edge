@@ -22,7 +22,8 @@
 set -eu
 
 URL=${EUTHYNA_URL:-https://app.euthyna.io}
-REPO=${NIA_EDGE_REPO:-https://github.com/GetKlaros/nia-edge}
+# Releases as GitHub serves them (releases/download/<tag>/<file>), mirrored at get.euthyna.io.
+REPO=${NIA_EDGE_REPO:-https://get.euthyna.io}
 STATE=/var/lib/nia-edge/state.json
 
 say() { printf '%s\n' "$*"; }
@@ -48,8 +49,7 @@ esac
 # 1. The release, every file checked.
 VERSION=${NIA_EDGE_VERSION:-}
 if [ -z "$VERSION" ]; then
-  # The newest release, pre-releases included (GitHub's "latest" leaves them out).
-  VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO#https://github.com/}/releases?per_page=1" | sed -n 's/.*"tag_name": *"\(v[0-9][0-9.]*\)".*/\1/p' | head -n 1)
+  VERSION=$(curl -fsSL "$REPO/releases/latest" | head -n 1)
 fi
 case "$VERSION" in
   v[0-9]*.[0-9]*.[0-9]*) ;;
