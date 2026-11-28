@@ -98,9 +98,34 @@ if [ -f "$STATE" ]; then
   fi
   export NIA_URL="$URL"
   [ -z "$code_file" ] || export NIA_ENROLL_TOKEN_FILE="$code_file"
-  # The installer restarts the services: a recent failure must not hold them back.
-  systemctl reset-failed nia-edge.service nia-hostd.service nia-mcp.service 2> /dev/null || true
-  sh "$work/linux.sh" "${agent_user:---governed}"
+  install_here() {
+    # The installer restarts the services: a recent failure must not hold them back.
+    systemctl reset-failed nia-edge.service nia-hostd.service nia-mcp.service 2> /dev/null || true
+    { sh "$work/linux.sh" "${agent_user:---governed}"; echo "$?" > "$work/rc"; } 2>&1 | tee "$work/install.log"
+    # What Nia answered the first heartbeat of the service as it runs now.
+    beat=
+    for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+      run=$(systemctl show -p InvocationID --value nia-edge.service 2> /dev/null || true)
+      [ -n "$run" ] && beat=$(journalctl "_SYSTEMD_INVOCATION_ID=$run" -o cat 2> /dev/null | grep -m 1 'heartbeat' || true)
+      [ -z "$beat" ] || break
+      sleep 1
+    done
+    case "$beat" in *'refused (401'*) echo 'HTTP 401' >> "$work/install.log"; return 1 ;; esac
+    [ "$(cat "$work/rc")" = 0 ]
+  }
+  if ! install_here; then
+    # Nia no longer knows this key (the machine was revoked): a new code connects it again.
+    grep -q 'HTTP 401' "$work/install.log" || exit 1
+    say ""
+    say "Euthyna no longer accepts this machine's key: it was revoked. Copy a new code from $URL/console/connect."
+    if [ -z "${NIA_ENROLL_TOKEN_FILE:-}" ] && read_code "Connection code: "; then
+      mv "$STATE" "$STATE.replaced-$(date +%Y%m%d%H%M%S)"
+      export NIA_ENROLL_TOKEN_FILE="$code_file"
+      install_here || exit 1
+    else
+      fail "run this again and paste a new code when asked" 1
+    fi
+  fi
   say "Euthyna: nia-edge $before -> $(/usr/local/bin/nia-edge version)."
   exit 0
 fi
