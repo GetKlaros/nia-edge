@@ -1,7 +1,12 @@
 #!/bin/sh
 # Euthyna on this machine, in one command:
 #
-#   curl -fsSL https://get.euthyna.io | sudo sh
+#   curl -fsSL https://get.euthyna.io | sh
+#
+# It asks for the connection code as you, then runs the rest with sudo (the
+# code passes in a 0600 file, never on a command line): under sudo, a script
+# read from a pipe often cannot read the terminal. Run as root, it asks
+# there.
 #
 # It downloads the latest nia-edge release, checks every file against the
 # release's SHA256SUMS, then:
@@ -29,6 +34,8 @@ STATE=/var/lib/nia-edge/state.json
 say() { printf '%s\n' "$*"; }
 fail() { printf 'euthyna: %s\n' "$1" >&2; exit "${2:-2}"; }
 ask() {
+  # Asked already, before sudo: nothing more is read here.
+  [ -z "${EUTHYNA_ASKED:-}" ] || return 0
   # The script is piped to sh: questions go to, and answers come from, the terminal.
   printf '%s' "$1" > /dev/tty
   IFS= read -r answer < /dev/tty || answer=
@@ -36,7 +43,6 @@ ask() {
 }
 
 [ "$(uname -s)" = Linux ] || fail "this installer is for Linux; on a Mac, see https://docs.euthyna.io"
-[ "$(id -u)" -eq 0 ] || fail "run it with sudo: curl -fsSL https://get.euthyna.io | sudo sh"
 command -v curl > /dev/null || fail "curl is required"
 command -v sha256sum > /dev/null || fail "sha256sum is required"
 command -v systemctl > /dev/null || fail "systemd is required"
@@ -56,13 +62,16 @@ case "$VERSION" in
   *) fail "cannot find the latest release" ;;
 esac
 work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT INT TERM
+# What the run before sudo downloaded: removed with this run's own files.
+clean=
+case "${EUTHYNA_CLEAN:-}" in /tmp/tmp.*) [ "$(id -u)" -eq 0 ] && clean=$EUTHYNA_CLEAN ;; esac
+trap 'rm -rf "$work" ${clean:+"$clean"}' EXIT INT TERM
 chmod 0755 "$work"
 binary="nia-edge_${VERSION#v}_linux_$arch"
 say "Euthyna: nia-edge $VERSION"
 curl -fsSL -o "$work/SHA256SUMS" "$REPO/releases/download/$VERSION/SHA256SUMS" || fail "cannot download the release"
 : > "$work/expected"
-for file in "$binary" linux.sh firewall-linux.sh apparmor-linux.sh mcp-linux.sh hermes-linux.sh hermes-config.py openclaw-linux.sh openclaw-config.mjs update-linux.sh; do
+for file in "$binary" get.sh linux.sh firewall-linux.sh apparmor-linux.sh mcp-linux.sh hermes-linux.sh hermes-config.py openclaw-linux.sh openclaw-config.mjs update-linux.sh; do
   grep " $file\$" "$work/SHA256SUMS" >> "$work/expected" || continue
   curl -fsSL -o "$work/$file" "$REPO/releases/download/$VERSION/$file" || fail "cannot download $file"
 done
@@ -87,6 +96,16 @@ read_code() {
   return 0
 }
 
+# As a person: the code first, then the rest as root.
+if [ "$(id -u)" -ne 0 ]; then
+  command -v sudo > /dev/null || fail "run it as root"
+  say "Open $URL/console/connect, choose the agent's role, and copy its connection code."
+  read_code "Connection code (Enter if this machine is connected already): " || true
+  trap - EXIT INT TERM
+  exec sudo env EUTHYNA_ASKED=1 EUTHYNA_CLEAN="$work" EUTHYNA_URL="$URL" NIA_EDGE_REPO="$REPO" NIA_EDGE_VERSION="$VERSION" \
+    ${EUTHYNA_AGENT:+EUTHYNA_AGENT="$EUTHYNA_AGENT"} ${EUTHYNA_FROM:+EUTHYNA_FROM="$EUTHYNA_FROM"} \
+    ${EDGE_ALLOW_PRIVATE:+EDGE_ALLOW_PRIVATE="$EDGE_ALLOW_PRIVATE"} ${code_file:+NIA_ENROLL_TOKEN_FILE="$code_file"} sh "$work/get.sh"
+fi
 # 2. A machine already connected: update it, keep or renew its key.
 if [ -f "$STATE" ]; then
   agent_user=$(systemctl cat nia-agent-firewall.service 2> /dev/null | sed -n 's#.*firewall-linux.sh apply \([^ ]*\).*#\1#p' | head -n 1)
@@ -150,8 +169,9 @@ if [ -z "$agent" ]; then
   [ -n "$found" ] || fail "no agent found on this machine: install yours (Hermes, OpenClaw, Claude Code…), then run this again"
   # shellcheck disable=SC2086 # one word per agent found
   set -- $found
-  if [ "$#" -eq 1 ]; then
+  if [ "$#" -eq 1 ] || [ -n "${EUTHYNA_ASKED:-}" ]; then
     choice=1
+    [ "$#" -eq 1 ] || say "Agents found: $*; taking ${1%%:*} (${1#*:}). Another one: EUTHYNA_AGENT=<agent> EUTHYNA_FROM=<user>."
   else
     say "Agents found:"
     n=0
@@ -165,8 +185,8 @@ if [ -z "$agent" ]; then
   from=${from:-${item#*:}}
 fi
 
-say "Open $URL/console/connect, choose this agent's role, and copy the connection code."
-read_code "Connection code: " || fail "no code: nothing installed"
+[ -n "$code_file" ] || say "Open $URL/console/connect, choose this agent's role, and copy the connection code."
+read_code "Connection code: " || fail "no code: run this again and paste the code from $URL/console/connect"
 export NIA_URL="$URL" NIA_ENROLL_TOKEN_FILE="$code_file"
 case "$agent" in
   hermes | openclaw)
