@@ -130,6 +130,11 @@ main() {
     aarch64 | arm64) arch=arm64 ;;
     *) fail "no release for $(uname -m)" ;;
   esac
+  # Under "| sudo sh", what is typed may never reach this script (sudo-rs, the
+  # sudo of Ubuntu 25.10, passes nothing): it asks for sudo itself.
+  if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != root ] && [ ! -t 0 ] && [ -z "${NIA_ENROLL_TOKEN_FILE:-}" ]; then
+    fail "run it without sudo, it asks for it itself: curl -fsSL https://get.euthyna.io | sh"
+  fi
   if [ "$(id -u)" -eq 0 ]; then
     as_root() { "$@" < /dev/null; }
   else
