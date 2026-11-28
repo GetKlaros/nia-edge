@@ -220,7 +220,11 @@ func TestItReadsTheCatalogueAsTheServerWritesIt(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", role.Name, err)
 		}
-		if len(role.Host) == 0 {
+		// The console's job roles carry a catalogue of their own: parsed above, checked below.
+		if len(role.Host) == 0 || strings.HasPrefix(role.Name, "job-") {
+			if strings.HasPrefix(role.Name, "job-server") && (!c.HasService("nginx") || c.Etc == nil || len(c.Dirs) != 1) {
+				t.Errorf("%s: %+v", role.Name, c)
+			}
 			continue
 		}
 		found++
